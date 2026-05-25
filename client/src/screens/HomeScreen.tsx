@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -61,19 +62,27 @@ export function HomeScreen({ navigation }: any) {
   const flatRef = useRef<FlatList>(null);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (jumpToTop = false) => {
     if (!token) return;
     try {
       const result = await api.feed(token);
       setPosts(result.posts.length ? result.posts : demoPosts);
+      if (jumpToTop) {
+        setCurrentIndex(0);
+        requestAnimationFrame(() => {
+          flatRef.current?.scrollToOffset({ offset: 0, animated: false });
+        });
+      }
     } catch {
       setPosts(demoPosts);
     }
   }, [token]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load(true);
+    }, [load])
+  );
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0];
@@ -418,6 +427,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: fonts.bold,
     fontSize: 29,
+    lineHeight: 38,
     color: colors.black,
     letterSpacing: 0
   },

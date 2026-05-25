@@ -195,30 +195,36 @@ export function PublicProfileScreen({ route, navigation }: any) {
   const currentPosts = tab === "posts" ? posts : savedPosts;
 
   return (
-    <AppScreen>
-      <View style={styles.coverWrap}>
-        <Image
-          source={mediaSource(profile.coverUrl) ?? require("../../assets/figma-snapshots/image3.png")}
-          style={styles.cover}
-        />
-        <View style={styles.topActions}>
-          <Pressable style={styles.iconButton} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={22} color={colors.black} />
-          </Pressable>
-          <Pressable style={styles.iconButton} onPress={() => setMenuOpen(true)}>
-            <Ionicons name="ellipsis-vertical" size={20} color={colors.black} />
-          </Pressable>
-        </View>
-        <View style={styles.avatar}>
-          {mediaSource(profile.avatarUrl) ? (
-            <Image source={mediaSource(profile.avatarUrl)} style={styles.avatarImage} />
-          ) : (
-            <AppText variant="title" style={styles.avatarText}>
-              {profile.displayName.slice(0, 1).toUpperCase()}
-            </AppText>
-          )}
-        </View>
+    <AppScreen style={styles.screen}>
+      <View style={styles.topBar}>
+        <Pressable style={styles.backButton} onPress={() => navigation.goBack()} hitSlop={8}>
+          <Ionicons name="arrow-back" size={18} color={colors.white} />
+        </Pressable>
+        <AppText variant="title" style={styles.profileTitle} numberOfLines={1}>
+          {profile.displayName}
+        </AppText>
+        <Pressable style={styles.menuButton} onPress={() => setMenuOpen(true)} hitSlop={8}>
+          <Ionicons name="ellipsis-vertical" size={26} color={colors.black} />
+        </Pressable>
       </View>
+
+      <View style={styles.profileSummary}>
+        <View style={styles.avatarWrap}>
+          <View style={styles.avatar}>
+            {mediaSource(profile.avatarUrl) ? (
+              <Image source={mediaSource(profile.avatarUrl)} style={styles.avatarImage} />
+            ) : (
+              <AppText variant="title" style={styles.avatarText}>
+                {profile.displayName.slice(0, 1).toUpperCase()}
+              </AppText>
+            )}
+          </View>
+          {profile.isPremium ? (
+            <View style={styles.premiumBadge}>
+              <AppText variant="caption" style={styles.premiumText}>P</AppText>
+            </View>
+          ) : null}
+        </View>
 
       <View style={styles.profileHeader}>
         <View style={styles.nameBlock}>

@@ -81,14 +81,24 @@ function parseJson(text: string) {
 }
 
 export async function analyzeFoodImage(input: {
-  imagePath: string;
+  imagePath?: string;
+  imageData?: Buffer;
   mimeType: string;
 }): Promise<MealAnalysis> {
   if (!env.GEMINI_API_KEY) {
     return mockAnalysis();
   }
 
-  const data = await fs.readFile(input.imagePath, "base64");
+  const data = input.imageData
+    ? input.imageData.toString("base64")
+    : input.imagePath
+      ? await fs.readFile(input.imagePath, "base64")
+      : undefined;
+
+  if (!data) {
+    throw new Error("Image data is required for meal analysis");
+  }
+
   const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 
   async function run(model: string) {

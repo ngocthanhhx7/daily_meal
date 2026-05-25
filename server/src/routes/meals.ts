@@ -5,6 +5,7 @@ import { HttpError } from "../middleware/error.js";
 import { Meal } from "../models/Meal.js";
 import { Upload } from "../models/Upload.js";
 import { analyzeFoodImage } from "../services/gemini.js";
+import { readStoredUpload } from "../services/storage.js";
 
 export const mealsRouter = Router();
 
@@ -21,8 +22,10 @@ mealsRouter.post("/analyze", requireAuth, async (req, res, next) => {
       throw new HttpError(404, "Uploaded image not found");
     }
 
+    const imageData = await readStoredUpload(upload);
     const result = await analyzeFoodImage({
-      imagePath: upload.localPath,
+      imageData,
+      imagePath: upload.localPath ?? undefined,
       mimeType: upload.mime
     });
 

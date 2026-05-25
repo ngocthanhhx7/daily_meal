@@ -106,7 +106,10 @@ export type Post = {
 export type Upload = {
   _id: string;
   url: string;
-  localPath: string;
+  localPath?: string;
+  storageProvider?: "local" | "s3";
+  s3Bucket?: string;
+  s3Key?: string;
   mime: string;
   size: number;
 };

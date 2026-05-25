@@ -3,6 +3,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { uploadImage } from "../middleware/upload.js";
 import { HttpError } from "../middleware/error.js";
 import { Upload } from "../models/Upload.js";
+import { storeUploadedImage } from "../services/storage.js";
 
 export const uploadsRouter = Router();
 
@@ -13,11 +14,11 @@ uploadsRouter.post("/", requireAuth, uploadImage.single("image"), async (req, re
     }
 
     const category = typeof req.query.category === "string" ? req.query.category : "other";
+    const stored = await storeUploadedImage(req.file, category);
     const upload = await Upload.create({
       owner: req.user?.id,
       category,
-      url: `/uploads/${req.file.filename}`,
-      localPath: req.file.path,
+      ...stored,
       originalName: req.file.originalname,
       mime: req.file.mimetype,
       size: req.file.size

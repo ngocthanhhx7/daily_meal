@@ -9,7 +9,15 @@ const uploadSchema = new Schema(
       default: "other"
     },
     url: { type: String, required: true },
-    localPath: { type: String, required: true },
+    storageProvider: {
+      type: String,
+      enum: ["local", "s3"],
+      default: "local"
+    },
+    localPath: { type: String },
+    s3Bucket: { type: String },
+    s3Key: { type: String },
+    etag: { type: String },
     originalName: { type: String, required: true },
     mime: { type: String, required: true },
     size: { type: Number, required: true }

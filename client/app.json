@@ -11,7 +11,12 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.dailymeal.app"
+      "bundleIdentifier": "com.dailymeal.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "package": "com.dailymeal.app",

@@ -18,6 +18,20 @@ const imageSchema = z.object({
   uploadId: z.string().optional()
 });
 
+const imageTransformSchema = z.object({
+  scale: z.number().min(0.5).max(3).default(1),
+  rotation: z.number().min(-180).max(180).default(0),
+  offsetX: z.number().min(-120).max(120).default(0),
+  offsetY: z.number().min(-120).max(120).default(0)
+});
+
+const stickerPlacementSchema = z.object({
+  x: z.number().min(0).max(1).default(0.78),
+  y: z.number().min(0).max(1).default(0.78),
+  scale: z.number().min(0.5).max(2).default(1),
+  rotation: z.number().min(-180).max(180).default(0)
+});
+
 const nutritionSchema = z
   .object({
     calories: z.number().nonnegative().default(0),
@@ -37,18 +51,21 @@ const recipeSchema = z
   .optional();
 
 const postBodySchema = z.object({
-  images: z.array(imageSchema).min(1).max(10),
+  images: z.array(imageSchema).min(1).max(3),
+  layout: z.enum(["stack", "grid", "cascade"]).default("stack"),
+  imageTransforms: z.array(imageTransformSchema).max(3).default([]),
   caption: z.string().max(2000).default(""),
   tags: z.array(z.string()).max(20).default([]),
   recipe: recipeSchema,
   nutritionSummary: nutritionSchema,
   mealId: z.string().optional(),
   stickerId: z.string().optional(),
+  stickerPlacement: stickerPlacementSchema.optional(),
   visibility: z.enum(["public", "private"]).default("public")
 });
 
 const postUpdateSchema = postBodySchema.partial().extend({
-  images: z.array(imageSchema).min(1).max(10).optional()
+  images: z.array(imageSchema).min(1).max(3).optional()
 });
 
 const commentBodySchema = z.object({
@@ -193,7 +210,7 @@ postsRouter.get("/search", requireAuth, async (req, res, next) => {
 postsRouter.post("/", requireAuth, async (req, res, next) => {
   try {
     const body = postBodySchema.parse(req.body);
-    const maxImages = req.user?.isPremium ? 10 : 3;
+    const maxImages = 3;
 
     if (body.images.length > maxImages) {
       throw new HttpError(403, `This account can upload up to ${maxImages} images per post`);
@@ -232,7 +249,7 @@ postsRouter.patch("/:id", requireAuth, async (req, res, next) => {
       throw new HttpError(403, "Only the owner can edit this post");
     }
 
-    if (body.images && body.images.length > (req.user?.isPremium ? 10 : 3)) {
+    if (body.images && body.images.length > 3) {
       throw new HttpError(403, "Image limit exceeded for this account");
     }
 

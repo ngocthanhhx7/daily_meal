@@ -23,7 +23,13 @@ export const demoPosts: Post[] = [
   {
     _id: "demo-post-1",
     author: demoUser,
-    images: [],
+    images: [{ url: "" }, { url: "" }, { url: "" }],
+    layout: "grid",
+    imageTransforms: [
+      { scale: 1, rotation: 0, offsetX: 0, offsetY: 0 },
+      { scale: 1, rotation: 0, offsetX: 0, offsetY: 0 },
+      { scale: 1, rotation: 0, offsetX: 0, offsetY: 0 }
+    ],
     caption: "Nó ngon phải biết. Ăn nhẹ nhưng vẫn đủ protein cho bữa trưa.",
     tags: ["healthy", "protein", "homecook"],
     recipe: {
@@ -37,13 +43,6 @@ export const demoPosts: Post[] = [
       carbs: 42,
       fat: 18,
       confidence: 0.7
-    },
-    stickerId: {
-      _id: "sticker-demo",
-      key: "yellow-buddy",
-      name: "Bé màu vàng",
-      assetPath: "/assets/stickers/yellow-buddy.png",
-      premiumOnly: true
     },
     visibility: "public",
     stats: {

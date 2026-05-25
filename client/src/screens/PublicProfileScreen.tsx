@@ -226,49 +226,50 @@ export function PublicProfileScreen({ route, navigation }: any) {
           ) : null}
         </View>
 
-      <View style={styles.profileHeader}>
-        <View style={styles.nameBlock}>
-          <AppText variant="title" numberOfLines={2}>
+        <View style={styles.summaryContent}>
+          <AppText variant="button" style={styles.displayName} numberOfLines={1}>
             {profile.displayName}
           </AppText>
-          <AppText muted numberOfLines={2}>
-            {profile.bio || "Daily Meal creator"}
-          </AppText>
-          {publicBirthday ? <AppText variant="caption">{publicBirthday}</AppText> : null}
-        </View>
-        <View style={styles.badge}>
-          <AppText variant="caption">{profile.isPremium ? "Premium" : "Free"}</AppText>
+          <View style={styles.stats}>
+            <StatItem label="Bài viết" value={profile.counts?.posts ?? posts.length} />
+            <StatItem label="Theo dõi" value={profile.counts?.followers ?? 0} />
+            <StatItem label="Đang TD" value={profile.counts?.following ?? 0} />
+          </View>
         </View>
       </View>
 
-      <View style={styles.stats}>
-        <StatItem label="Bài viết" value={profile.counts?.posts ?? posts.length} />
-        <StatItem label="Theo dõi" value={profile.counts?.followers ?? 0} />
-        <StatItem label="Đang theo" value={profile.counts?.following ?? 0} />
-        <StatItem label="Bạn bè" value={profile.counts?.friends ?? 0} />
+      <View style={styles.bioBlock}>
+        <AppText style={styles.bioText} numberOfLines={2}>
+          <AppText style={styles.handleText}>{profileHandle(profile)}</AppText>
+          {` ${profile.bio || "Daily Meal creator chia sẻ món ngon mỗi ngày."}`}
+        </AppText>
+        {publicBirthday ? (
+          <AppText variant="caption" muted>
+            {publicBirthday}
+          </AppText>
+        ) : null}
       </View>
 
       {profile.id !== user?.id ? (
         <View style={styles.actionRow}>
-          <AppButton
+          <ProfileActionButton
             label={followLabel(profile)}
-            variant={profile.relationship?.isFollowing ? "ghost" : "primary"}
+            variant={profile.relationship?.isFollowing ? "light" : "blue"}
             onPress={toggleFollow}
             loading={loadingFollow}
-            style={styles.actionButton}
+            disabled={profile.viewerInteraction?.blocked}
           />
-          <AppButton
+          <ProfileActionButton
             label="Nhắn tin"
-            variant="secondary"
+            variant="light"
             onPress={openChat}
             disabled={profile.viewerInteraction?.blocked}
-            style={styles.actionButton}
           />
         </View>
       ) : (
-        <AppButton
+        <ProfileActionButton
           label="Đây là hồ sơ của bạn"
-          variant="ghost"
+          variant="light"
           onPress={() => navigation.navigate("MainTabs", { screen: "Profile" })}
         />
       )}
@@ -316,11 +317,52 @@ export function PublicProfileScreen({ route, navigation }: any) {
   );
 }
 
+function ProfileActionButton({
+  label,
+  variant,
+  onPress,
+  loading,
+  disabled
+}: {
+  label: string;
+  variant: "blue" | "light";
+  onPress?: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+}) {
+  const isBlue = variant === "blue";
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled || loading}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.profileActionButton,
+        isBlue ? styles.profileActionBlue : styles.profileActionLight,
+        (pressed || disabled) && styles.profileActionDisabled
+      ]}
+    >
+      {loading ? (
+        <ActivityIndicator color={isBlue ? colors.white : colors.ink} />
+      ) : (
+        <AppText
+          variant="button"
+          numberOfLines={1}
+          style={isBlue ? styles.profileActionBlueText : styles.profileActionLightText}
+        >
+          {label}
+        </AppText>
+      )}
+    </Pressable>
+  );
+}
+
 function StatItem({ label, value }: { label: string; value: number }) {
   return (
     <View style={styles.statItem}>
-      <AppText variant="subtitle">{value}</AppText>
-      <AppText variant="caption" muted>
+      <AppText style={styles.statValue}>{formatCount(value)}</AppText>
+      <AppText style={styles.statLabel} numberOfLines={1}>
         {label}
       </AppText>
     </View>
@@ -408,46 +450,54 @@ function MenuItem({
 }
 
 const styles = StyleSheet.create({
-  coverWrap: {
-    height: 190,
-    borderRadius: 8,
-    overflow: "visible",
-    marginBottom: 28
+  screen: {
+    paddingTop: 10,
+    gap: 14
   },
-  cover: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 8,
-    backgroundColor: colors.canvasStrong
-  },
-  topActions: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    right: 12,
+  topBar: {
     flexDirection: "row",
-    justifyContent: "space-between"
+    alignItems: "center"
   },
-  iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  backButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.86)"
+    backgroundColor: colors.black
+  },
+  profileTitle: {
+    flex: 1,
+    color: colors.green,
+    fontFamily: fonts.bold,
+    fontSize: 30,
+    lineHeight: 36,
+    marginHorizontal: 10
+  },
+  menuButton: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  profileSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  avatarWrap: {
+    width: 78,
+    height: 78
   },
   avatar: {
-    position: "absolute",
-    left: 18,
-    bottom: -34,
-    width: 86,
-    height: 86,
-    borderRadius: 43,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: colors.green,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 4,
-    borderColor: colors.canvas,
+    borderWidth: 1,
+    borderColor: colors.black,
     overflow: "hidden"
   },
   avatarImage: {
@@ -457,52 +507,118 @@ const styles = StyleSheet.create({
   avatarText: {
     color: colors.white
   },
-  profileHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12
+  premiumBadge: {
+    position: "absolute",
+    top: 0,
+    right: 1,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.yellow,
+    borderWidth: 1,
+    borderColor: colors.white
   },
-  nameBlock: {
+  premiumText: {
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 9,
+    lineHeight: 12
+  },
+  summaryContent: {
     flex: 1,
-    gap: 5
+    minWidth: 0,
+    gap: 7
   },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.yellow
+  displayName: {
+    color: colors.black,
+    fontFamily: fonts.semibold
   },
   stats: {
     flexDirection: "row",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
-    overflow: "hidden"
+    alignItems: "center",
+    gap: 8
   },
   statItem: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 12,
-    gap: 2
+    minWidth: 0,
+    gap: 1
+  },
+  statValue: {
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    lineHeight: 19
+  },
+  statLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    lineHeight: 13,
+    textAlign: "center"
+  },
+  bioBlock: {
+    gap: 3
+  },
+  bioText: {
+    color: colors.ink,
+    fontSize: 14,
+    lineHeight: 20
+  },
+  handleText: {
+    color: "#A342FF",
+    fontFamily: fonts.regular
   },
   actionRow: {
     flexDirection: "row",
-    gap: 10
+    gap: 18
   },
-  actionButton: {
-    flex: 1
+  profileActionButton: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    shadowColor: colors.black,
+    shadowOpacity: 0.16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4
+  },
+  profileActionBlue: {
+    backgroundColor: "#5DA4FF"
+  },
+  profileActionLight: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)"
+  },
+  profileActionDisabled: {
+    opacity: 0.6
+  },
+  profileActionBlueText: {
+    color: colors.white,
+    fontFamily: fonts.semibold
+  },
+  profileActionLightText: {
+    color: colors.black,
+    fontFamily: fonts.semibold
   },
   tabBar: {
     flexDirection: "row",
+    justifyContent: "center",
+    gap: 34,
     borderBottomWidth: 1,
-    borderBottomColor: colors.line
+    borderBottomColor: colors.line,
+    marginTop: 4
   },
   tabButton: {
-    flex: 1,
+    width: 68,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 44
+    minHeight: 54
   },
   tabIndicator: {
     position: "absolute",
@@ -515,31 +631,34 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12
+    justifyContent: "space-between",
+    rowGap: 24
   },
   gridItem: {
-    width: "48%",
-    borderRadius: 8,
-    overflow: "hidden",
+    width: "47.5%",
+    borderRadius: 14,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line
+    shadowColor: colors.black,
+    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 10,
+    elevation: 5
   },
   gridImage: {
     width: "100%",
-    aspectRatio: 0.82,
+    aspectRatio: 0.78,
+    borderRadius: 14,
     backgroundColor: colors.canvasStrong
   },
   gridCaption: {
     position: "absolute",
-    top: 8,
+    top: 10,
     left: 8,
-    right: 8,
-    alignSelf: "flex-start",
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.88)",
-    paddingHorizontal: 8,
-    paddingVertical: 4
+    maxWidth: "86%",
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    paddingHorizontal: 11,
+    paddingVertical: 5
   },
   modalBackdrop: {
     flex: 1,

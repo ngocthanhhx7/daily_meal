@@ -1,6 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -12,113 +12,25 @@ import {
   ViewToken
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { api } from "../api/client";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
 import { demoPosts } from "../data/sample";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
-import type { Post } from "../types/api";
+import type { Post, PostLayout } from "../types/api";
+import { stickerImageSource } from "../utils/stickers";
 
-const { width: SW } = Dimensions.get("window");
-const CARD_W = SW - 32;
-const IMAGE_H = Math.round(CARD_W * 0.76);
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const ARTWORK_WIDTH = Math.min(SCREEN_WIDTH - 52, 330);
+const ARTWORK_HEIGHT = Math.round(ARTWORK_WIDTH * 1.03);
 
-// ── Image resolver ──────────────────────────────────────────────────────────
 const DEMO_IMAGES = [
   require("../../assets/figma-snapshots/image1.png"),
   require("../../assets/figma-snapshots/image3.png"),
   require("../../assets/figma-snapshots/image10.png")
 ];
 
-function resolveImage(post: Post, index: number) {
-  const first = post.images[0]?.url;
-  if (!first) return DEMO_IMAGES[index % DEMO_IMAGES.length];
-  if (first.startsWith("http")) return { uri: first };
-  return { uri: `${api.baseUrl}${first}` };
-}
-
-// ── Card rotation helper ─────────────────────────────────────────────────────
-function cardRotation(index: number): string {
-  return index % 2 === 0 ? "-1.8deg" : "1.8deg";
-}
-
-// ── PostSlide ────────────────────────────────────────────────────────────────
-type PostSlideProps = {
-  post: Post;
-  index: number;
-  slideHeight: number;
-  onPress?: () => void;
-};
-
-function PostSlide({ post, index, slideHeight, onPress }: PostSlideProps) {
-  const hasSticker = !!post.stickerId;
-
-  return (
-    <View style={[styles.slide, { height: slideHeight }]}>
-      <Pressable
-        style={[styles.card, { transform: [{ rotate: cardRotation(index) }] }]}
-        onPress={onPress}
-      >
-        {/* ── Image ── */}
-        <View style={styles.imageWrap}>
-          <Image
-            source={resolveImage(post, index)}
-            style={styles.image}
-            resizeMode="cover"
-          />
-
-          {/* Stats chip — top right */}
-          <View style={styles.statsChip}>
-            <AppText style={styles.statsNum}>{post.stats?.comments ?? 0}</AppText>
-            <Ionicons name="chatbubble" size={11} color={colors.ink} />
-            <AppText style={styles.statsNum}>{post.stats?.likes ?? 0}</AppText>
-            <Ionicons name="heart" size={11} color={colors.red} />
-          </View>
-
-          {/* Calo badge */}
-          {post.nutritionSummary?.calories ? (
-            <View style={styles.caloBadge}>
-              <AppText style={styles.caloText}>
-                {Math.round(post.nutritionSummary.calories)} Calo
-              </AppText>
-            </View>
-          ) : null}
-        </View>
-
-        {/* ── Caption ── */}
-        <View style={styles.captionArea}>
-          <AppText numberOfLines={2} style={styles.captionText}>
-            {post.caption || "Một bữa ăn ngon trong ngày 🍽️"}
-          </AppText>
-        </View>
-
-        {/* ── Author chip ── */}
-        <View style={styles.authorArea}>
-          <View style={styles.authorChip}>
-            {hasSticker && <AppText style={styles.fireEmoji}>🔥</AppText>}
-            <View style={styles.authorAvatar}>
-              <AppText style={styles.authorAvatarText}>
-                {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
-              </AppText>
-            </View>
-            <AppText style={styles.authorName} numberOfLines={1}>
-              {post.author?.displayName ?? "Daily Meal"}
-            </AppText>
-          </View>
-        </View>
-      </Pressable>
-
-      {/* Swipe hint */}
-      <View style={styles.swipeHint}>
-        <Ionicons name="chevron-up" size={16} color={colors.muted} />
-      </View>
-    </View>
-  );
-}
-
-// ── Category Modal ────────────────────────────────────────────────────────────
 const CATEGORY_ITEMS = [
   { icon: "search-outline" as const, label: "Tìm kiếm", screen: "Search" },
   { icon: "chatbubbles-outline" as const, label: "Tin nhắn", screen: "Inbox" },
@@ -126,75 +38,28 @@ const CATEGORY_ITEMS = [
   { icon: "settings-outline" as const, label: "Cài đặt", screen: "Settings" }
 ] as const;
 
-function CategoryModal({
-  visible,
-  onClose,
-  onNavigate
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onNavigate: (screen: string) => void;
-}) {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable
-          style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}
-          onPress={() => {}}
-        >
-          <View style={styles.sheetHandle} />
-          <AppText variant="subtitle" style={styles.sheetTitle}>
-            Tính năng
-          </AppText>
-          <View style={styles.categoryGrid}>
-            {CATEGORY_ITEMS.map((item) => (
-              <Pressable
-                key={item.label}
-                style={styles.categoryItem}
-                onPress={() => {
-                  onClose();
-                  onNavigate(item.screen);
-                }}
-              >
-                <View style={styles.categoryIconWrap}>
-                  <Ionicons name={item.icon} size={26} color={colors.ink} />
-                </View>
-                <AppText variant="caption" style={styles.categoryLabel}>
-                  {item.label}
-                </AppText>
-              </Pressable>
-            ))}
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
+function imageSource(post: Post, index: number) {
+  const url = post.images[index]?.url ?? post.images[0]?.url;
+  if (!url) return DEMO_IMAGES[index % DEMO_IMAGES.length];
+  if (url.startsWith("http")) return { uri: url };
+  return { uri: `${api.baseUrl}${url}` };
 }
 
-// ── HomeScreen ────────────────────────────────────────────────────────────────
+function cardRotation(index: number) {
+  return index % 2 === 0 ? "-1.5deg" : "1.5deg";
+}
+
 export function HomeScreen({ navigation }: any) {
   const { token, user } = useAuth();
   const insets = useSafeAreaInsets();
-
   const [posts, setPosts] = useState<Post[]>(demoPosts);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [listHeight, setListHeight] = useState(0);
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [showCategory, setShowCategory] = useState(false);
-
   const flatRef = useRef<FlatList>(null);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
-
-  const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      const first = viewableItems[0];
-      if (first?.index != null) setCurrentIndex(first.index);
-    },
-    []
-  );
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -210,6 +75,11 @@ export function HomeScreen({ navigation }: any) {
     load();
   }, [load]);
 
+  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const first = viewableItems[0];
+    if (first?.index != null) setCurrentIndex(first.index);
+  }, []);
+
   const currentPost = posts[currentIndex];
   const isLiked = currentPost ? likedSet.has(currentPost._id) : false;
   const isSaved = currentPost ? savedSet.has(currentPost._id) : false;
@@ -217,47 +87,22 @@ export function HomeScreen({ navigation }: any) {
   async function handleLike() {
     if (!token || !currentPost) return;
     const postId = currentPost._id;
-    setLikedSet((s) => {
-      const next = new Set(s);
-      if (next.has(postId)) next.delete(postId);
-      else next.add(postId);
-      return next;
-    });
+    setLikedSet((current) => toggleSet(current, postId));
     try {
-      if (!postId.startsWith("demo")) {
-        await api.likePost(token, postId);
-      }
+      if (!postId.startsWith("demo")) await api.likePost(token, postId);
     } catch {
-      // revert
-      setLikedSet((s) => {
-        const next = new Set(s);
-        if (next.has(postId)) next.delete(postId);
-        else next.add(postId);
-        return next;
-      });
+      setLikedSet((current) => toggleSet(current, postId));
     }
   }
 
   async function handleSave() {
     if (!token || !currentPost) return;
     const postId = currentPost._id;
-    setSavedSet((s) => {
-      const next = new Set(s);
-      if (next.has(postId)) next.delete(postId);
-      else next.add(postId);
-      return next;
-    });
+    setSavedSet((current) => toggleSet(current, postId));
     try {
-      if (!postId.startsWith("demo")) {
-        await api.savePost(token, postId);
-      }
+      if (!postId.startsWith("demo")) await api.savePost(token, postId);
     } catch {
-      setSavedSet((s) => {
-        const next = new Set(s);
-        if (next.has(postId)) next.delete(postId);
-        else next.add(postId);
-        return next;
-      });
+      setSavedSet((current) => toggleSet(current, postId));
     }
   }
 
@@ -272,122 +117,290 @@ export function HomeScreen({ navigation }: any) {
       style={styles.background}
       resizeMode="cover"
     >
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      {/* ── HEADER ────────────────────────────────────── */}
-      <View style={styles.header}>
-        <AppText style={styles.headerTitle}>Bảng tin</AppText>
-        <View style={styles.headerRight}>
-          <Pressable style={styles.headerIconBtn} hitSlop={8}>
-            <Ionicons name="notifications-outline" size={21} color={colors.ink} />
-          </Pressable>
-          <Pressable
-            style={styles.headerAvatar}
-            onPress={() => navigation.navigate("Profile")}
-            hitSlop={8}
-          >
-            <AppText style={styles.headerAvatarText}>
-              {user?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
-            </AppText>
-          </Pressable>
+      <SafeAreaView style={styles.safe} edges={["top"]}>
+        <View style={styles.header}>
+          <AppText style={styles.headerTitle}>Bảng tin</AppText>
+          <View style={styles.headerRight}>
+            <Pressable style={styles.headerIconBtn} hitSlop={8}>
+              <Ionicons name="notifications" size={18} color={colors.black} />
+            </Pressable>
+            <Pressable style={styles.headerIconBtn} onPress={() => navigation.navigate("Profile")} hitSlop={8}>
+              <Ionicons name="person" size={19} color={colors.black} />
+            </Pressable>
+          </View>
         </View>
-      </View>
 
-      {/* ── FEED ─────────────────────────────────────── */}
-      <View
-        style={styles.feedWrap}
-        onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}
-      >
-        {listHeight > 0 && posts.length > 0 ? (
-          <FlatList
-            ref={flatRef}
-            data={posts}
-            keyExtractor={(item) => item._id}
-            renderItem={({ item, index }) => (
-              <PostSlide
-                post={item}
-                index={index}
-                slideHeight={listHeight}
-                onPress={() => navigation.navigate("Comments", { post: item })}
-              />
-            )}
-            pagingEnabled
-            showsVerticalScrollIndicator={false}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={viewabilityConfig}
-            getItemLayout={(_, index) => ({
-              length: listHeight,
-              offset: listHeight * index,
-              index
-            })}
-            snapToInterval={listHeight}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            disableIntervalMomentum
-            extraData={currentIndex}
-          />
-        ) : null}
-      </View>
+        <View style={styles.feedWrap} onLayout={(event) => setListHeight(event.nativeEvent.layout.height)}>
+          {listHeight > 0 ? (
+            <FlatList
+              ref={flatRef}
+              data={posts}
+              keyExtractor={(item) => item._id}
+              renderItem={({ item, index }) => (
+                <PostSlide
+                  post={item}
+                  index={index}
+                  slideHeight={listHeight}
+                  onPress={() => navigation.navigate("Comments", { post: item })}
+                  onRecipePress={() => navigation.navigate("Recipe", { post: item })}
+                />
+              )}
+              pagingEnabled
+              showsVerticalScrollIndicator={false}
+              onViewableItemsChanged={onViewableItemsChanged}
+              viewabilityConfig={viewabilityConfig}
+              getItemLayout={(_, index) => ({
+                length: listHeight,
+                offset: listHeight * index,
+                index
+              })}
+              snapToInterval={listHeight}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              disableIntervalMomentum
+              extraData={currentIndex}
+            />
+          ) : null}
+        </View>
 
-      {/* ── BOTTOM ACTION BAR ────────────────────────── */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
-        {/* Grid / Category */}
-        <Pressable
-          style={styles.squareBtn}
-          onPress={() => setShowCategory(true)}
-          hitSlop={6}
-        >
-          <Ionicons name="grid-outline" size={22} color={colors.ink} />
-        </Pressable>
-
-        {/* Action pill */}
-        <View style={styles.actionPill}>
-          <Pressable style={styles.pillBtn} onPress={handleComment} hitSlop={4}>
-            <Ionicons name="chatbubble" size={19} color={colors.white} />
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
+          <Pressable style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
+            <Ionicons name="grid" size={20} color={colors.black} />
           </Pressable>
 
-          <View style={styles.pillDivider} />
+          <View style={styles.actionPill}>
+            <Pressable style={styles.pillBtn} onPress={handleComment} hitSlop={4}>
+              <Ionicons name="chatbubble" size={17} color={colors.white} />
+            </Pressable>
+            <Pressable style={styles.pillBtn} onPress={handleLike} hitSlop={4}>
+              <Ionicons name="heart" size={18} color={isLiked ? colors.red : colors.red} />
+            </Pressable>
+            <Pressable style={styles.pillBtn} onPress={handleSave} hitSlop={4}>
+              <Ionicons name="bookmark" size={17} color={isSaved ? colors.yellow : colors.yellow} />
+            </Pressable>
+          </View>
 
-          <Pressable style={styles.pillBtn} onPress={handleLike} hitSlop={4}>
-            <Ionicons
-              name={isLiked ? "heart" : "heart-outline"}
-              size={19}
-              color={isLiked ? colors.red : colors.white}
-            />
-          </Pressable>
-
-          <View style={styles.pillDivider} />
-
-          <Pressable style={styles.pillBtn} onPress={handleSave} hitSlop={4}>
-            <Ionicons
-              name={isSaved ? "bookmark" : "bookmark-outline"}
-              size={19}
-              color={isSaved ? colors.yellow : colors.white}
-            />
+          <Pressable style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
+            <Ionicons name="camera" size={20} color={colors.black} />
           </Pressable>
         </View>
 
-        {/* Camera / Create */}
-        <Pressable
-          style={styles.squareBtn}
-          onPress={() => navigation.navigate("Create")}
-          hitSlop={6}
-        >
-          <Ionicons name="camera-outline" size={22} color={colors.ink} />
-        </Pressable>
-      </View>
-
-      {/* ── CATEGORY MODAL ───────────────────────────── */}
-      <CategoryModal
-        visible={showCategory}
-        onClose={() => setShowCategory(false)}
-        onNavigate={(screen) => navigation.navigate(screen)}
-      />
-    </SafeAreaView>
+        <CategoryModal
+          visible={showCategory}
+          onClose={() => setShowCategory(false)}
+          onNavigate={(screen) => navigation.navigate(screen)}
+        />
+      </SafeAreaView>
     </ImageBackground>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+function PostSlide({
+  post,
+  index,
+  slideHeight,
+  onPress,
+  onRecipePress
+}: {
+  post: Post;
+  index: number;
+  slideHeight: number;
+  onPress: () => void;
+  onRecipePress: () => void;
+}) {
+  return (
+    <View style={[styles.slide, { height: slideHeight }]}>
+      <Pressable style={styles.artworkPress} onPress={onPress}>
+        <View style={[styles.feedArtwork, { transform: [{ rotate: cardRotation(index) }] }]}>
+          <FeedArtwork post={post} />
+
+          {post.recipe?.title || post.recipe?.ingredients?.length ? (
+            <Pressable style={styles.recipeChip} onPress={onRecipePress}>
+              <AppText style={styles.recipeChipText}>Công thức</AppText>
+            </Pressable>
+          ) : null}
+
+          <View style={styles.statsChip}>
+            <AppText style={styles.statsNum}>{post.stats?.comments ?? 0}</AppText>
+            <Ionicons name="chatbubble-outline" size={12} color={colors.black} />
+            <AppText style={styles.statsNum}>{post.stats?.likes ?? 0}</AppText>
+            <Ionicons name="heart" size={12} color={colors.red} />
+          </View>
+
+          {post.nutritionSummary?.calories ? (
+            <View style={styles.caloBadge}>
+              <AppText style={styles.caloText}>{Math.round(post.nutritionSummary.calories)} Calo</AppText>
+            </View>
+          ) : null}
+
+          <View style={styles.captionChip}>
+            <Ionicons name="location" size={13} color={colors.black} />
+            <AppText numberOfLines={1} style={styles.captionText}>
+              {post.caption || "Nó ngon phải biết"}
+            </AppText>
+          </View>
+        </View>
+      </Pressable>
+
+      <View style={styles.authorChip}>
+        <View style={styles.authorAvatar}>
+          <AppText style={styles.authorAvatarText}>
+            {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
+          </AppText>
+        </View>
+        <AppText style={styles.authorName} numberOfLines={1}>
+          {post.author?.displayName ?? "Daily Meal"}
+        </AppText>
+      </View>
+
+      <View style={styles.swipeHint}>
+        <Ionicons name="chevron-up" size={16} color={colors.muted} />
+      </View>
+    </View>
+  );
+}
+
+function FeedArtwork({ post }: { post: Post }) {
+  const imageCount = Math.max(post.images.length, 1);
+  const layout = post.layout ?? "stack";
+  const stickerSource = stickerImageSource(post.stickerId);
+  const placement = post.stickerPlacement ?? { x: 0.78, y: 0.78, scale: 1, rotation: 0 };
+
+  return (
+    <View style={styles.feedArtworkCanvas}>
+      {Array.from({ length: Math.min(imageCount, 3) }).map((_, index) => {
+        const transform = post.imageTransforms?.[index] ?? {
+          scale: 1,
+          rotation: 0,
+          offsetX: 0,
+          offsetY: 0
+        };
+        const { baseRotation, ...position } = feedImagePosition(layout, imageCount, index);
+        return (
+          <View
+            key={`${post._id}-${index}`}
+            style={[
+              styles.feedImageWrap,
+              position,
+              {
+                zIndex: 10 + index,
+                transform: [
+                  { translateX: transform.offsetX * 0.35 },
+                  { translateY: transform.offsetY * 0.35 },
+                  { rotate: `${baseRotation + transform.rotation}deg` },
+                  { scale: transform.scale }
+                ]
+              }
+            ]}
+          >
+            <Image source={imageSource(post, index)} style={styles.feedImage} resizeMode="cover" />
+          </View>
+        );
+      })}
+
+      {stickerSource ? (
+        <Image
+          source={stickerSource}
+          style={[
+            styles.feedSticker,
+            {
+              left: `${placement.x * 100}%`,
+              top: `${placement.y * 100}%`,
+              transform: [
+                { translateX: -25 },
+                { translateY: -25 },
+                { rotate: `${placement.rotation}deg` },
+                { scale: placement.scale }
+              ]
+            }
+          ]}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function feedImagePosition(layout: PostLayout, count: number, index: number) {
+  if (count === 1) {
+    return { width: "78%" as const, height: "78%" as const, left: "11%" as const, top: "10%" as const, baseRotation: 0 };
+  }
+
+  if (layout === "grid") {
+    if (count === 2) {
+      return [
+        { width: "48%" as const, height: "62%" as const, left: "4%" as const, top: "20%" as const, baseRotation: -1 },
+        { width: "48%" as const, height: "62%" as const, left: "48%" as const, top: "20%" as const, baseRotation: 2 }
+      ][index];
+    }
+    return [
+      { width: "55%" as const, height: "55%" as const, left: "7%" as const, top: "14%" as const, baseRotation: -2 },
+      { width: "44%" as const, height: "44%" as const, left: "50%" as const, top: "28%" as const, baseRotation: 2 },
+      { width: "36%" as const, height: "36%" as const, left: "28%" as const, top: "61%" as const, baseRotation: -4 }
+    ][index];
+  }
+
+  if (layout === "cascade") {
+    return [
+      { width: "68%" as const, height: "68%" as const, left: "10%" as const, top: "11%" as const, baseRotation: -6 },
+      { width: "68%" as const, height: "68%" as const, left: "22%" as const, top: "18%" as const, baseRotation: 5 },
+      { width: "56%" as const, height: "56%" as const, left: "36%" as const, top: "35%" as const, baseRotation: 8 }
+    ][index];
+  }
+
+  return [
+    { width: "74%" as const, height: "74%" as const, left: "10%" as const, top: "12%" as const, baseRotation: -4 },
+    { width: "74%" as const, height: "74%" as const, left: "17%" as const, top: "8%" as const, baseRotation: 6 },
+    { width: "74%" as const, height: "74%" as const, left: "13%" as const, top: "15%" as const, baseRotation: 0 }
+  ][index];
+}
+
+function CategoryModal({
+  visible,
+  onClose,
+  onNavigate
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onNavigate: (screen: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.sheetHandle} />
+          <AppText variant="subtitle" style={styles.sheetTitle}>Tính năng</AppText>
+          <View style={styles.categoryGrid}>
+            {CATEGORY_ITEMS.map((item) => (
+              <Pressable
+                key={item.label}
+                style={styles.categoryItem}
+                onPress={() => {
+                  onClose();
+                  onNavigate(item.screen);
+                }}
+              >
+                <View style={styles.categoryIconWrap}>
+                  <Ionicons name={item.icon} size={24} color={colors.black} />
+                </View>
+                <AppText variant="caption" style={styles.categoryLabel}>{item.label}</AppText>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function toggleSet(current: Set<string>, value: string) {
+  const next = new Set(current);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  return next;
+}
+
 const styles = StyleSheet.create({
   background: {
     flex: 1
@@ -395,52 +408,30 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1
   },
-
-  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: colors.canvas
+    paddingVertical: 10
   },
   headerTitle: {
     fontFamily: fonts.bold,
-    fontSize: 30,
-    color: colors.ink,
-    letterSpacing: -0.5
+    fontSize: 29,
+    color: colors.black,
+    letterSpacing: 0
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10
+    gap: 8
   },
   headerIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line
-  },
-  headerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.green,
+    width: 30,
+    height: 30,
     alignItems: "center",
     justifyContent: "center"
   },
-  headerAvatarText: {
-    fontFamily: fonts.bold,
-    fontSize: 15,
-    color: colors.white
-  },
-
-  // Feed
   feedWrap: {
     flex: 1,
     overflow: "hidden"
@@ -450,175 +441,187 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 16
   },
-
-  // Card
-  card: {
-    width: CARD_W,
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    // Drop shadow
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 8
+  artworkPress: {
+    width: ARTWORK_WIDTH,
+    height: ARTWORK_HEIGHT
   },
-
-  // Image
-  imageWrap: {
-    width: "100%",
-    height: IMAGE_H,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "hidden",
-    backgroundColor: colors.canvasStrong
-  },
-  image: {
+  feedArtwork: {
     width: "100%",
     height: "100%"
   },
-
-  // Stats chip
+  feedArtworkCanvas: {
+    flex: 1
+  },
+  feedImageWrap: {
+    position: "absolute",
+    borderRadius: 18,
+    backgroundColor: colors.canvasStrong,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 7
+  },
+  feedImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 18
+  },
+  recipeChip: {
+    position: "absolute",
+    top: 28,
+    left: 6,
+    zIndex: 90,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    shadowColor: colors.black,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3
+  },
+  recipeChipText: {
+    color: colors.black,
+    fontFamily: fonts.semibold,
+    fontSize: 11
+  },
   statsChip: {
     position: "absolute",
-    top: 12,
-    right: 12,
+    top: 26,
+    right: 10,
+    zIndex: 90,
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    gap: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.95)",
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
+    paddingVertical: 6,
+    shadowColor: colors.black,
+    shadowOpacity: 0.12,
     shadowRadius: 6,
     elevation: 3
   },
   statsNum: {
     fontFamily: fonts.semibold,
-    fontSize: 12,
-    color: colors.ink
+    fontSize: 11,
+    color: colors.black
   },
-
-  // Calo badge
   caloBadge: {
     position: "absolute",
-    top: 52,
+    top: 60,
     right: 12,
-    backgroundColor: "rgba(255,255,255,0.92)",
+    zIndex: 90,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.95)",
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
+    paddingVertical: 6,
+    shadowColor: colors.black,
+    shadowOpacity: 0.12,
     shadowRadius: 6,
     elevation: 3
   },
   caloText: {
     fontFamily: fonts.semibold,
-    fontSize: 12,
-    color: colors.ink
+    fontSize: 11,
+    color: colors.black
   },
-
-  // Caption
-  captionArea: {
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 10
+  captionChip: {
+    position: "absolute",
+    left: 6,
+    bottom: 25,
+    zIndex: 90,
+    maxWidth: "72%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    shadowColor: colors.black,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3
   },
   captionText: {
-    fontFamily: fonts.regular,
-    fontSize: 16,
-    lineHeight: 23,
-    color: colors.ink
+    color: colors.black,
+    fontFamily: fonts.semibold,
+    fontSize: 11
   },
-
-  // Author
-  authorArea: {
-    paddingHorizontal: 16,
-    paddingBottom: 18
+  feedSticker: {
+    position: "absolute",
+    width: 62,
+    height: 62,
+    zIndex: 80
   },
   authorChip: {
+    marginTop: 12,
+    minWidth: 142,
+    maxWidth: ARTWORK_WIDTH - 42,
+    minHeight: 28,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     backgroundColor: colors.green,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 30,
-    alignSelf: "flex-start"
-  },
-  fireEmoji: {
-    fontSize: 16
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 18,
+    shadowColor: colors.black,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3
   },
   authorAvatar: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.greenDark,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center"
   },
   authorAvatarText: {
     fontFamily: fonts.bold,
-    fontSize: 11,
-    color: colors.white
+    fontSize: 10,
+    color: colors.green
   },
   authorName: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
+    flex: 1,
     color: colors.white,
-    maxWidth: CARD_W - 160
+    fontFamily: fonts.semibold,
+    fontSize: 12
   },
-
-  // Swipe hint
   swipeHint: {
-    marginTop: 10,
+    marginTop: 8,
     opacity: 0.35
   },
-
-  // Bottom bar
   bottomBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 28,
-    paddingTop: 12,
-    backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line
+    paddingHorizontal: 46,
+    paddingTop: 10
   },
   squareBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    backgroundColor: colors.canvas,
+    width: 34,
+    height: 34,
     alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.line
+    justifyContent: "center"
   },
   actionPill: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.black,
-    borderRadius: 32,
-    paddingHorizontal: 6,
+    borderRadius: 24,
+    paddingHorizontal: 10,
     paddingVertical: 8,
-    gap: 0
+    gap: 10
   },
   pillBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 3
+    width: 24,
+    alignItems: "center"
   },
-  pillDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 18,
-    backgroundColor: "rgba(255,255,255,0.2)"
-  },
-
-  // Category modal
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
@@ -626,10 +629,10 @@ const styles = StyleSheet.create({
   },
   sheet: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingTop: 12,
-    paddingHorizontal: 28
+    paddingHorizontal: 24
   },
   sheetHandle: {
     width: 40,
@@ -637,14 +640,14 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: colors.line,
     alignSelf: "center",
-    marginBottom: 20
+    marginBottom: 18
   },
   sheetTitle: {
-    marginBottom: 24
+    marginBottom: 20
   },
   categoryGrid: {
     flexDirection: "row",
-    gap: 16
+    gap: 14
   },
   categoryItem: {
     flex: 1,
@@ -652,9 +655,9 @@ const styles = StyleSheet.create({
     gap: 8
   },
   categoryIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     backgroundColor: colors.canvas,
     alignItems: "center",
     justifyContent: "center",

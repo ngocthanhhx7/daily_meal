@@ -1,13 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Image, Modal, Pressable, Share, StyleSheet, View } from "react-native";
 import { api } from "../api/client";
-import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { EmptyState } from "../components/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
+import { fonts } from "../theme/typography";
 import type { Post, User } from "../types/api";
 
 type ProfileTab = "posts" | "saved";
@@ -28,22 +28,23 @@ function postImageSource(post: Post) {
   return mediaSource(post.images[0]?.url) ?? require("../../assets/figma-snapshots/image3.png");
 }
 
-function birthdayText(user: User | null) {
-  if (!user?.birthday?.date) {
-    return "Chưa thêm ngày sinh";
+function profileHandle(user: User | null) {
+  if (!user) {
+    return "@daily.meal";
   }
 
-  const [year, month, day] = user.birthday.date.split("-");
+  const base = user.displayName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .toLowerCase();
 
-  if (user.birthday.visibility === "hidden") {
-    return `${day}/${month}/${year} · đang ẩn`;
-  }
+  return `@${base || user.email.split("@")[0]}`;
+}
 
-  if (user.birthday.visibility === "dayMonth") {
-    return `${day}/${month} · chỉ hiển thị ngày tháng`;
-  }
-
-  return `${day}/${month}/${year} · hiển thị đầy đủ`;
+function formatCount(value: number) {
+  return value.toLocaleString("vi-VN");
 }
 
 export function ProfileScreen({ navigation }: any) {
@@ -51,6 +52,7 @@ export function ProfileScreen({ navigation }: any) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [tab, setTab] = useState<ProfileTab>("posts");
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!token || !user?.id) {
@@ -68,77 +70,82 @@ export function ProfileScreen({ navigation }: any) {
   const stats = [
     { label: "Bài viết", value: user?.counts?.posts ?? posts.length },
     { label: "Theo dõi", value: user?.counts?.followers ?? 0 },
-    { label: "Đang theo", value: user?.counts?.following ?? 0 },
-    { label: "Bạn bè", value: user?.counts?.friends ?? 0 }
+    { label: "Đang TD", value: user?.counts?.following ?? 0 }
   ];
   const currentPosts = tab === "posts" ? posts : savedPosts;
 
+  function shareProfile() {
+    Share.share({
+      title: user?.displayName ?? "Daily Meal",
+      message: `${user?.displayName ?? "Daily Meal"} trên Daily Meal ${profileHandle(user)}`
+    }).catch(() => undefined);
+  }
+
+  function navigateFromMenu(screen: string) {
+    setMenuOpen(false);
+    navigation.navigate(screen);
+  }
+
+  async function signOutFromMenu() {
+    setMenuOpen(false);
+    await signOut();
+  }
+
   return (
-    <AppScreen>
-      <View style={styles.navRow}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.navBack} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color={colors.ink} />
+    <AppScreen style={styles.screen}>
+      <View style={styles.topBar}>
+        <Pressable style={styles.backButton} onPress={() => navigation.goBack()} hitSlop={8}>
+          <Ionicons name="arrow-back" size={18} color={colors.white} />
         </Pressable>
-        <AppText variant="subtitle" style={styles.navTitle}>Hồ sơ</AppText>
-        <View style={styles.navBack} />
-      </View>
-      <View style={styles.coverWrap}>
-        <Image
-          source={mediaSource(user?.coverUrl) ?? require("../../assets/figma-snapshots/image3.png")}
-          style={styles.cover}
-        />
-        <View style={styles.avatar}>
-          {mediaSource(user?.avatarUrl) ? (
-            <Image source={mediaSource(user?.avatarUrl)} style={styles.avatarImage} />
-          ) : (
-            <AppText variant="title" style={styles.avatarText}>
-              {user?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
-            </AppText>
-          )}
-        </View>
+        <AppText variant="title" style={styles.profileTitle} numberOfLines={1}>
+          {user?.displayName ?? "Hồ sơ"}
+        </AppText>
+        <Pressable style={styles.menuButton} onPress={() => setMenuOpen(true)} hitSlop={8}>
+          <Group116046807Icon />
+        </Pressable>
       </View>
 
-      <View style={styles.profileHeader}>
-        <View style={styles.nameBlock}>
-          <AppText variant="title" numberOfLines={2}>
-            {user?.displayName ?? "Trang cá nhân"}
-          </AppText>
-          <AppText muted numberOfLines={2}>
-            {user?.bio || "Chia sẻ bữa ăn và công thức mỗi ngày."}
-          </AppText>
-        </View>
-        <View style={styles.badge}>
-          <AppText variant="caption">{user?.isPremium ? "Premium" : "Free"}</AppText>
-        </View>
-      </View>
-
-      <View style={styles.stats}>
-        {stats.map((stat) => (
-          <View key={stat.label} style={styles.statItem}>
-            <AppText variant="subtitle">{stat.value}</AppText>
-            <AppText variant="caption" muted>
-              {stat.label}
-            </AppText>
+      <View style={styles.profileSummary}>
+        <View style={styles.avatarWrap}>
+          <View style={styles.avatar}>
+            {mediaSource(user?.avatarUrl) ? (
+              <Image source={mediaSource(user?.avatarUrl)} style={styles.avatarImage} />
+            ) : (
+              <AppText variant="title" style={styles.avatarText}>
+                {user?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
+              </AppText>
+            )}
           </View>
-        ))}
+          {user?.isPremium ? (
+            <View style={styles.premiumBadge}>
+              <AppText variant="caption" style={styles.premiumText}>P</AppText>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.summaryContent}>
+          <AppText variant="button" style={styles.displayName} numberOfLines={1}>
+            {user?.displayName ?? "Daily Meal"}
+          </AppText>
+          <View style={styles.stats}>
+            {stats.map((stat) => (
+              <StatItem key={stat.label} label={stat.label} value={stat.value} />
+            ))}
+          </View>
+        </View>
       </View>
 
-      <View style={styles.infoCard}>
-        <Ionicons name="calendar-outline" size={16} color={colors.muted} />
-        <AppText muted style={styles.infoCardText}>
-          {birthdayText(user)}
+      <View style={styles.bioBlock}>
+        <AppText style={styles.bioText} numberOfLines={2}>
+          <AppText style={styles.handleText}>{profileHandle(user)}</AppText>
+          {` ${user?.bio || "Daily Meal creator chia sẻ món ngon mỗi ngày."}`}
         </AppText>
       </View>
 
-      <View style={styles.actionGrid}>
-        <AppButton label="Chỉnh sửa hồ sơ" onPress={() => navigation.navigate("EditProfile")} style={styles.actionButton} />
-        <AppButton label="Tin nhắn" variant="ghost" onPress={() => navigation.navigate("Inbox")} style={styles.actionButton} />
+      <View style={styles.actionRow}>
+        <ProfileActionButton label="Chỉnh sửa trang" onPress={() => navigation.navigate("EditProfile")} />
+        <ProfileActionButton label="Chia sẻ trang" onPress={shareProfile} />
       </View>
-      <View style={styles.actionGrid}>
-        <AppButton label="Đổi mật khẩu" variant="ghost" onPress={() => navigation.navigate("ChangePassword")} style={styles.actionButton} />
-        <AppButton label="Cài đặt" variant="ghost" onPress={() => navigation.navigate("Settings")} style={styles.actionButton} />
-      </View>
-      <AppButton label="Đăng xuất" variant="danger" onPress={signOut} />
 
       <View style={styles.tabBar}>
         <ProfileTabButton active={tab === "posts"} icon="grid" onPress={() => setTab("posts")} />
@@ -175,7 +182,51 @@ export function ProfileScreen({ navigation }: any) {
           icon={tab === "posts" ? "camera-outline" : "bookmark-outline"}
         />
       )}
+
+      <ProfileMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onInbox={() => navigateFromMenu("Inbox")}
+        onChangePassword={() => navigateFromMenu("ChangePassword")}
+        onSettings={() => navigateFromMenu("Settings")}
+        onSignOut={signOutFromMenu}
+      />
     </AppScreen>
+  );
+}
+
+function Group116046807Icon() {
+  return (
+    <View style={styles.dotsIcon} accessibilityLabel="Group116046807">
+      <View style={styles.dot} />
+      <View style={styles.dot} />
+      <View style={styles.dot} />
+    </View>
+  );
+}
+
+function ProfileActionButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.profileActionButton, pressed && styles.profileActionPressed]}
+    >
+      <AppText variant="button" numberOfLines={1} style={styles.profileActionText}>
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
+function StatItem({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.statItem}>
+      <AppText style={styles.statValue}>{formatCount(value)}</AppText>
+      <AppText style={styles.statLabel} numberOfLines={1}>
+        {label}
+      </AppText>
+    </View>
   );
 }
 
@@ -192,49 +243,124 @@ function ProfileTabButton({
 
   return (
     <Pressable style={styles.tabButton} onPress={onPress}>
-      <Ionicons name={iconName} size={20} color={colors.black} />
+      <Ionicons name={iconName} size={22} color={colors.black} />
       {active ? <View style={styles.tabIndicator} /> : null}
     </Pressable>
   );
 }
 
+function ProfileMenu({
+  visible,
+  onClose,
+  onInbox,
+  onChangePassword,
+  onSettings,
+  onSignOut
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onInbox: () => void;
+  onChangePassword: () => void;
+  onSettings: () => void;
+  onSignOut: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={styles.menuSheet}>
+          <MenuItem icon="chatbubble-ellipses-outline" label="Tin nhắn" onPress={onInbox} />
+          <MenuItem icon="key-outline" label="Đổi mật khẩu" onPress={onChangePassword} />
+          <MenuItem icon="settings-outline" label="Cài đặt" onPress={onSettings} />
+          <MenuItem icon="log-out-outline" label="Đăng xuất" danger onPress={onSignOut} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function MenuItem({
+  icon,
+  label,
+  danger,
+  onPress
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.menuItem} onPress={onPress}>
+      <Ionicons name={icon} size={20} color={danger ? colors.red : colors.ink} />
+      <AppText variant="button" style={danger ? styles.dangerText : undefined}>
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  navRow: {
+  screen: {
+    paddingTop: 10,
+    gap: 14
+  },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center"
+  },
+  backButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.black
+  },
+  profileTitle: {
+    flex: 1,
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 30,
+    lineHeight: 36,
+    marginHorizontal: 10
+  },
+  menuButton: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  dotsIcon: {
+    width: 26,
+    height: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between"
   },
-  navBack: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.black
+  },
+  profileSummary: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center"
+    gap: 12
   },
-  navTitle: { flex: 1, textAlign: "center" },
-  coverWrap: {
-    height: 190,
-    borderRadius: 8,
-    marginBottom: 28
-  },
-  cover: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 8,
-    backgroundColor: colors.canvasStrong
+  avatarWrap: {
+    width: 78,
+    height: 78
   },
   avatar: {
-    position: "absolute",
-    left: 18,
-    bottom: -34,
-    width: 86,
-    height: 86,
-    borderRadius: 43,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: colors.green,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 4,
-    borderColor: colors.canvas,
+    borderWidth: 1,
+    borderColor: colors.black,
     overflow: "hidden"
   },
   avatarImage: {
@@ -244,63 +370,105 @@ const styles = StyleSheet.create({
   avatarText: {
     color: colors.white
   },
-  profileHeader: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "flex-start"
+  premiumBadge: {
+    position: "absolute",
+    top: 0,
+    right: 1,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.yellow,
+    borderWidth: 1,
+    borderColor: colors.white
   },
-  nameBlock: {
+  premiumText: {
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 9,
+    lineHeight: 12
+  },
+  summaryContent: {
     flex: 1,
-    gap: 5
+    minWidth: 0,
+    gap: 7
   },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.yellow
+  displayName: {
+    color: colors.black,
+    fontFamily: fonts.semibold
   },
   stats: {
     flexDirection: "row",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
-    overflow: "hidden"
+    alignItems: "center",
+    gap: 8
   },
   statItem: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 12,
-    gap: 2
+    minWidth: 0,
+    gap: 1
   },
-  infoCard: {
+  statValue: {
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    lineHeight: 19
+  },
+  statLabel: {
+    color: colors.muted,
+    fontSize: 10,
+    lineHeight: 13,
+    textAlign: "center"
+  },
+  bioBlock: {
+    gap: 3
+  },
+  bioText: {
+    color: colors.ink,
+    fontSize: 14,
+    lineHeight: 20
+  },
+  handleText: {
+    color: "#A342FF",
+    fontFamily: fonts.regular
+  },
+  actionRow: {
     flexDirection: "row",
+    gap: 8
+  },
+  profileActionButton: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 10,
     alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    backgroundColor: colors.white,
+    shadowColor: colors.black,
+    shadowOpacity: 0.14,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4
   },
-  infoCardText: {
-    flex: 1
+  profileActionPressed: {
+    opacity: 0.72
   },
-  actionGrid: {
-    flexDirection: "row",
-    gap: 10
-  },
-  actionButton: {
-    flex: 1
+  profileActionText: {
+    color: colors.black,
+    fontFamily: fonts.semibold
   },
   tabBar: {
     flexDirection: "row",
+    justifyContent: "center",
+    gap: 34,
     borderBottomWidth: 1,
-    borderBottomColor: colors.line
+    borderBottomColor: colors.line,
+    marginTop: 4
   },
   tabButton: {
-    flex: 1,
-    minHeight: 44,
+    width: 68,
+    minHeight: 54,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -315,29 +483,58 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12
+    justifyContent: "space-between",
+    rowGap: 24
   },
   gridItem: {
-    width: "48%",
-    borderRadius: 8,
-    overflow: "hidden",
+    width: "47.5%",
+    borderRadius: 14,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line
+    shadowColor: colors.black,
+    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 10,
+    elevation: 5
   },
   gridImage: {
     width: "100%",
-    aspectRatio: 0.82,
+    aspectRatio: 0.78,
+    borderRadius: 14,
     backgroundColor: colors.canvasStrong
   },
   gridCaption: {
     position: "absolute",
-    top: 8,
+    top: 10,
     left: 8,
-    right: 8,
+    maxWidth: "86%",
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    paddingHorizontal: 11,
+    paddingVertical: 5
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.32)"
+  },
+  menuSheet: {
+    margin: 16,
     borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.88)",
-    paddingHorizontal: 8,
-    paddingVertical: 4
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    overflow: "hidden"
+  },
+  menuItem: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line
+  },
+  dangerText: {
+    color: colors.red
   }
 });

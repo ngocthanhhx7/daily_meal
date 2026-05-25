@@ -57,10 +57,28 @@ export type PostImage = {
   uploadId?: string;
 };
 
+export type PostLayout = "stack" | "grid" | "cascade";
+
+export type PostImageTransform = {
+  scale: number;
+  rotation: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+export type StickerPlacement = {
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+};
+
 export type Post = {
   _id: string;
   author: User;
   images: PostImage[];
+  layout?: PostLayout;
+  imageTransforms?: PostImageTransform[];
   caption: string;
   tags: string[];
   recipe?: {
@@ -70,6 +88,7 @@ export type Post = {
   };
   nutritionSummary?: NutritionSummary;
   stickerId?: Sticker;
+  stickerPlacement?: StickerPlacement;
   visibility: "public" | "private";
   stats: {
     likes: number;

@@ -38,19 +38,10 @@ export function EditProfileScreen({ navigation }: any) {
     user?.birthday?.visibility ?? "hidden"
   );
   const [avatarUri, setAvatarUri] = useState(user?.avatarUrl ?? "");
-  const [coverUri, setCoverUri] = useState(user?.coverUrl ?? "");
   const [premium, setPremium] = useState(Boolean(user?.isPremium));
   const [loading, setLoading] = useState(false);
 
   async function pickAvatar() {
-    await pickImage("avatar");
-  }
-
-  async function pickCover() {
-    await pickImage("cover");
-  }
-
-  async function pickImage(target: "avatar" | "cover") {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
@@ -61,16 +52,12 @@ export function EditProfileScreen({ navigation }: any) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: target === "avatar" ? [1, 1] : [16, 9],
+      aspect: [1, 1],
       quality: 0.85
     });
 
     if (!result.canceled) {
-      if (target === "avatar") {
-        setAvatarUri(result.assets[0].uri);
-      } else {
-        setCoverUri(result.assets[0].uri);
-      }
+      setAvatarUri(result.assets[0].uri);
     }
   }
 
@@ -92,23 +79,16 @@ export function EditProfileScreen({ navigation }: any) {
     setLoading(true);
     try {
       let nextAvatarUrl = avatarUri;
-      let nextCoverUrl = coverUri;
 
       if (avatarUri.startsWith("file:")) {
         const upload = await api.uploadImage(token, avatarUri, "avatar");
         nextAvatarUrl = upload.upload.url;
       }
 
-      if (coverUri.startsWith("file:")) {
-        const upload = await api.uploadImage(token, coverUri, "cover");
-        nextCoverUrl = upload.upload.url;
-      }
-
       await updateUser({
         displayName: displayName.trim(),
         bio: bio.trim(),
         avatarUrl: nextAvatarUrl,
-        coverUrl: nextCoverUrl,
         isPremium: premium,
         birthday: {
           date: birthday,
@@ -128,17 +108,6 @@ export function EditProfileScreen({ navigation }: any) {
   return (
     <AppScreen keyboard>
       <AppText variant="title">Chỉnh sửa cá nhân</AppText>
-      <Pressable style={styles.coverBlock} onPress={pickCover}>
-        <Image
-          source={mediaSource(coverUri) ?? require("../../assets/figma-snapshots/image3.png")}
-          style={styles.coverImage}
-        />
-        <View style={styles.coverOverlay}>
-          <AppText variant="button" style={styles.coverText}>
-            Đổi ảnh bìa
-          </AppText>
-        </View>
-      </Pressable>
       <Pressable style={styles.avatarBlock} onPress={pickAvatar}>
         {mediaSource(avatarUri) ? (
           <Image source={mediaSource(avatarUri)} style={styles.avatarImage} />
@@ -204,30 +173,6 @@ export function EditProfileScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  coverBlock: {
-    height: 160,
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: colors.canvasStrong
-  },
-  coverImage: {
-    width: "100%",
-    height: "100%"
-  },
-  coverOverlay: {
-    position: "absolute",
-    left: 12,
-    right: 12,
-    bottom: 12,
-    minHeight: 40,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.62)"
-  },
-  coverText: {
-    color: colors.white
-  },
   avatarBlock: {
     flexDirection: "row",
     alignItems: "center",

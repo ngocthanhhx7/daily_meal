@@ -39,6 +39,37 @@ async function ensureCameraPermission() {
   return false;
 }
 
+async function ensureLibraryPermission() {
+  const currentPermission = await ImagePicker.getMediaLibraryPermissionsAsync();
+
+  if (currentPermission.granted) {
+    return true;
+  }
+
+  const nextPermission = currentPermission.canAskAgain
+    ? await ImagePicker.requestMediaLibraryPermissionsAsync()
+    : currentPermission;
+
+  if (nextPermission.granted) {
+    return true;
+  }
+
+  const buttons = nextPermission.canAskAgain
+    ? [{ text: "OK" }]
+    : [
+        { text: "Hủy", style: "cancel" as const },
+        { text: "Mở cài đặt", onPress: () => Linking.openSettings() }
+      ];
+
+  Alert.alert(
+    "Cần quyền thư viện ảnh",
+    "Hãy cho phép Daily Meal truy cập ảnh để chọn ảnh từ album.",
+    buttons
+  );
+
+  return false;
+}
+
 function showPickerError(source: ImageSource, error: unknown) {
   const title = source === "camera" ? "Không mở được camera" : "Không mở được thư viện ảnh";
   const fallback =
@@ -52,12 +83,11 @@ function showPickerError(source: ImageSource, error: unknown) {
 
 export async function pickSingleImage(source: ImageSource) {
   try {
-    if (source === "camera") {
-      const hasPermission = await ensureCameraPermission();
+    const hasPermission =
+      source === "camera" ? await ensureCameraPermission() : await ensureLibraryPermission();
 
-      if (!hasPermission) {
-        return undefined;
-      }
+    if (!hasPermission) {
+      return undefined;
     }
 
     const result =
@@ -76,12 +106,42 @@ export async function pickSingleImage(source: ImageSource) {
   }
 }
 
-export async function getPendingPickedImageUri() {
+export async function pickMultipleImages(limit: number) {
+  try {
+    const hasPermission = await ensureLibraryPermission();
+
+    if (!hasPermission) {
+      return [];
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      ...imageOptions,
+      allowsMultipleSelection: true,
+      selectionLimit: limit
+    });
+
+    if (result.canceled) {
+      return [];
+    }
+
+    return result.assets.map((asset) => asset.uri).filter(Boolean);
+  } catch (error) {
+    showPickerError("library", error);
+    return [];
+  }
+}
+
+export async function getPendingPickedImageUris() {
   const pendingResult = await ImagePicker.getPendingResultAsync();
 
   if (!pendingResult || "code" in pendingResult || pendingResult.canceled) {
-    return undefined;
+    return [];
   }
 
-  return pendingResult.assets[0]?.uri;
+  return pendingResult.assets.map((asset) => asset.uri).filter(Boolean);
+}
+
+export async function getPendingPickedImageUri() {
+  const [first] = await getPendingPickedImageUris();
+  return first;
 }

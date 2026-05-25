@@ -67,20 +67,30 @@ describe("Daily Meal API", () => {
     expect(response.body.preferences.completedOnboarding).toBe(true);
   });
 
-  it("creates a post and enforces free image limits", async () => {
+  it("creates posts with up to three images and rejects overflow", async () => {
     const session = await register("post@example.com");
     const image = { url: "/uploads/demo.jpg" };
 
-    await request(app)
+    const response = await request(app)
       .post("/api/posts")
       .set("Authorization", `Bearer ${session.token}`)
       .send({
-        images: [image],
+        images: [image, image, image],
         caption: "Cơm nhà",
         tags: ["home"],
+        layout: "grid",
+        imageTransforms: [
+          { scale: 1.1, rotation: -3, offsetX: 4, offsetY: 0 },
+          { scale: 0.95, rotation: 2, offsetX: -2, offsetY: 5 },
+          { scale: 1, rotation: 0, offsetX: 0, offsetY: 0 }
+        ],
         visibility: "public"
       })
       .expect(201);
+
+    expect(response.body.post.images).toHaveLength(3);
+    expect(response.body.post.layout).toBe("grid");
+    expect(response.body.post.imageTransforms).toHaveLength(3);
 
     await request(app)
       .post("/api/posts")
@@ -91,7 +101,7 @@ describe("Daily Meal API", () => {
         tags: [],
         visibility: "public"
       })
-      .expect(403);
+      .expect(400);
   });
 
   it("blocks premium stickers for free users", async () => {

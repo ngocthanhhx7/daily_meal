@@ -1,0 +1,36 @@
+import type { RequestHandler } from "express";
+import jwt from "jsonwebtoken";
+import { env } from "../config/env.js";
+import { User } from "../models/User.js";
+import { HttpError } from "./error.js";
+
+type JwtPayload = {
+  sub: string;
+};
+
+export const requireAuth: RequestHandler = async (req, _res, next) => {
+  try {
+    const header = req.header("authorization");
+    const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
+
+    if (!token) {
+      throw new HttpError(401, "Authentication required");
+    }
+
+    const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+    const user = await User.findById(payload.sub).select("email isPremium").lean();
+
+    if (!user) {
+      throw new HttpError(401, "Invalid session");
+    }
+
+    req.user = {
+      id: user._id.toString(),
+      email: user.email,
+      isPremium: Boolean(user.isPremium)
+    };
+    next();
+  } catch (error) {
+    next(error instanceof HttpError ? error : new HttpError(401, "Invalid session"));
+  }
+};

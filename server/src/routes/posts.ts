@@ -1,0 +1,358 @@
+import { Router } from "express";
+import { z } from "zod";
+import { requireAuth } from "../middleware/auth.js";
+import { HttpError } from "../middleware/error.js";
+import { Comment } from "../models/Comment.js";
+import { Follow } from "../models/Follow.js";
+import { Post } from "../models/Post.js";
+import { PostLike } from "../models/PostLike.js";
+import { PostSave } from "../models/PostSave.js";
+import { Sticker } from "../models/Sticker.js";
+import { User } from "../models/User.js";
+
+export const postsRouter = Router();
+
+const imageSchema = z.object({
+  url: z.string().min(1),
+  localPath: z.string().optional(),
+  uploadId: z.string().optional()
+});
+
+const nutritionSchema = z
+  .object({
+    calories: z.number().nonnegative().default(0),
+    protein: z.number().nonnegative().default(0),
+    carbs: z.number().nonnegative().default(0),
+    fat: z.number().nonnegative().default(0),
+    confidence: z.number().min(0).max(1).default(0)
+  })
+  .optional();
+
+const recipeSchema = z
+  .object({
+    title: z.string().max(120).default(""),
+    ingredients: z.array(z.string()).default([]),
+    steps: z.array(z.string()).default([])
+  })
+  .optional();
+
+const postBodySchema = z.object({
+  images: z.array(imageSchema).min(1).max(10),
+  caption: z.string().max(2000).default(""),
+  tags: z.array(z.string()).max(20).default([]),
+  recipe: recipeSchema,
+  nutritionSummary: nutritionSchema,
+  mealId: z.string().optional(),
+  stickerId: z.string().optional(),
+  visibility: z.enum(["public", "private"]).default("public")
+});
+
+const postUpdateSchema = postBodySchema.partial().extend({
+  images: z.array(imageSchema).min(1).max(10).optional()
+});
+
+const commentBodySchema = z.object({
+  body: z.string().min(1).max(500)
+});
+
+async function assertStickerAllowed(stickerId: string | undefined, isPremium: boolean) {
+  if (!stickerId) {
+    return;
+  }
+
+  const sticker = await Sticker.findById(stickerId).lean();
+
+  if (!sticker) {
+    throw new HttpError(404, "Sticker not found");
+  }
+
+  if (sticker.premiumOnly && !isPremium) {
+    throw new HttpError(403, "Premium is required for this sticker");
+  }
+}
+
+function normalizeTags(tags: string[]) {
+  return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))];
+}
+
+function serializePost(post: any, likedPostIds: Set<string>, savedPostIds: Set<string>) {
+  const id = post._id.toString();
+  const author = post.author
+    ? {
+        ...post.author,
+        id: post.author._id?.toString?.() ?? post.author.id
+      }
+    : post.author;
+
+  return {
+    ...post,
+    _id: id,
+    author,
+    viewerState: {
+      liked: likedPostIds.has(id),
+      saved: savedPostIds.has(id)
+    }
+  };
+}
+
+async function serializePostsForViewer(posts: any[], viewerId: string | undefined) {
+  if (!viewerId || !posts.length) {
+    return posts.map((post) => serializePost(post, new Set(), new Set()));
+  }
+
+  const postIds = posts.map((post) => post._id);
+  const [likes, saves] = await Promise.all([
+    PostLike.find({ user: viewerId, post: { $in: postIds } }).select("post").lean(),
+    PostSave.find({ user: viewerId, post: { $in: postIds } }).select("post").lean()
+  ]);
+
+  const likedPostIds = new Set(likes.map((like) => like.post.toString()));
+  const savedPostIds = new Set(saves.map((save) => save.post.toString()));
+
+  return posts.map((post) => serializePost(post, likedPostIds, savedPostIds));
+}
+
+postsRouter.get("/feed", requireAuth, async (req, res, next) => {
+  try {
+    const page = Number(req.query.page ?? 1);
+    const limit = Math.min(Number(req.query.limit ?? 20), 50);
+    const skip = (Math.max(page, 1) - 1) * limit;
+    const following = await Follow.find({ follower: req.user?.id }).select("following").lean();
+    const networkAuthorIds = [
+      req.user?.id,
+      ...following.map((item) => item.following.toString())
+    ].filter(Boolean);
+    const filter: Record<string, unknown> = { visibility: "public" };
+
+    if (following.length) {
+      filter.author = { $in: networkAuthorIds };
+    }
+
+    const posts = await Post.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("author", "displayName avatarUrl isPremium")
+      .populate("stickerId")
+      .lean();
+
+    res.json({ posts: await serializePostsForViewer(posts, req.user?.id), page, limit });
+  } catch (error) {
+    next(error);
+  }
+});
+
+postsRouter.get("/search", requireAuth, async (req, res, next) => {
+  try {
+    const q = String(req.query.q ?? "").trim();
+    const maxCalories = req.query.maxCalories ? Number(req.query.maxCalories) : undefined;
+    const tag = typeof req.query.tag === "string" ? req.query.tag.toLowerCase() : undefined;
+    const savedOnly = req.query.saved === "true";
+    const premiumStickerOnly = req.query.premiumSticker === "true";
+
+    const filter: Record<string, unknown> = { visibility: "public" };
+
+    if (q) {
+      filter.$or = [
+        { caption: new RegExp(q, "i") },
+        { tags: new RegExp(q, "i") },
+        { "recipe.title": new RegExp(q, "i") }
+      ];
+    }
+
+    if (typeof maxCalories === "number" && Number.isFinite(maxCalories)) {
+      filter["nutritionSummary.calories"] = { $lte: maxCalories };
+    }
+
+    if (tag) {
+      filter.tags = tag;
+    }
+
+    if (savedOnly) {
+      const saves = await PostSave.find({ user: req.user?.id }).select("post").lean();
+      filter._id = { $in: saves.map((save) => save.post) };
+    }
+
+    let posts = await Post.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .populate("author", "displayName avatarUrl isPremium")
+      .populate("stickerId")
+      .lean();
+
+    if (premiumStickerOnly) {
+      posts = posts.filter((post: any) => Boolean(post.stickerId?.premiumOnly));
+    }
+
+    res.json({ posts: await serializePostsForViewer(posts, req.user?.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+postsRouter.post("/", requireAuth, async (req, res, next) => {
+  try {
+    const body = postBodySchema.parse(req.body);
+    const maxImages = req.user?.isPremium ? 10 : 3;
+
+    if (body.images.length > maxImages) {
+      throw new HttpError(403, `This account can upload up to ${maxImages} images per post`);
+    }
+
+    await assertStickerAllowed(body.stickerId, Boolean(req.user?.isPremium));
+
+    const post = await Post.create({
+      ...body,
+      tags: normalizeTags(body.tags),
+      author: req.user?.id
+    });
+    await User.findByIdAndUpdate(req.user?.id, { $inc: { "counts.posts": 1 } });
+
+    const populated = await Post.findById(post._id)
+      .populate("author", "displayName avatarUrl isPremium")
+      .populate("stickerId")
+      .lean();
+    const [serialized] = await serializePostsForViewer(populated ? [populated] : [], req.user?.id);
+    res.status(201).json({ post: serialized });
+  } catch (error) {
+    next(error);
+  }
+});
+
+postsRouter.patch("/:id", requireAuth, async (req, res, next) => {
+  try {
+    const body = postUpdateSchema.parse(req.body);
+    const post = await Post.findById(req.params.id);
+
+    if (!post) {
+      throw new HttpError(404, "Post not found");
+    }
+
+    if (post.author.toString() !== req.user?.id) {
+      throw new HttpError(403, "Only the owner can edit this post");
+    }
+
+    if (body.images && body.images.length > (req.user?.isPremium ? 10 : 3)) {
+      throw new HttpError(403, "Image limit exceeded for this account");
+    }
+
+    await assertStickerAllowed(body.stickerId, Boolean(req.user?.isPremium));
+
+    if (body.tags) {
+      body.tags = normalizeTags(body.tags);
+    }
+
+    post.set(body);
+    await post.save();
+
+    const populated = await Post.findById(post._id)
+      .populate("author", "displayName avatarUrl isPremium")
+      .populate("stickerId")
+      .lean();
+    const [serialized] = await serializePostsForViewer(populated ? [populated] : [], req.user?.id);
+    res.json({ post: serialized });
+  } catch (error) {
+    next(error);
+  }
+});
+
+postsRouter.delete("/:id", requireAuth, async (req, res, next) => {
+  try {
+    const post = await Post.findById(req.params.id);
+
+    if (!post) {
+      throw new HttpError(404, "Post not found");
+    }
+
+    if (post.author.toString() !== req.user?.id) {
+      throw new HttpError(403, "Only the owner can delete this post");
+    }
+
+    await post.deleteOne();
+    await Comment.deleteMany({ post: post._id });
+    await PostLike.deleteMany({ post: post._id });
+    await PostSave.deleteMany({ post: post._id });
+    await User.findByIdAndUpdate(req.user?.id, { $inc: { "counts.posts": -1 } });
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+postsRouter.post("/:id/like", requireAuth, async (req, res, next) => {
+  try {
+    const existing = await PostLike.findOne({ post: req.params.id, user: req.user?.id });
+    const liked = !existing;
+
+    if (existing) {
+      await existing.deleteOne();
+      await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.likes": -1 } });
+    } else {
+      await PostLike.create({ post: req.params.id, user: req.user?.id });
+      await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.likes": 1 } });
+    }
+
+    const post = await Post.findById(req.params.id).select("stats").lean();
+    res.json({ liked, stats: post?.stats });
+  } catch (error) {
+    next(error);
+  }
+});
+
+postsRouter.post("/:id/save", requireAuth, async (req, res, next) => {
+  try {
+    const existing = await PostSave.findOne({ post: req.params.id, user: req.user?.id });
+    const saved = !existing;
+
+    if (existing) {
+      await existing.deleteOne();
+      await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.saves": -1 } });
+    } else {
+      await PostSave.create({ post: req.params.id, user: req.user?.id });
+      await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.saves": 1 } });
+    }
+
+    const post = await Post.findById(req.params.id).select("stats").lean();
+    res.json({ saved, stats: post?.stats });
+  } catch (error) {
+    next(error);
+  }
+});
+
+postsRouter.get("/:id/comments", requireAuth, async (req, res, next) => {
+  try {
+    const comments = await Comment.find({ post: req.params.id })
+      .sort({ createdAt: 1 })
+      .populate("author", "displayName avatarUrl")
+      .lean();
+    res.json({ comments });
+  } catch (error) {
+    next(error);
+  }
+});
+
+postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
+  try {
+    const body = commentBodySchema.parse(req.body);
+    const post = await Post.findById(req.params.id).select("_id").lean();
+
+    if (!post) {
+      throw new HttpError(404, "Post not found");
+    }
+
+    const comment = await Comment.create({
+      post: req.params.id,
+      author: req.user?.id,
+      body: body.body
+    });
+    await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.comments": 1 } });
+
+    const populated = await Comment.findById(comment._id)
+      .populate("author", "displayName avatarUrl")
+      .lean();
+    res.status(201).json({ comment: populated });
+  } catch (error) {
+    next(error);
+  }
+});

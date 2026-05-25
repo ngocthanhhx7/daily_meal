@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Daily Meal",
+    "slug": "daily-meal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "dailymeal",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dailymeal.app"
+    },
+    "android": {
+      "package": "com.dailymeal.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#F4F3EF"
+      },
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES"]
+    },
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Daily Meal needs photo access to create posts and analyze meals.",
+          "cameraPermission": "Daily Meal needs camera access to capture meals."
+        }
+      ],
+      "expo-camera"
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:4000",
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Build Daily Meal APK
 
-This builds an Android APK that points to the EC2 API at `http://54.197.170.50`.
+This builds an Android APK that points to the API at `https://api.ngocthanhhx7.site`.
 
 ## 1. Start The API On EC2
 
@@ -99,28 +99,35 @@ npm --workspace client run typecheck
 cd client
 npx eas-cli login
 npx eas-cli build:configure
-npm run build:apk
+npm run build:apk:clean
 ```
 
 The APK profile is `preview` in `client/eas.json`, and currently uses:
 
 ```env
-EXPO_PUBLIC_API_URL=http://54.197.170.50
+EXPO_PUBLIC_API_URL=https://api.ngocthanhhx7.site
 ```
+
+Use `build:apk:clean` after changing API URLs, native config, app icons, permissions, or Expo config. It passes `--clear-cache` to EAS so the remote build does not reuse stale cached native/bundle state.
 
 When EAS finishes, it will print a download URL for the APK.
 
-## 4. After Adding HTTPS
+## 4. HTTPS Domain Checklist
 
-Replace every `http://54.197.170.50` in:
+Before building, verify:
 
-- `client/.env`
-- `client/eas.json`
-
-with your HTTPS domain, for example:
-
-```env
-EXPO_PUBLIC_API_URL=https://api.your-domain.com
+```bash
+curl https://api.ngocthanhhx7.site/health
 ```
 
-Then remove `usesCleartextTraffic` from `client/app.json` or set it to `false`.
+Then confirm these files use the same API URL:
+
+- `client/.env`
+- `client/.env.production`
+- `client/eas.json`
+
+```env
+EXPO_PUBLIC_API_URL=https://api.ngocthanhhx7.site
+```
+
+After HTTPS is stable, remove `usesCleartextTraffic` from `client/app.json` or set it to `false`.

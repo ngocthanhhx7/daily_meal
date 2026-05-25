@@ -23,8 +23,8 @@ import type { Post, PostLayout } from "../types/api";
 import { stickerImageSource } from "../utils/stickers";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const ARTWORK_WIDTH = Math.min(SCREEN_WIDTH - 52, 330);
-const ARTWORK_HEIGHT = Math.round(ARTWORK_WIDTH * 1.03);
+const ARTWORK_WIDTH = Math.min(SCREEN_WIDTH - 28, 390);
+const ARTWORK_HEIGHT = Math.round(ARTWORK_WIDTH * 1.08);
 
 const DEMO_IMAGES = [
   require("../../assets/figma-snapshots/image1.png"),
@@ -131,10 +131,10 @@ export function HomeScreen({ navigation }: any) {
           <AppText style={styles.headerTitle}>Bảng tin</AppText>
           <View style={styles.headerRight}>
             <Pressable style={styles.headerIconBtn} hitSlop={8}>
-              <Ionicons name="notifications" size={18} color={colors.black} />
+              <Ionicons name="notifications" size={23} color={colors.black} />
             </Pressable>
             <Pressable style={styles.headerIconBtn} onPress={() => navigation.navigate("Profile")} hitSlop={8}>
-              <Ionicons name="person" size={19} color={colors.black} />
+              <Ionicons name="person" size={24} color={colors.black} />
             </Pressable>
           </View>
         </View>
@@ -174,23 +174,23 @@ export function HomeScreen({ navigation }: any) {
 
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
           <Pressable style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
-            <Ionicons name="grid" size={20} color={colors.black} />
+            <Ionicons name="grid" size={28} color={colors.black} />
           </Pressable>
 
           <View style={styles.actionPill}>
             <Pressable style={styles.pillBtn} onPress={handleComment} hitSlop={4}>
-              <Ionicons name="chatbubble" size={17} color={colors.white} />
+              <Ionicons name="chatbubble" size={24} color={colors.white} />
             </Pressable>
             <Pressable style={styles.pillBtn} onPress={handleLike} hitSlop={4}>
-              <Ionicons name="heart" size={18} color={isLiked ? colors.red : colors.red} />
+              <Ionicons name="heart" size={25} color={isLiked ? colors.red : colors.red} />
             </Pressable>
             <Pressable style={styles.pillBtn} onPress={handleSave} hitSlop={4}>
-              <Ionicons name="bookmark" size={17} color={isSaved ? colors.yellow : colors.yellow} />
+              <Ionicons name="bookmark" size={24} color={isSaved ? colors.yellow : colors.yellow} />
             </Pressable>
           </View>
 
           <Pressable style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
-            <Ionicons name="camera" size={20} color={colors.black} />
+            <Ionicons name="camera" size={28} color={colors.black} />
           </Pressable>
         </View>
 
@@ -231,9 +231,9 @@ function PostSlide({
 
           <View style={styles.statsChip}>
             <AppText style={styles.statsNum}>{post.stats?.comments ?? 0}</AppText>
-            <Ionicons name="chatbubble-outline" size={12} color={colors.black} />
+            <Ionicons name="chatbubble-outline" size={15} color={colors.black} />
             <AppText style={styles.statsNum}>{post.stats?.likes ?? 0}</AppText>
-            <Ionicons name="heart" size={12} color={colors.red} />
+            <Ionicons name="heart" size={15} color={colors.red} />
           </View>
 
           {post.nutritionSummary?.calories ? (
@@ -243,7 +243,7 @@ function PostSlide({
           ) : null}
 
           <View style={styles.captionChip}>
-            <Ionicons name="location" size={13} color={colors.black} />
+            <Ionicons name="location" size={17} color={colors.black} />
             <AppText numberOfLines={1} style={styles.captionText}>
               {post.caption || "Nó ngon phải biết"}
             </AppText>
@@ -422,7 +422,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 10
+    paddingTop: 12,
+    paddingBottom: 6
   },
   headerTitle: {
     fontFamily: fonts.bold,
@@ -437,8 +438,8 @@ const styles = StyleSheet.create({
     gap: 8
   },
   headerIconBtn: {
-    width: 30,
-    height: 30,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -449,7 +450,7 @@ const styles = StyleSheet.create({
   slide: {
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16
+    paddingHorizontal: 6
   },
   artworkPress: {
     width: ARTWORK_WIDTH,
@@ -464,7 +465,7 @@ const styles = StyleSheet.create({
   },
   feedImageWrap: {
     position: "absolute",
-    borderRadius: 18,
+    borderRadius: 22,
     backgroundColor: colors.canvasStrong,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 8 },
@@ -475,17 +476,17 @@ const styles = StyleSheet.create({
   feedImage: {
     width: "100%",
     height: "100%",
-    borderRadius: 18
+    borderRadius: 22
   },
   recipeChip: {
     position: "absolute",
-    top: 28,
-    left: 6,
+    top: 24,
+    left: 2,
     zIndex: 90,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.95)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     shadowColor: colors.black,
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -494,20 +495,21 @@ const styles = StyleSheet.create({
   recipeChipText: {
     color: colors.black,
     fontFamily: fonts.semibold,
-    fontSize: 11
+    fontSize: 14,
+    lineHeight: 18
   },
   statsChip: {
     position: "absolute",
-    top: 26,
-    right: 10,
+    top: 22,
+    right: 2,
     zIndex: 90,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    borderRadius: 12,
+    gap: 6,
+    borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.95)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
     shadowColor: colors.black,
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -515,18 +517,19 @@ const styles = StyleSheet.create({
   },
   statsNum: {
     fontFamily: fonts.semibold,
-    fontSize: 11,
+    fontSize: 14,
+    lineHeight: 18,
     color: colors.black
   },
   caloBadge: {
     position: "absolute",
-    top: 60,
-    right: 12,
+    top: 65,
+    right: 4,
     zIndex: 90,
-    borderRadius: 10,
+    borderRadius: 15,
     backgroundColor: "rgba(255,255,255,0.95)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     shadowColor: colors.black,
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -534,22 +537,23 @@ const styles = StyleSheet.create({
   },
   caloText: {
     fontFamily: fonts.semibold,
-    fontSize: 11,
+    fontSize: 14,
+    lineHeight: 18,
     color: colors.black
   },
   captionChip: {
     position: "absolute",
-    left: 6,
-    bottom: 25,
+    left: 4,
+    bottom: 22,
     zIndex: 90,
-    maxWidth: "72%",
+    maxWidth: "86%",
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    borderRadius: 12,
+    gap: 7,
+    borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.95)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     shadowColor: colors.black,
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -558,49 +562,51 @@ const styles = StyleSheet.create({
   captionText: {
     color: colors.black,
     fontFamily: fonts.semibold,
-    fontSize: 11
+    fontSize: 15,
+    lineHeight: 19
   },
   feedSticker: {
     position: "absolute",
-    width: 62,
-    height: 62,
+    width: 74,
+    height: 74,
     zIndex: 80
   },
   authorChip: {
-    marginTop: 12,
-    minWidth: 142,
-    maxWidth: ARTWORK_WIDTH - 42,
-    minHeight: 28,
+    marginTop: 16,
+    minWidth: 176,
+    maxWidth: ARTWORK_WIDTH - 24,
+    minHeight: 42,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     backgroundColor: colors.green,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 18,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 22,
     shadowColor: colors.black,
     shadowOpacity: 0.12,
     shadowRadius: 6,
     elevation: 3
   },
   authorAvatar: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center"
   },
   authorAvatarText: {
     fontFamily: fonts.bold,
-    fontSize: 10,
+    fontSize: 13,
     color: colors.green
   },
   authorName: {
     flex: 1,
     color: colors.white,
     fontFamily: fonts.semibold,
-    fontSize: 12
+    fontSize: 16,
+    lineHeight: 20
   },
   swipeHint: {
     marginTop: 8,
@@ -610,12 +616,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 46,
-    paddingTop: 10
+    paddingHorizontal: 40,
+    paddingTop: 12
   },
   squareBtn: {
-    width: 34,
-    height: 34,
+    width: 52,
+    height: 52,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -623,14 +629,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.black,
-    borderRadius: 24,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 10
+    borderRadius: 32,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    gap: 16
   },
   pillBtn: {
-    width: 24,
-    alignItems: "center"
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center"
   },
   overlay: {
     flex: 1,

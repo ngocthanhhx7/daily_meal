@@ -6,7 +6,9 @@
     "orientation": "portrait",
     "scheme": "dailymeal",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dailymeal.app"
@@ -18,7 +20,11 @@
       "adaptiveIcon": {
         "backgroundColor": "#F4F3EF"
       },
-      "permissions": ["CAMERA", "READ_MEDIA_IMAGES"]
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-font",
@@ -35,7 +41,7 @@
     "extra": {
       "apiUrl": "http://localhost:4000",
       "eas": {
-        "projectId": ""
+        "projectId": "36df33dd-58ed-4c75-add9-87130fb0e12f"
       }
     }
   }

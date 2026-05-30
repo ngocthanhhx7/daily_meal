@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "../api/client";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
@@ -130,6 +131,7 @@ function CommentBubble({
 // --- Main Screen ---
 export function CommentsScreen({ navigation, route }: any) {
   const { token, user } = useAuth();
+  const { socket } = useSocket();
   const post: Post | undefined = route.params?.post;
   const insets = useSafeAreaInsets();
 
@@ -140,6 +142,32 @@ export function CommentsScreen({ navigation, route }: any) {
 
   const totalLikes = post?.stats?.likes ?? 48;
   const totalComments = comments.length || post?.stats?.comments || 0;
+
+  // Real-time comments socket room integration
+  useEffect(() => {
+    if (!socket || !post?._id || post._id.startsWith("demo")) return;
+
+    console.log(`🔌 Subscribing to comments room: post:${post._id}`);
+    socket.emit("join-post", post._id);
+
+    socket.on("comment:created", (newComment: Comment) => {
+      console.log("💬 Live comment received via socket:", newComment);
+      setComments((current) => {
+        // Prevent local duplicates
+        if (current.some((c) => c._id === newComment._id)) {
+          return current;
+        }
+        return [...current, newComment];
+      });
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+
+    return () => {
+      console.log(`🚪 Unsubscribing from comments room: post:${post._id}`);
+      socket.emit("leave-post", post._id);
+      socket.off("comment:created");
+    };
+  }, [socket, post?._id]);
 
   useEffect(() => {
     if (!token || !post?._id || post._id.startsWith("demo")) {

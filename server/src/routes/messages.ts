@@ -5,6 +5,8 @@ import { HttpError } from "../middleware/error.js";
 import { Conversation } from "../models/Conversation.js";
 import { Message } from "../models/Message.js";
 import { User } from "../models/User.js";
+import { Notification } from "../models/Notification.js";
+import { emitToUser, broadcastToRoom } from "../services/socket.js";
 
 export const messagesRouter = Router();
 
@@ -163,7 +165,36 @@ messagesRouter.post("/conversations/:id/messages", requireAuth, async (req, res,
       .populate("sender", "displayName avatarUrl isPremium")
       .lean();
 
-    res.status(201).json({ message: messageDto(populated) });
+    if (!populated) {
+      throw new HttpError(404, "Message not found");
+    }
+
+    const formattedMessage = messageDto(populated);
+
+    // 1. Broadcast new message in real-time to the specific conversation room
+    broadcastToRoom(`conversation:${conversationId}`, "message:created", formattedMessage);
+
+    // 2. Trigger notification for the recipient participant
+    const recipientId = conversation.participants.find(p => p.toString() !== req.user?.id)?.toString();
+    if (recipientId) {
+      const senderName = (populated.sender as any)?.displayName || "Ai đó";
+      const snippet = body.body.length > 50 ? `${body.body.slice(0, 50)}...` : body.body;
+
+      const notification = await Notification.create({
+        user: recipientId,
+        sender: req.user?.id,
+        type: "message",
+        body: `${senderName} đã gửi tin nhắn: "${snippet}"`
+      });
+
+      const populatedNotification = await Notification.findById(notification._id)
+        .populate("sender", "displayName avatarUrl")
+        .lean();
+
+      emitToUser(recipientId, "notification:created", populatedNotification);
+    }
+
+    res.status(201).json({ message: formattedMessage });
   } catch (error) {
     next(error);
   }

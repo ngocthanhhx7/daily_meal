@@ -235,5 +235,17 @@ export const api = {
       token,
       body: { uploadId }
     }),
-  meals: (token: string) => request<{ meals: Meal[] }>("/api/meals", { token })
+  meals: (token: string) => request<{ meals: Meal[] }>("/api/meals", { token }),
+  notifications: (token: string) =>
+    request<{ notifications: any[] }>("/api/notifications", { token }),
+  markNotificationRead: (token: string, id: string) =>
+    request<{ notification: any }>(`/api/notifications/${id}/read`, {
+      method: "PATCH",
+      token
+    }),
+  markAllNotificationsRead: (token: string) =>
+    request<void>("/api/notifications/read-all", {
+      method: "PATCH",
+      token
+    })
 };

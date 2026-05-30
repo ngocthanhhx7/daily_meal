@@ -9,6 +9,8 @@ import { PostLike } from "../models/PostLike.js";
 import { PostSave } from "../models/PostSave.js";
 import { Sticker } from "../models/Sticker.js";
 import { User } from "../models/User.js";
+import { Notification } from "../models/Notification.js";
+import { emitToUser, broadcastToRoom } from "../services/socket.js";
 
 export const postsRouter = Router();
 
@@ -310,8 +312,38 @@ postsRouter.post("/:id/like", requireAuth, async (req, res, next) => {
       await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.likes": 1 } });
     }
 
-    const post = await Post.findById(req.params.id).select("stats").lean();
-    res.json({ liked, stats: post?.stats });
+    const post = await Post.findById(req.params.id).select("stats author").lean();
+
+    // Trigger Notification for the post author if it is a new like from another user
+    if (liked && post && post.author.toString() !== req.user?.id) {
+      const sender = await User.findById(req.user?.id).select("displayName").lean();
+      const senderName = sender?.displayName || "Ai đó";
+
+      const notification = await Notification.create({
+        user: post.author,
+        sender: req.user?.id,
+        type: "like",
+        post: post._id,
+        body: `${senderName} đã thích bài viết của bạn.`
+      });
+
+      const populatedNotification = await Notification.findById(notification._id)
+        .populate("sender", "displayName avatarUrl")
+        .lean();
+
+      emitToUser(post.author.toString(), "notification:created", populatedNotification);
+    }
+
+    res.json({
+      liked,
+      stats: post?.stats
+        ? {
+            likes: post.stats.likes ?? 0,
+            comments: post.stats.comments ?? 0,
+            saves: post.stats.saves ?? 0
+          }
+        : undefined
+    });
   } catch (error) {
     next(error);
   }
@@ -352,7 +384,7 @@ postsRouter.get("/:id/comments", requireAuth, async (req, res, next) => {
 postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
   try {
     const body = commentBodySchema.parse(req.body);
-    const post = await Post.findById(req.params.id).select("_id").lean();
+    const post = await Post.findById(req.params.id).select("_id author").lean();
 
     if (!post) {
       throw new HttpError(404, "Post not found");
@@ -368,6 +400,35 @@ postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
     const populated = await Comment.findById(comment._id)
       .populate("author", "displayName avatarUrl")
       .lean();
+
+    if (!populated) {
+      throw new HttpError(404, "Comment not found");
+    }
+
+    // Broadcast new comment to all sockets viewing this post in real-time
+    broadcastToRoom(`post:${req.params.id}`, "comment:created", populated);
+
+    // Trigger Notification for the post author if commented by another user
+    if (post.author && post.author.toString() !== req.user?.id) {
+      const senderName = (populated.author as any)?.displayName || "Ai đó";
+      const snippet = body.body.length > 40 ? `${body.body.slice(0, 40)}...` : body.body;
+
+      const notification = await Notification.create({
+        user: post.author,
+        sender: req.user?.id,
+        type: "comment",
+        post: post._id,
+        comment: comment._id,
+        body: `${senderName} đã bình luận về bài viết của bạn: "${snippet}"`
+      });
+
+      const populatedNotification = await Notification.findById(notification._id)
+        .populate("sender", "displayName avatarUrl")
+        .lean();
+
+      emitToUser(post.author.toString(), "notification:created", populatedNotification);
+    }
+
     res.status(201).json({ comment: populated });
   } catch (error) {
     next(error);

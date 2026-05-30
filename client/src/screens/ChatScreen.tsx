@@ -5,6 +5,7 @@ import { api } from "../api/client";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { ChatMessage, Conversation } from "../types/api";
@@ -23,11 +24,37 @@ function avatarSource(url?: string) {
 
 export function ChatScreen({ route, navigation }: any) {
   const { token, user } = useAuth();
+  const { socket } = useSocket();
   const conversationId = route.params?.conversationId as string;
   const otherUser = route.params?.otherUser as Conversation["otherUser"] | undefined;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+
+  // Real-time chat messages socket room integration
+  useEffect(() => {
+    if (!socket || !conversationId) return;
+
+    console.log(`🔌 Subscribing to chat room: conversation:${conversationId}`);
+    socket.emit("join-conversation", conversationId);
+
+    socket.on("message:created", (newMessage: ChatMessage) => {
+      console.log("💬 Live chat message received via socket:", newMessage);
+      setMessages((current) => {
+        // Prevent local duplicates
+        if (current.some((m) => m.id === newMessage.id)) {
+          return current;
+        }
+        return [...current, newMessage];
+      });
+    });
+
+    return () => {
+      console.log(`🚪 Unsubscribing from chat room: conversation:${conversationId}`);
+      socket.emit("leave-conversation", conversationId);
+      socket.off("message:created");
+    };
+  }, [socket, conversationId]);
 
   useEffect(() => {
     if (!token || !conversationId) {

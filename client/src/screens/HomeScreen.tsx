@@ -182,10 +182,10 @@ export function HomeScreen({ navigation }: any) {
               <Ionicons name="chatbubble" size={24} color={colors.white} />
             </Pressable>
             <Pressable style={styles.pillBtn} onPress={handleLike} hitSlop={4}>
-              <Ionicons name="heart" size={25} color={isLiked ? colors.red : colors.red} />
+              <Ionicons name={isLiked ? "heart" : "heart-outline"} size={26} color={isLiked ? colors.red : colors.white} />
             </Pressable>
             <Pressable style={styles.pillBtn} onPress={handleSave} hitSlop={4}>
-              <Ionicons name="bookmark" size={24} color={isSaved ? colors.yellow : colors.yellow} />
+              <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={25} color={isSaved ? colors.yellow : colors.white} />
             </Pressable>
           </View>
 

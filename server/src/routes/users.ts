@@ -8,6 +8,8 @@ import { PostLike } from "../models/PostLike.js";
 import { PostSave } from "../models/PostSave.js";
 import { User } from "../models/User.js";
 import { UserInteraction } from "../models/UserInteraction.js";
+import { Notification } from "../models/Notification.js";
+import { emitToUser } from "../services/socket.js";
 
 export const usersRouter = Router();
 
@@ -264,6 +266,23 @@ usersRouter.post("/:id/follow", requireAuth, async (req, res, next) => {
           $inc: { "counts.followers": 1, "counts.friends": friendInc }
         })
       ]);
+
+      // Trigger follow notification
+      const sender = await User.findById(req.user?.id).select("displayName").lean();
+      const senderName = sender?.displayName || "Ai đó";
+
+      const notification = await Notification.create({
+        user: targetId,
+        sender: req.user?.id,
+        type: "follow",
+        body: `${senderName} đã bắt đầu theo dõi bạn.`
+      });
+
+      const populatedNotification = await Notification.findById(notification._id)
+        .populate("sender", "displayName avatarUrl")
+        .lean();
+
+      emitToUser(targetId || "", "notification:created", populatedNotification);
     }
 
     const updatedTarget = await User.findById(targetId).lean();

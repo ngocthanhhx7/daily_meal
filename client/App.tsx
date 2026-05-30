@@ -4,6 +4,8 @@ import React from "react";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/context/AuthContext";
+import { SocketProvider } from "./src/context/SocketContext";
+import { NotificationProvider } from "./src/context/NotificationContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { IosInstallGate } from "./src/pwa/IosInstallGate";
 import { PwaRuntime } from "./src/pwa/PwaRuntime";
@@ -47,8 +49,12 @@ export default function App() {
       <SafeAreaProvider>
         <PwaRuntime />
         <AuthProvider>
-          <StatusBar style="dark" />
-          <AppNavigator />
+          <SocketProvider>
+            <NotificationProvider>
+              <StatusBar style="dark" />
+              <AppNavigator />
+            </NotificationProvider>
+          </SocketProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </WebMobileShell>

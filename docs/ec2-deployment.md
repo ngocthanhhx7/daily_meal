@@ -91,60 +91,143 @@ pm2 status
 curl http://127.0.0.1:4000/health
 ```
 
-## Nginx
+## Nginx for PWA & API (with Cloudflare / SSL)
 
-Create `/etc/nginx/conf.d/daily-meal-api.conf`:
+Create or replace `/etc/nginx/conf.d/daily-meal-api.conf`:
 
 ```nginx
 server {
     listen 80;
-    server_name _;
+    server_name ngocthanhhx7.site www.ngocthanhhx7.site;
 
+    root /var/www/daily-meal;
+    index index.html;
     client_max_body_size 10m;
 
-    location / {
-        proxy_pass http://127.0.0.1:4000;
+    # Dynamic cache control for SPA index.html
+    location = /index.html {
+        add_header Cache-Control "no-store";
+        try_files $uri =404;
+    }
+
+    # Dynamic cache control for PWA manifest
+    location = /manifest.json {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    # Dynamic cache control for service worker
+    location = /sw.js {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    # Proxy API requests to node server
+    location /api/ {
+        proxy_pass http://127.0.0.1:4000/api/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
+
+    # Proxy Image Uploads to node server uploads folder
+    location /uploads/ {
+        proxy_pass http://127.0.0.1:4000/uploads/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Fallback to SPA routing
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Static assets cache
+    location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|woff2?|ico)$ {
+        expires 30d;
+        add_header Cache-Control "public, max-age=2592000, immutable";
+        try_files $uri =404;
+    }
 }
 ```
 
-Enable it:
+Enable it and restart Nginx:
 
 ```bash
 sudo nginx -t
 sudo systemctl enable nginx
 sudo systemctl restart nginx
-curl http://EC2_PUBLIC_IP/health
 ```
 
-## Mobile Client
+---
 
-Set the client API URL to the EC2 public URL:
+## Web PWA Build & Deployment
 
-```env
-EXPO_PUBLIC_API_URL=http://EC2_PUBLIC_IP
+Build the Expo web app on the EC2 instance and copy it to the web root:
+
+```bash
+# 1. Go to the project root
+cd ~/daily_meal
+
+# 2. Pull new changes
+git pull
+
+# 3. Clean install dependencies
+npm ci
+
+# 4. Export static files for web
+npm --workspace client run build:web
+
+# 5. Create deployment directory and copy assets
+sudo mkdir -p /var/www/daily-meal
+sudo rsync -a --delete client/dist/ /var/www/daily-meal/
+sudo chown -R nginx:nginx /var/www/daily-meal
 ```
 
-For production, use a domain and HTTPS, then set:
+Verify PWA serving:
 
-```env
-EXPO_PUBLIC_API_URL=https://api.your-domain.com
+```bash
+# Verify headers and serving locally
+curl -I http://127.0.0.1/
+curl -I http://127.0.0.1/manifest.json
+curl http://127.0.0.1/api/auth/me
 ```
+
+---
+
+## Cloudflare Setup
+
+To connect your domain `ngocthanhhx7.site` with Cloudflare:
+
+1. **DNS Setup**: Add an `A` record pointing to `54.197.170.50` with proxy status enabled (orange cloud).
+2. **SSL/TLS Mode**: 
+   - Set to **Flexible** if Nginx only listens on Port 80 (HTTP). Cloudflare will handle client-side HTTPS and proxy requests to your EC2 instance over HTTP.
+   - Set to **Full** or **Full (Strict)** if you configure Certbot SSL keys directly on your EC2 Nginx.
+
+---
 
 ## Updates
 
-Deploy new code:
+To pull new code and deploy updates:
 
 ```bash
 cd ~/daily_meal
 git pull
 npm ci
+
+# Update server
 npm run build
 pm2 restart daily-meal-api
 pm2 logs daily-meal-api
+
+# Update client/PWA
+npm --workspace client run build:web
+sudo rsync -a --delete client/dist/ /var/www/daily-meal/
+sudo chown -R nginx:nginx /var/www/daily-meal
 ```
+

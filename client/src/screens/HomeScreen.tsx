@@ -94,7 +94,23 @@ export function HomeScreen({ navigation }: any) {
     if (!token) return;
     try {
       const result = await api.feed(token);
-      setPosts(result.posts.length ? result.posts : demoPosts);
+      const feedPosts = result.posts.length ? result.posts : demoPosts;
+      setPosts(feedPosts);
+
+      // Populate liked and saved sets from database viewerState on page load
+      const initialLikes = new Set<string>();
+      const initialSaves = new Set<string>();
+      feedPosts.forEach((post) => {
+        if (post.viewerState?.liked) {
+          initialLikes.add(post._id);
+        }
+        if (post.viewerState?.saved) {
+          initialSaves.add(post._id);
+        }
+      });
+      setLikedSet(initialLikes);
+      setSavedSet(initialSaves);
+
       if (jumpToTop) {
         setCurrentIndex(0);
         requestAnimationFrame(() => {
@@ -124,22 +140,88 @@ export function HomeScreen({ navigation }: any) {
   async function handleLike() {
     if (!token || !currentPost) return;
     const postId = currentPost._id;
+    const isCurrentlyLiked = likedSet.has(postId);
+
+    // Optimistic UI updates
     setLikedSet((current) => toggleSet(current, postId));
+    setPosts((currentPosts) =>
+      currentPosts.map((p) =>
+        p._id === postId
+          ? {
+              ...p,
+              stats: {
+                ...p.stats,
+                likes: Math.max(0, (p.stats?.likes ?? 0) + (isCurrentlyLiked ? -1 : 1))
+              }
+            }
+          : p
+      )
+    );
+
     try {
-      if (!postId.startsWith("demo")) await api.likePost(token, postId);
+      if (!postId.startsWith("demo")) {
+        await api.likePost(token, postId);
+      }
     } catch {
+      // Revert optimistic updates on error
       setLikedSet((current) => toggleSet(current, postId));
+      setPosts((currentPosts) =>
+        currentPosts.map((p) =>
+          p._id === postId
+            ? {
+                ...p,
+                stats: {
+                  ...p.stats,
+                  likes: Math.max(0, (p.stats?.likes ?? 0) + (isCurrentlyLiked ? 1 : -1))
+                }
+              }
+            : p
+        )
+      );
     }
   }
 
   async function handleSave() {
     if (!token || !currentPost) return;
     const postId = currentPost._id;
+    const isCurrentlySaved = savedSet.has(postId);
+
+    // Optimistic UI updates
     setSavedSet((current) => toggleSet(current, postId));
+    setPosts((currentPosts) =>
+      currentPosts.map((p) =>
+        p._id === postId
+          ? {
+              ...p,
+              stats: {
+                ...p.stats,
+                saves: Math.max(0, (p.stats?.saves ?? 0) + (isCurrentlySaved ? -1 : 1))
+              }
+            }
+          : p
+      )
+    );
+
     try {
-      if (!postId.startsWith("demo")) await api.savePost(token, postId);
+      if (!postId.startsWith("demo")) {
+        await api.savePost(token, postId);
+      }
     } catch {
+      // Revert optimistic updates on error
       setSavedSet((current) => toggleSet(current, postId));
+      setPosts((currentPosts) =>
+        currentPosts.map((p) =>
+          p._id === postId
+            ? {
+                ...p,
+                stats: {
+                  ...p.stats,
+                  saves: Math.max(0, (p.stats?.saves ?? 0) + (isCurrentlySaved ? 1 : -1))
+                }
+              }
+            : p
+        )
+      );
     }
   }
 

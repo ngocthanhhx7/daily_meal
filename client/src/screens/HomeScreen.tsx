@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -16,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { api } from "../api/client";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import { demoPosts } from "../data/sample";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
@@ -52,6 +53,7 @@ function cardRotation(index: number) {
 
 export function HomeScreen({ navigation }: any) {
   const { token, user } = useAuth();
+  const { socket } = useSocket();
   const insets = useSafeAreaInsets();
   const [posts, setPosts] = useState<Post[]>(demoPosts);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -61,6 +63,32 @@ export function HomeScreen({ navigation }: any) {
   const [showCategory, setShowCategory] = useState(false);
   const flatRef = useRef<FlatList>(null);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
+
+  // Real-time feed interaction updates
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on("post:stats-updated", ({ postId, stats }: { postId: string; stats: any }) => {
+      console.log(`📊 Live stats updated for post: ${postId}`, stats);
+      setPosts((currentPosts) =>
+        currentPosts.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                stats: {
+                  ...post.stats,
+                  ...stats
+                }
+              }
+            : post
+        )
+      );
+    });
+
+    return () => {
+      socket.off("post:stats-updated");
+    };
+  }, [socket]);
 
   const load = useCallback(async (jumpToTop = false) => {
     if (!token) return;

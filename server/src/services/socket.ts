@@ -103,3 +103,8 @@ export function broadcastToRoom(room: string, event: string, data: unknown, excl
     io.to(room).emit(event, data);
   }
 }
+
+export function broadcastGlobal(event: string, data: unknown) {
+  if (!io) return;
+  io.emit(event, data);
+}

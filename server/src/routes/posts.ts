@@ -10,7 +10,7 @@ import { PostSave } from "../models/PostSave.js";
 import { Sticker } from "../models/Sticker.js";
 import { User } from "../models/User.js";
 import { Notification } from "../models/Notification.js";
-import { emitToUser, broadcastToRoom } from "../services/socket.js";
+import { emitToUser, broadcastToRoom, broadcastGlobal } from "../services/socket.js";
 
 export const postsRouter = Router();
 
@@ -334,6 +334,14 @@ postsRouter.post("/:id/like", requireAuth, async (req, res, next) => {
       emitToUser(post.author.toString(), "notification:created", populatedNotification);
     }
 
+    // Broadcast updated stats globally in real-time
+    if (post) {
+      broadcastGlobal("post:stats-updated", {
+        postId: req.params.id,
+        stats: post.stats
+      });
+    }
+
     res.json({
       liked,
       stats: post?.stats
@@ -396,6 +404,15 @@ postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
       body: body.body
     });
     await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.comments": 1 } });
+
+    // Fetch updated stats and broadcast globally in real-time
+    const updatedPost = await Post.findById(req.params.id).select("stats").lean();
+    if (updatedPost) {
+      broadcastGlobal("post:stats-updated", {
+        postId: req.params.id,
+        stats: updatedPost.stats
+      });
+    }
 
     const populated = await Comment.findById(comment._id)
       .populate("author", "displayName avatarUrl")

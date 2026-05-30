@@ -7,6 +7,7 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { IosInstallGate } from "./src/pwa/IosInstallGate";
 import { PwaRuntime } from "./src/pwa/PwaRuntime";
+import { WebMobileShell } from "./src/pwa/WebMobileShell";
 import { shouldShowIosInstallGate } from "./src/pwa/platform";
 import { colors } from "./src/theme/colors";
 
@@ -20,30 +21,36 @@ export default function App() {
 
   if (!fontsLoaded) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas }}>
-        <PwaRuntime />
-        <ActivityIndicator color={colors.green} />
-      </View>
+      <WebMobileShell>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas }}>
+          <PwaRuntime />
+          <ActivityIndicator color={colors.green} />
+        </View>
+      </WebMobileShell>
     );
   }
 
   if (shouldShowIosInstallGate()) {
     return (
-      <SafeAreaProvider>
-        <PwaRuntime />
-        <StatusBar style="dark" />
-        <IosInstallGate />
-      </SafeAreaProvider>
+      <WebMobileShell>
+        <SafeAreaProvider>
+          <PwaRuntime />
+          <StatusBar style="dark" />
+          <IosInstallGate />
+        </SafeAreaProvider>
+      </WebMobileShell>
     );
   }
 
   return (
-    <SafeAreaProvider>
-      <PwaRuntime />
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <AppNavigator />
-      </AuthProvider>
-    </SafeAreaProvider>
+    <WebMobileShell>
+      <SafeAreaProvider>
+        <PwaRuntime />
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <AppNavigator />
+        </AuthProvider>
+      </SafeAreaProvider>
+    </WebMobileShell>
   );
 }

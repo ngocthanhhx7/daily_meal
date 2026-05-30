@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { Platform } from "react-native";
 import { api } from "../api/client";
 import type { User } from "../types/api";
 
@@ -16,6 +17,57 @@ type AuthContextValue = {
 };
 
 const TOKEN_KEY = "daily-meal-token";
+const safeStorage = {
+  async getItem(key: string): Promise<string | null> {
+    if (Platform.OS === "web") {
+      try {
+        return localStorage.getItem(key);
+      } catch (e) {
+        console.error("Failed to get item from localStorage", e);
+        return null;
+      }
+    }
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch (e) {
+      console.error("Failed to get item from SecureStore", e);
+      return null;
+    }
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    if (Platform.OS === "web") {
+      try {
+        localStorage.setItem(key, value);
+        return;
+      } catch (e) {
+        console.error("Failed to set item in localStorage", e);
+        return;
+      }
+    }
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch (e) {
+      console.error("Failed to set item in SecureStore", e);
+    }
+  },
+  async deleteItem(key: string): Promise<void> {
+    if (Platform.OS === "web") {
+      try {
+        localStorage.removeItem(key);
+        return;
+      } catch (e) {
+        console.error("Failed to delete item from localStorage", e);
+        return;
+      }
+    }
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch (e) {
+      console.error("Failed to delete item from SecureStore", e);
+    }
+  }
+};
+
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -28,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function restore() {
       try {
-        const savedToken = await SecureStore.getItemAsync(TOKEN_KEY);
+        const savedToken = await safeStorage.getItem(TOKEN_KEY);
         if (!savedToken) {
           return;
         }
@@ -38,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(result.user);
         }
       } catch {
-        await SecureStore.deleteItemAsync(TOKEN_KEY);
+        await safeStorage.deleteItem(TOKEN_KEY);
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -53,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function persistSession(nextToken: string, nextUser: User) {
-    await SecureStore.setItemAsync(TOKEN_KEY, nextToken);
+    await safeStorage.setItem(TOKEN_KEY, nextToken);
     setToken(nextToken);
     setUser(nextUser);
   }
@@ -72,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await persistSession(result.token, result.user);
       },
       signOut: async () => {
-        await SecureStore.deleteItemAsync(TOKEN_KEY);
+        await safeStorage.deleteItem(TOKEN_KEY);
         setToken(null);
         setUser(null);
       },

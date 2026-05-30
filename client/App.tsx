@@ -5,6 +5,9 @@ import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/context/AuthContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
+import { IosInstallGate } from "./src/pwa/IosInstallGate";
+import { PwaRuntime } from "./src/pwa/PwaRuntime";
+import { shouldShowIosInstallGate } from "./src/pwa/platform";
 import { colors } from "./src/theme/colors";
 
 export default function App() {
@@ -18,13 +21,25 @@ export default function App() {
   if (!fontsLoaded) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.canvas }}>
+        <PwaRuntime />
         <ActivityIndicator color={colors.green} />
       </View>
     );
   }
 
+  if (shouldShowIosInstallGate()) {
+    return (
+      <SafeAreaProvider>
+        <PwaRuntime />
+        <StatusBar style="dark" />
+        <IosInstallGate />
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
+      <PwaRuntime />
       <AuthProvider>
         <StatusBar style="dark" />
         <AppNavigator />

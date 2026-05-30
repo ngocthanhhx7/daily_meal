@@ -1,0 +1,19 @@
+{
+  "name": "Daily Meal",
+  "short_name": "Daily Meal",
+  "description": "Share meals, recipes, and daily nutrition moments.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F3EF",
+  "theme_color": "#F4F3EF",
+  "icons": [
+    {
+      "src": "/icons/daily-meal-icon.png",
+      "sizes": "180x180 192x192 512x512 1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

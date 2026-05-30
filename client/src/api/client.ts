@@ -21,6 +21,10 @@ function resolveApiBaseUrl() {
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
   const metroHost = getMetroHost();
 
   if (metroHost) {

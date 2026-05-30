@@ -17,12 +17,12 @@ function getMetroHost() {
 }
 
 function resolveApiBaseUrl() {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
-  }
-
   if (Platform.OS === "web" && typeof window !== "undefined") {
     return window.location.origin;
+  }
+
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
   }
 
   const metroHost = getMetroHost();

@@ -1,5 +1,5 @@
 import * as ImagePicker from "expo-image-picker";
-import { Alert, Linking } from "react-native";
+import { Alert, Linking, Platform } from "react-native";
 
 type ImageSource = "camera" | "library";
 
@@ -9,6 +9,9 @@ const imageOptions: ImagePicker.ImagePickerOptions = {
 };
 
 async function ensureCameraPermission() {
+  if (Platform.OS === "web") {
+    return true;
+  }
   const currentPermission = await ImagePicker.getCameraPermissionsAsync();
 
   if (currentPermission.granted) {
@@ -40,6 +43,9 @@ async function ensureCameraPermission() {
 }
 
 async function ensureLibraryPermission() {
+  if (Platform.OS === "web") {
+    return true;
+  }
   const currentPermission = await ImagePicker.getMediaLibraryPermissionsAsync();
 
   if (currentPermission.granted) {

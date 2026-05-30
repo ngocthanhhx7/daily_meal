@@ -205,13 +205,24 @@ export const api = {
       body: { body }
     }),
   stickers: (token: string) => request<{ stickers: Sticker[] }>("/api/stickers", { token }),
-  uploadImage: (token: string, uri: string, category: string) => {
+  uploadImage: async (token: string, uri: string, category: string) => {
     const form = new FormData();
-    form.append("image", {
-      uri,
-      name: `${category}-${Date.now()}.jpg`,
-      type: "image/jpeg"
-    } as unknown as Blob);
+    if (Platform.OS === "web") {
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        form.append("image", blob, `${category}-${Date.now()}.jpg`);
+      } catch (error) {
+        console.error("Failed to convert URI to blob on web", error);
+        throw new Error("Không thể xử lý dữ liệu ảnh trên trình duyệt.");
+      }
+    } else {
+      form.append("image", {
+        uri,
+        name: `${category}-${Date.now()}.jpg`,
+        type: "image/jpeg"
+      } as unknown as Blob);
+    }
     return request<{ upload: Upload }>(`/api/uploads?category=${category}`, {
       method: "POST",
       token,

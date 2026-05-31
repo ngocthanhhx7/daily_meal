@@ -100,6 +100,16 @@ export const api = {
       method: "POST",
       body
     }),
+  registerWithPhone: (body: { phone: string; password: string; displayName?: string }) =>
+    request<{ token: string; user: User }>("/api/auth/phone/register", {
+      method: "POST",
+      body
+    }),
+  loginWithPhone: (body: { phone: string; password: string }) =>
+    request<{ token: string; user: User }>("/api/auth/phone/login", {
+      method: "POST",
+      body
+    }),
   me: (token: string) => request<{ user: User }>("/api/auth/me", { token }),
   savePreferences: (
     token: string,

@@ -37,7 +37,7 @@ function profileHandle(profile: User) {
     .replace(/^\.+|\.+$/g, "")
     .toLowerCase();
 
-  return `@${base || profile.email.split("@")[0]}`;
+  return `@${base || profile.email?.split("@")[0] || profile.phone || "daily.meal"}`;
 }
 
 function formatCount(value: number) {

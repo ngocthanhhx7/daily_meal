@@ -151,7 +151,7 @@ postsRouter.get("/feed", requireAuth, async (req, res, next) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .populate("author", "displayName avatarUrl isPremium")
+      .populate("author", "displayName avatarUrl isPremium themeColor")
       .populate("stickerId")
       .lean();
 
@@ -195,7 +195,7 @@ postsRouter.get("/search", requireAuth, async (req, res, next) => {
     let posts = await Post.find(filter)
       .sort({ createdAt: -1 })
       .limit(50)
-      .populate("author", "displayName avatarUrl isPremium")
+      .populate("author", "displayName avatarUrl isPremium themeColor")
       .populate("stickerId")
       .lean();
 
@@ -228,7 +228,7 @@ postsRouter.post("/", requireAuth, async (req, res, next) => {
     await User.findByIdAndUpdate(req.user?.id, { $inc: { "counts.posts": 1 } });
 
     const populated = await Post.findById(post._id)
-      .populate("author", "displayName avatarUrl isPremium")
+      .populate("author", "displayName avatarUrl isPremium themeColor")
       .populate("stickerId")
       .lean();
     const [serialized] = await serializePostsForViewer(populated ? [populated] : [], req.user?.id);
@@ -265,7 +265,7 @@ postsRouter.patch("/:id", requireAuth, async (req, res, next) => {
     await post.save();
 
     const populated = await Post.findById(post._id)
-      .populate("author", "displayName avatarUrl isPremium")
+      .populate("author", "displayName avatarUrl isPremium themeColor")
       .populate("stickerId")
       .lean();
     const [serialized] = await serializePostsForViewer(populated ? [populated] : [], req.user?.id);
@@ -381,7 +381,7 @@ postsRouter.get("/:id/comments", requireAuth, async (req, res, next) => {
   try {
     const comments = await Comment.find({ post: req.params.id })
       .sort({ createdAt: 1 })
-      .populate("author", "displayName avatarUrl")
+      .populate("author", "displayName avatarUrl themeColor")
       .lean();
     res.json({ comments });
   } catch (error) {
@@ -415,7 +415,7 @@ postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
     }
 
     const populated = await Comment.findById(comment._id)
-      .populate("author", "displayName avatarUrl")
+      .populate("author", "displayName avatarUrl themeColor")
       .lean();
 
     if (!populated) {

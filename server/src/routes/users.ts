@@ -345,7 +345,7 @@ usersRouter.get("/:id/posts", requireAuth, async (req, res, next) => {
   try {
     const posts = await Post.find({ author: req.params.id, visibility: "public" })
       .sort({ createdAt: -1 })
-      .populate("author", "displayName avatarUrl isPremium")
+      .populate("author", "displayName avatarUrl isPremium themeColor")
       .populate("stickerId")
       .lean();
 
@@ -363,7 +363,7 @@ usersRouter.get("/:id/saved-posts", requireAuth, async (req, res, next) => {
       visibility: "public"
     })
       .sort({ createdAt: -1 })
-      .populate("author", "displayName avatarUrl isPremium")
+      .populate("author", "displayName avatarUrl isPremium themeColor")
       .populate("stickerId")
       .lean();
 

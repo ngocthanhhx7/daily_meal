@@ -327,7 +327,8 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: "row",
     alignItems: "center",
-    minWidth: 0
+    minWidth: 0,
+    paddingHorizontal: 2
   },
   backButton: {
     width: 24,
@@ -341,9 +342,9 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.black,
     fontFamily: fonts.bold,
-    fontSize: 30,
-    lineHeight: 36,
-    marginHorizontal: 10
+    fontSize: 24,
+    lineHeight: 30,
+    marginHorizontal: 8
   },
   menuButton: {
     width: 34,
@@ -367,7 +368,8 @@ const styles = StyleSheet.create({
   profileSummary: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12
+    gap: 10,
+    paddingHorizontal: 2
   },
   avatarWrap: {
     width: 78,
@@ -380,8 +382,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.black,
     overflow: "hidden"
   },
   avatarImage: {
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
   },
   statItem: {
     flex: 1,
-    alignItems: "center",
+    alignItems: "flex-start",
     minWidth: 0,
     gap: 1
   },
@@ -440,10 +440,11 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 10,
     lineHeight: 13,
-    textAlign: "center"
+    textAlign: "left"
   },
   bioBlock: {
-    gap: 3
+    gap: 3,
+    paddingHorizontal: 2
   },
   bioText: {
     color: colors.ink,
@@ -457,7 +458,8 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: "row",
     gap: 8,
-    width: "100%"
+    width: "100%",
+    paddingHorizontal: 2
   },
   profileActionButton: {
     flex: 1,
@@ -468,6 +470,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 12,
     backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
     shadowColor: colors.black,
     shadowOpacity: 0.14,
     shadowOffset: { width: 0, height: 4 },
@@ -485,14 +489,13 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 34,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
-    marginTop: 4
+    gap: 42,
+    marginTop: 2,
+    marginBottom: -2
   },
   tabButton: {
     width: 68,
-    minHeight: 54,
+    minHeight: 38,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -508,7 +511,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    rowGap: 24
+    rowGap: 18,
+    paddingHorizontal: 2,
+    paddingBottom: 24
   },
   gridItem: {
     width: "47.5%",
@@ -518,12 +523,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowOffset: { width: 0, height: 6 },
     shadowRadius: 10,
-    elevation: 5
+    elevation: 5,
+    overflow: "visible"
   },
   gridImage: {
     width: "100%",
     aspectRatio: 0.78,
-    borderRadius: 14,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
     backgroundColor: colors.canvasStrong
   },
   gridCaption: {

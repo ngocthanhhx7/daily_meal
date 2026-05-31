@@ -68,6 +68,13 @@ export type PostImageTransform = {
   offsetY: number;
 };
 
+export type ImageRecipe = {
+  imageIndex: number;
+  title: string;
+  ingredients: string[];
+  steps: string[];
+};
+
 export type StickerPlacement = {
   x: number;
   y: number;
@@ -88,7 +95,9 @@ export type Post = {
     ingredients: string[];
     steps: string[];
   };
+  recipes?: ImageRecipe[];
   nutritionSummary?: NutritionSummary;
+  nutritionDetails?: NutritionDetail[];
   stickerId?: Sticker;
   stickerPlacement?: StickerPlacement;
   visibility: "public" | "private";
@@ -124,6 +133,14 @@ export type MealAnalysisItem = {
   carbs: number;
   fat: number;
   confidence: number;
+};
+
+export type NutritionDetail = {
+  imageIndex: number;
+  items: MealAnalysisItem[];
+  total: NutritionSummary;
+  warnings?: string[];
+  mealId?: string;
 };
 
 export type Meal = {

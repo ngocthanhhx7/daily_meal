@@ -44,6 +44,32 @@ const nutritionSchema = z
   })
   .optional();
 
+const requiredNutritionSchema = z.object({
+  calories: z.number().nonnegative().default(0),
+  protein: z.number().nonnegative().default(0),
+  carbs: z.number().nonnegative().default(0),
+  fat: z.number().nonnegative().default(0),
+  confidence: z.number().min(0).max(1).default(0)
+});
+
+const nutritionItemSchema = z.object({
+  name: z.string().max(120).default(""),
+  portion: z.string().max(160).default(""),
+  calories: z.number().nonnegative().default(0),
+  protein: z.number().nonnegative().default(0),
+  carbs: z.number().nonnegative().default(0),
+  fat: z.number().nonnegative().default(0),
+  confidence: z.number().min(0).max(1).default(0)
+});
+
+const nutritionDetailSchema = z.object({
+  imageIndex: z.number().int().min(0).max(2),
+  items: z.array(nutritionItemSchema).default([]),
+  total: requiredNutritionSchema,
+  warnings: z.array(z.string().max(240)).default([]),
+  mealId: z.string().optional()
+});
+
 const recipeSchema = z
   .object({
     title: z.string().max(120).default(""),
@@ -52,6 +78,13 @@ const recipeSchema = z
   })
   .optional();
 
+const imageRecipeValidation = z.object({
+  imageIndex: z.number().int().min(0).max(2),
+  title: z.string().max(120).default(""),
+  ingredients: z.array(z.string()).default([]),
+  steps: z.array(z.string()).default([])
+});
+
 const postBodySchema = z.object({
   images: z.array(imageSchema).min(1).max(3),
   layout: z.enum(["stack", "grid", "cascade"]).default("stack"),
@@ -59,7 +92,9 @@ const postBodySchema = z.object({
   caption: z.string().max(2000).default(""),
   tags: z.array(z.string()).max(20).default([]),
   recipe: recipeSchema,
+  recipes: z.array(imageRecipeValidation).max(3).default([]),
   nutritionSummary: nutritionSchema,
+  nutritionDetails: z.array(nutritionDetailSchema).max(3).default([]),
   mealId: z.string().optional(),
   stickerId: z.string().optional(),
   stickerPlacement: stickerPlacementSchema.optional(),

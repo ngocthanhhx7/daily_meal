@@ -40,8 +40,42 @@ const nutritionSummarySchema = new Schema(
   { _id: false }
 );
 
+const nutritionItemSchema = new Schema(
+  {
+    name: { type: String, default: "" },
+    portion: { type: String, default: "" },
+    calories: { type: Number, default: 0 },
+    protein: { type: Number, default: 0 },
+    carbs: { type: Number, default: 0 },
+    fat: { type: Number, default: 0 },
+    confidence: { type: Number, default: 0 }
+  },
+  { _id: false }
+);
+
+const nutritionDetailSchema = new Schema(
+  {
+    imageIndex: { type: Number, required: true },
+    items: { type: [nutritionItemSchema], default: [] },
+    total: { type: nutritionSummarySchema, required: true },
+    warnings: { type: [String], default: [] },
+    mealId: { type: Types.ObjectId, ref: "Meal" }
+  },
+  { _id: false }
+);
+
 const recipeSchema = new Schema(
   {
+    title: { type: String, default: "" },
+    ingredients: { type: [String], default: [] },
+    steps: { type: [String], default: [] }
+  },
+  { _id: false }
+);
+
+const imageRecipeSchema = new Schema(
+  {
+    imageIndex: { type: Number, required: true },
     title: { type: String, default: "" },
     ingredients: { type: [String], default: [] },
     steps: { type: [String], default: [] }
@@ -58,7 +92,9 @@ const postSchema = new Schema(
     caption: { type: String, default: "" },
     tags: { type: [String], default: [] },
     recipe: { type: recipeSchema, default: () => ({}) },
+    recipes: { type: [imageRecipeSchema], default: [] },
     nutritionSummary: { type: nutritionSummarySchema },
+    nutritionDetails: { type: [nutritionDetailSchema], default: [] },
     mealId: { type: Types.ObjectId, ref: "Meal" },
     stickerId: { type: Types.ObjectId, ref: "Sticker" },
     stickerPlacement: { type: stickerPlacementSchema },

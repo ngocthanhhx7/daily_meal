@@ -5,6 +5,7 @@ import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vites
 import { createApp } from "../app.js";
 import { seedDefaultStickers } from "../services/stickers.js";
 import { Sticker } from "../models/Sticker.js";
+import { User } from "../models/User.js";
 import { verifyGoogleIdToken } from "../services/googleAuth.js";
 
 vi.mock("../services/googleAuth.js", () => ({
@@ -36,6 +37,10 @@ async function createPost(token: string, caption: string) {
     .expect(201);
 
   return response.body.post as { _id: string; caption: string };
+}
+
+async function makePremium(userId: string) {
+  await User.findByIdAndUpdate(userId, { isPremium: true });
 }
 
 describe("Daily Meal API", () => {
@@ -88,6 +93,7 @@ describe("Daily Meal API", () => {
 
   it("creates posts with up to three images and rejects overflow", async () => {
     const session = await register("post@example.com");
+    await makePremium(session.user.id);
     const image = { url: "/uploads/demo.jpg" };
 
     const response = await request(app)
@@ -121,6 +127,90 @@ describe("Daily Meal API", () => {
         visibility: "public"
       })
       .expect(400);
+  });
+
+  it("persists per-image nutrition details on posts and feed", async () => {
+    const session = await register("nutrition-details@example.com");
+    await makePremium(session.user.id);
+
+    const response = await request(app)
+      .post("/api/posts")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({
+        images: [{ url: "/uploads/breakfast-1.jpg" }, { url: "/uploads/breakfast-2.jpg" }],
+        caption: "Bữa sáng nhiều món",
+        tags: ["breakfast"],
+        nutritionSummary: {
+          calories: 475,
+          protein: 24,
+          carbs: 52,
+          fat: 18,
+          confidence: 0.7
+        },
+        nutritionDetails: [
+          {
+            imageIndex: 0,
+            mealId: "665000000000000000000001",
+            total: { calories: 275, protein: 13, carbs: 32, fat: 9, confidence: 0.8 },
+            warnings: ["Ước tính ảnh 1"],
+            items: [
+              {
+                name: "Bánh mì",
+                portion: "2 lát",
+                calories: 190,
+                protein: 6,
+                carbs: 31,
+                fat: 3,
+                confidence: 0.75
+              },
+              {
+                name: "Trứng gà",
+                portion: "1 quả",
+                calories: 85,
+                protein: 7,
+                carbs: 1,
+                fat: 6,
+                confidence: 0.85
+              }
+            ]
+          },
+          {
+            imageIndex: 1,
+            total: { calories: 200, protein: 11, carbs: 20, fat: 9, confidence: 0.6 },
+            warnings: [],
+            items: [
+              {
+                name: "Sữa chua",
+                portion: "1 hũ",
+                calories: 200,
+                protein: 11,
+                carbs: 20,
+                fat: 9,
+                confidence: 0.6
+              }
+            ]
+          }
+        ],
+        visibility: "public"
+      })
+      .expect(201);
+
+    expect(response.body.post.nutritionDetails).toHaveLength(2);
+    expect(response.body.post.nutritionDetails[0].items[0]).toMatchObject({
+      name: "Bánh mì",
+      portion: "2 lát",
+      calories: 190,
+      protein: 6
+    });
+
+    const feed = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${session.token}`)
+      .expect(200);
+
+    const post = feed.body.posts.find((item: { caption: string }) => item.caption === "Bữa sáng nhiều món");
+    expect(post.nutritionDetails).toHaveLength(2);
+    expect(post.nutritionDetails[1].total.calories).toBe(200);
   });
 
   it("blocks premium stickers for free users", async () => {

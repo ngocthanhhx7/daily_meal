@@ -2,11 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Dimensions,
   FlatList,
   Image,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   useWindowDimensions,
   View,
@@ -24,6 +26,7 @@ import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post, PostLayout } from "../types/api";
 import { stickerImageSource } from "../utils/stickers";
+import { getNutritionDetailSections } from "./postNutrition";
 
 const PHONE_MAX_WIDTH = 383;
 const ARTWORK_MAX_WIDTH = 380;
@@ -100,6 +103,8 @@ export function HomeScreen({ navigation }: any) {
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [showCategory, setShowCategory] = useState(false);
+  const [expandedPost, setExpandedPost] = useState<Post | null>(null);
+  const [nutritionPost, setNutritionPost] = useState<Post | null>(null);
   const flatRef = useRef<FlatList>(null);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
 
@@ -314,7 +319,8 @@ export function HomeScreen({ navigation }: any) {
                   index={index}
                   slideHeight={listHeight}
                   slideWidth={listWidth}
-                  onPress={() => navigation.navigate("Comments", { post: item })}
+                  onPress={() => setExpandedPost(item)}
+                  onNutritionPress={() => setNutritionPost(item)}
                   onRecipePress={() => navigation.navigate("Recipe", { post: item })}
                   onAuthorPress={() => {
                     if (!item._id.startsWith("demo") && item.author?.id) {
@@ -365,6 +371,32 @@ export function HomeScreen({ navigation }: any) {
           </Pressable>
         </View>
 
+        <ExpandedPostModal
+          post={expandedPost}
+          onClose={() => setExpandedPost(null)}
+          onRecipePress={() => {
+            const post = expandedPost;
+            setExpandedPost(null);
+            if (post) navigation.navigate("Recipe", { post });
+          }}
+          onCommentPress={() => {
+            const post = expandedPost;
+            setExpandedPost(null);
+            if (post) navigation.navigate("Comments", { post });
+          }}
+          onAuthorPress={() => {
+            const post = expandedPost;
+            setExpandedPost(null);
+            if (post && !post._id.startsWith("demo") && post.author?.id) {
+              navigation.navigate("PublicProfile", { userId: post.author.id });
+            } else {
+              navigation.navigate("Profile");
+            }
+          }}
+        />
+
+        <NutritionDetailModal post={nutritionPost} onClose={() => setNutritionPost(null)} />
+
         <CategoryModal
           visible={showCategory}
           onClose={() => setShowCategory(false)}
@@ -381,6 +413,7 @@ function PostSlide({
   slideHeight,
   slideWidth,
   onPress,
+  onNutritionPress,
   onRecipePress,
   onAuthorPress
 }: {
@@ -389,6 +422,7 @@ function PostSlide({
   slideHeight: number;
   slideWidth: number;
   onPress: () => void;
+  onNutritionPress: () => void;
   onRecipePress: () => void;
   onAuthorPress: () => void;
 }) {
@@ -401,7 +435,7 @@ function PostSlide({
         <View style={[styles.feedArtwork, { transform: [{ rotate: cardRotation(index) }] }]}>
           <FeedArtwork post={post} />
 
-          {post.recipe?.title || post.recipe?.ingredients?.length ? (
+          {(post.recipe?.title || post.recipe?.ingredients?.length || (post.recipes && post.recipes.length > 0)) ? (
             <Pressable style={styles.recipeChip} onPress={onRecipePress}>
               <AppText style={styles.recipeChipText}>Công thức</AppText>
             </Pressable>
@@ -415,9 +449,9 @@ function PostSlide({
           </View>
 
           {post.nutritionSummary?.calories ? (
-            <View style={styles.caloBadge}>
+            <Pressable style={styles.caloBadge} onPress={onNutritionPress} hitSlop={6}>
               <AppText style={styles.caloText}>{Math.round(post.nutritionSummary.calories)} Calo</AppText>
-            </View>
+            </Pressable>
           ) : null}
 
           <View style={styles.captionChip}>
@@ -550,6 +584,312 @@ function feedImagePosition(layout: PostLayout, count: number, index: number) {
   ][index];
 }
 
+function hasRecipe(post: Post) {
+  return !!(post.recipe?.title || post.recipe?.ingredients?.length || (post.recipes && post.recipes.length > 0));
+}
+
+function ExpandedPostModal({
+  post,
+  onClose,
+  onRecipePress,
+  onCommentPress,
+  onAuthorPress
+}: {
+  post: Post | null;
+  onClose: () => void;
+  onRecipePress: () => void;
+  onCommentPress: () => void;
+  onAuthorPress: () => void;
+}) {
+  if (!post) return null;
+
+  const screenWidth = Dimensions.get("window").width;
+  const imgCount = Math.max(post.images.length, 1);
+  const stickerSource = stickerImageSource(post.stickerId) ?? (post._id.startsWith("demo") ? DEMO_STICKER : null);
+  const placement = post.stickerPlacement ?? { x: 0.78, y: 0.78, scale: 1, rotation: 0 };
+  const gridPadding = 20;
+  const gridGap = 10;
+  const availableWidth = Math.min(screenWidth - gridPadding * 2, 380);
+
+  function renderImageGrid() {
+    if (imgCount === 1) {
+      return (
+        <View style={expandedStyles.singleImageWrap}>
+          <Image source={imageSource(post!, 0)} style={expandedStyles.singleImage} resizeMode="cover" />
+        </View>
+      );
+    }
+
+    if (imgCount === 2) {
+      const itemW = (availableWidth - gridGap) / 2;
+      return (
+        <View style={expandedStyles.gridRow}>
+          {[0, 1].map((i) => (
+            <View key={i} style={[expandedStyles.gridItem, { width: itemW, height: itemW * 1.2 }]}>
+              <Image source={imageSource(post!, i)} style={expandedStyles.gridImage} resizeMode="cover" />
+            </View>
+          ))}
+        </View>
+      );
+    }
+
+    // 3 images: 2 on top row, 1 on bottom row centered
+    const topItemW = (availableWidth - gridGap) / 2;
+    const bottomItemW = topItemW;
+    return (
+      <View style={expandedStyles.gridWrap}>
+        <View style={expandedStyles.gridRow}>
+          {[0, 1].map((i) => (
+            <View key={i} style={[expandedStyles.gridItem, { width: topItemW, height: topItemW * 1.15 }]}>
+              <Image source={imageSource(post!, i)} style={expandedStyles.gridImage} resizeMode="cover" />
+            </View>
+          ))}
+        </View>
+        <View style={expandedStyles.gridRowCenter}>
+          <View style={[expandedStyles.gridItem, { width: bottomItemW, height: bottomItemW * 1.15 }]}>
+            <Image source={imageSource(post!, 2)} style={expandedStyles.gridImage} resizeMode="cover" />
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={expandedStyles.overlay} onPress={onClose}>
+        <Pressable style={expandedStyles.container} onPress={() => {}}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={expandedStyles.scrollContent}>
+            {/* Caption chip */}
+            <View style={expandedStyles.headerRow}>
+              <View style={expandedStyles.captionBubble}>
+                <AppText numberOfLines={2} style={expandedStyles.captionText}>
+                  {post.caption || "Nó ngon phải biết"}
+                </AppText>
+              </View>
+              {stickerSource ? (
+                <Image source={stickerSource} style={expandedStyles.headerSticker} resizeMode="contain" />
+              ) : null}
+            </View>
+
+            {/* Stats */}
+            <View style={expandedStyles.statsRow}>
+              <AppText style={expandedStyles.statsNum}>{post.stats?.comments ?? 0}</AppText>
+              <Ionicons name="chatbubble-outline" size={15} color={colors.black} />
+              <AppText style={expandedStyles.statsNum}>{post.stats?.likes ?? 0}</AppText>
+              <Ionicons name="heart" size={15} color={colors.red} />
+            </View>
+
+            {/* Image grid */}
+            {renderImageGrid()}
+
+            {/* Recipe dashed circle button */}
+            {hasRecipe(post) ? (
+              <Pressable style={expandedStyles.recipeDashedBtn} onPress={onRecipePress}>
+                <View style={expandedStyles.recipeDashedCircle}>
+                  <Ionicons name="clipboard-outline" size={28} color={colors.muted} />
+                </View>
+                <AppText style={expandedStyles.recipeDashedLabel}>Công thức</AppText>
+              </Pressable>
+            ) : null}
+
+            {/* Author chip */}
+            <Pressable
+              style={[expandedStyles.authorChip, { backgroundColor: post.author?.themeColor || colors.green }]}
+              onPress={onAuthorPress}
+            >
+              <View style={expandedStyles.authorAvatar}>
+                {post.author?.avatarUrl ? (
+                  <Image source={authorAvatarSource(post.author.avatarUrl)} style={expandedStyles.authorAvatarImg} resizeMode="cover" />
+                ) : post._id.startsWith("demo") ? (
+                  <Image source={DEMO_AUTHOR_AVATAR} style={expandedStyles.authorAvatarImg} resizeMode="cover" />
+                ) : (
+                  <AppText style={expandedStyles.authorInitial}>
+                    {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
+                  </AppText>
+                )}
+              </View>
+              <AppText style={expandedStyles.authorName} numberOfLines={1}>
+                {post.author?.displayName ?? "Daily Meal"}
+              </AppText>
+            </Pressable>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const expandedStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  container: {
+    width: "90%",
+    maxWidth: 400,
+    maxHeight: "85%",
+    backgroundColor: colors.surface,
+    borderRadius: 28,
+    overflow: "hidden",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 12
+  },
+  scrollContent: {
+    padding: 20,
+    gap: 16,
+    alignItems: "center"
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    width: "100%"
+  },
+  captionBubble: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2
+  },
+  captionText: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.black
+  },
+  headerSticker: {
+    width: 48,
+    height: 48
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignSelf: "flex-end",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2
+  },
+  statsNum: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.black
+  },
+  singleImageWrap: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 20,
+    overflow: "hidden",
+    backgroundColor: colors.canvasStrong
+  },
+  singleImage: {
+    width: "100%",
+    height: "100%"
+  },
+  gridWrap: {
+    width: "100%",
+    gap: 10
+  },
+  gridRow: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%"
+  },
+  gridRowCenter: {
+    flexDirection: "row",
+    justifyContent: "center",
+    width: "100%"
+  },
+  gridItem: {
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: colors.canvasStrong,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4
+  },
+  gridImage: {
+    width: "100%",
+    height: "100%"
+  },
+  recipeDashedBtn: {
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4
+  },
+  recipeDashedCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: colors.muted,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.6)"
+  },
+  recipeDashedLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.muted
+  },
+  authorChip: {
+    alignSelf: "center",
+    maxWidth: "86%",
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingLeft: 4,
+    paddingRight: 14,
+    paddingVertical: 4,
+    borderRadius: 14,
+    marginTop: 4
+  },
+  authorAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  authorAvatarImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 18
+  },
+  authorInitial: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: colors.green
+  },
+  authorName: {
+    flex: 1,
+    color: colors.white,
+    fontFamily: fonts.semibold,
+    fontSize: 15
+  }
+});
+
 function CategoryModal({
   visible,
   onClose,
@@ -587,6 +927,95 @@ function CategoryModal({
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+function NutritionDetailModal({ post, onClose }: { post: Post | null; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+
+  if (!post) {
+    return null;
+  }
+
+  const sections = getNutritionDetailSections(post);
+  const total = post.nutritionSummary;
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <Pressable style={[styles.nutritionSheet, { paddingBottom: insets.bottom + 18 }]} onPress={() => {}}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.nutritionHeader}>
+            <View>
+              <AppText variant="subtitle" style={styles.nutritionTitle}>Chi tiết calo</AppText>
+              <AppText variant="caption" muted numberOfLines={1}>
+                {post.caption || "Bài viết Daily Meal"}
+              </AppText>
+            </View>
+            {total ? (
+              <View style={styles.nutritionTotalPill}>
+                <AppText style={styles.nutritionTotalText}>{Math.round(total.calories)} kcal</AppText>
+              </View>
+            ) : null}
+          </View>
+
+          {total ? (
+            <View style={styles.macroRow}>
+              <MacroPill label="Protein" value={`${Math.round(total.protein)}g`} />
+              <MacroPill label="Carbs" value={`${Math.round(total.carbs)}g`} />
+              <MacroPill label="Fat" value={`${Math.round(total.fat)}g`} />
+            </View>
+          ) : null}
+
+          <ScrollView style={styles.nutritionScroll} showsVerticalScrollIndicator={false}>
+            {sections.map((section) => (
+              <View key={section.title} style={styles.nutritionSection}>
+                <View style={styles.nutritionSectionHeader}>
+                  <AppText variant="button">{section.title}</AppText>
+                  {!section.hasDetails ? (
+                    <AppText variant="caption" muted>Chưa có bảng thành phần</AppText>
+                  ) : null}
+                </View>
+
+                <View style={styles.nutritionTable}>
+                  <View style={[styles.nutritionTableRow, styles.nutritionTableHead]}>
+                    <AppText style={[styles.nutritionCell, styles.ingredientCell]}>Thành phần</AppText>
+                    <AppText style={[styles.nutritionCell, styles.portionCell]}>Định lượng</AppText>
+                    <AppText style={styles.nutritionCell}>Calo</AppText>
+                    <AppText style={styles.nutritionCell}>Protein</AppText>
+                  </View>
+                  {section.rows.map((row) => (
+                    <View key={row.key} style={[styles.nutritionTableRow, row.isTotal && styles.nutritionTotalRow]}>
+                      <AppText style={[styles.nutritionCell, styles.ingredientCell, row.isTotal && styles.nutritionStrongCell]}>
+                        {row.ingredient}
+                      </AppText>
+                      <AppText style={[styles.nutritionCell, styles.portionCell]}>{row.portion}</AppText>
+                      <AppText style={[styles.nutritionCell, row.isTotal && styles.nutritionStrongCell]}>{row.calories}</AppText>
+                      <AppText style={[styles.nutritionCell, row.isTotal && styles.nutritionStrongCell]}>{row.protein}</AppText>
+                    </View>
+                  ))}
+                </View>
+
+                {section.warnings.length ? (
+                  <AppText variant="caption" muted style={styles.nutritionWarning}>
+                    {section.warnings.join(" ")}
+                  </AppText>
+                ) : null}
+              </View>
+            ))}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function MacroPill({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.macroPill}>
+      <AppText variant="caption" muted>{label}</AppText>
+      <AppText style={styles.macroValue}>{value}</AppText>
+    </View>
   );
 }
 
@@ -886,6 +1315,108 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     marginBottom: 20
+  },
+  nutritionSheet: {
+    maxHeight: "86%",
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: 18
+  },
+  nutritionHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 14
+  },
+  nutritionTitle: {
+    marginBottom: 4
+  },
+  nutritionTotalPill: {
+    borderRadius: 16,
+    backgroundColor: colors.green,
+    paddingHorizontal: 12,
+    paddingVertical: 8
+  },
+  nutritionTotalText: {
+    color: colors.white,
+    fontFamily: fonts.bold,
+    fontSize: 14
+  },
+  macroRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14
+  },
+  macroPill: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: colors.white
+  },
+  macroValue: {
+    marginTop: 2,
+    color: colors.black,
+    fontFamily: fonts.semibold,
+    fontSize: 14
+  },
+  nutritionScroll: {
+    maxHeight: 460
+  },
+  nutritionSection: {
+    marginBottom: 18
+  },
+  nutritionSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8
+  },
+  nutritionTable: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: colors.black
+  },
+  nutritionTableRow: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.12)"
+  },
+  nutritionTableHead: {
+    borderTopWidth: 0,
+    backgroundColor: "rgba(255,255,255,0.08)"
+  },
+  nutritionTotalRow: {
+    backgroundColor: "rgba(255,255,255,0.06)"
+  },
+  nutritionCell: {
+    flex: 0.8,
+    color: colors.white,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 15,
+    paddingHorizontal: 7,
+    paddingVertical: 9
+  },
+  ingredientCell: {
+    flex: 1.05
+  },
+  portionCell: {
+    flex: 1.18
+  },
+  nutritionStrongCell: {
+    fontFamily: fonts.bold
+  },
+  nutritionWarning: {
+    marginTop: 7
   },
   categoryGrid: {
     flexDirection: "row",

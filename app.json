@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "36df33dd-58ed-4c75-add9-87130fb0e12f"
+      }
+    },
+    "android": {
+      "package": "com.ngocthanhhx7.dailymeal"
+    }
+  }
+}

@@ -11,7 +11,9 @@ import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type {
+  ImageRecipe,
   Meal,
+  NutritionDetail,
   PostImageTransform,
   PostLayout,
   Sticker,
@@ -21,6 +23,7 @@ import type {
 import { getPendingPickedImageUris, pickMultipleImages, pickSingleImage } from "../utils/imagePicker";
 import { stickerImageSource } from "../utils/stickers";
 import { resolveRecentPhotoUri } from "./createPostAssets";
+import { combineNutritionTotals, mealToNutritionDetail } from "./postNutrition";
 
 const MAX_IMAGES = 3;
 const DEFAULT_TRANSFORM: PostImageTransform = {
@@ -112,16 +115,22 @@ export function CreatePostScreen({ navigation, route }: any) {
   const [caption, setCaption] = useState("");
   const [tags, setTags] = useState("");
   const [includeRecipe, setIncludeRecipe] = useState(false);
-  const [recipeTitle, setRecipeTitle] = useState("");
-  const [ingredients, setIngredients] = useState("");
-  const [steps, setSteps] = useState("");
+  const [perImageRecipes, setPerImageRecipes] = useState<Record<number, { title: string; ingredients: string; steps: string }>>({
+    0: { title: "", ingredients: "", steps: "" },
+    1: { title: "", ingredients: "", steps: "" },
+    2: { title: "", ingredients: "", steps: "" }
+  });
+  const [recipeEditingIndex, setRecipeEditingIndex] = useState(0);
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [customStickers, setCustomStickers] = useState<Sticker[]>([]);
   const [selectedSticker, setSelectedSticker] = useState<string | undefined>();
   const [stickerPlacement, setStickerPlacement] = useState<StickerPlacement>(DEFAULT_STICKER);
   const [layout, setLayout] = useState<PostLayout>("stack");
   const [transforms, setTransforms] = useState<PostImageTransform[]>([]);
-  const [meal, setMeal] = useState<Meal | undefined>(route?.params?.meal);
+  const [nutritionDetails, setNutritionDetails] = useState<NutritionDetail[]>(() => {
+    const routeMeal = route?.params?.meal as Meal | undefined;
+    return routeMeal ? [mealToNutritionDetail(routeMeal, 0)] : [];
+  });
   const [loading, setLoading] = useState(false);
 
   const recentUris = useMemo(() => {
@@ -131,6 +140,7 @@ export function CreatePostScreen({ navigation, route }: any) {
   }, []);
 
   const [localGalleryImages, setLocalGalleryImages] = useState<string[]>([]);
+  const nutritionTotal = useMemo(() => combineNutritionTotals(nutritionDetails), [nutritionDetails]);
 
   useEffect(() => {
     if (recentUris.length > 0 && localGalleryImages.length === 0) {
@@ -242,6 +252,17 @@ export function CreatePostScreen({ navigation, route }: any) {
       next[toIndex] = temp;
       return next;
     });
+    setNutritionDetails((current) =>
+      current.map((detail) => {
+        if (detail.imageIndex === fromIndex) {
+          return { ...detail, imageIndex: toIndex };
+        }
+        if (detail.imageIndex === toIndex) {
+          return { ...detail, imageIndex: fromIndex };
+        }
+        return detail;
+      })
+    );
     setSelectedIndex(toIndex);
   }
 
@@ -297,6 +318,14 @@ export function CreatePostScreen({ navigation, route }: any) {
   function removeImage(index: number) {
     setImages((current) => current.filter((_, itemIndex) => itemIndex !== index));
     setTransforms((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setNutritionDetails((current) =>
+      current
+        .filter((detail) => detail.imageIndex !== index)
+        .map((detail) => ({
+          ...detail,
+          imageIndex: detail.imageIndex > index ? detail.imageIndex - 1 : detail.imageIndex
+        }))
+    );
     setSelectedIndex((current) => Math.max(0, Math.min(current, images.length - 2)));
   }
 
@@ -328,18 +357,31 @@ export function CreatePostScreen({ navigation, route }: any) {
     }));
   }
 
-  async function analyzeFirstImage() {
-    if (!token || !images[0]) {
+  async function analyzeImages() {
+    if (!token || !images.length) {
       Alert.alert("Chưa có ảnh", "Chụp hoặc chọn một ảnh món ăn trước.");
       return;
     }
     setLoading(true);
+    const analyzedDetails: NutritionDetail[] = [];
     try {
-      const upload = await api.uploadImage(token, images[0], "meal");
-      const result = await api.analyzeMeal(token, upload.upload._id);
-      setMeal(result.meal);
+      for (let index = 0; index < images.length; index += 1) {
+        const upload = await api.uploadImage(token, images[index], "meal");
+        const result = await api.analyzeMeal(token, upload.upload._id);
+        analyzedDetails.push(mealToNutritionDetail(result.meal, index));
+        setNutritionDetails((current) => [
+          ...current.filter((detail) => detail.imageIndex !== index),
+          mealToNutritionDetail(result.meal, index)
+        ]);
+      }
     } catch (error) {
       Alert.alert("Không thể tính calo", error instanceof Error ? error.message : "Thử lại sau");
+      if (analyzedDetails.length) {
+        setNutritionDetails((current) => [
+          ...current.filter((detail) => !analyzedDetails.some((analyzed) => analyzed.imageIndex === detail.imageIndex)),
+          ...analyzedDetails
+        ]);
+      }
     } finally {
       setLoading(false);
     }
@@ -361,16 +403,32 @@ export function CreatePostScreen({ navigation, route }: any) {
         const result = await api.uploadImage(token, uri, "post");
         uploads.push(result.upload);
       }
-      const parsedIngredients = parseLines(ingredients);
-      const parsedSteps = parseLines(steps);
-      const recipe =
-        includeRecipe || recipeTitle.trim() || parsedIngredients.length || parsedSteps.length
-          ? {
-              title: recipeTitle.trim() || caption.slice(0, 80),
-              ingredients: parsedIngredients,
-              steps: parsedSteps
-            }
-          : undefined;
+
+      // Build per-image recipes array
+      const recipes: ImageRecipe[] = [];
+      if (includeRecipe) {
+        for (let i = 0; i < images.length; i++) {
+          const r = perImageRecipes[i];
+          if (r && (r.title.trim() || r.ingredients.trim() || r.steps.trim())) {
+            recipes.push({
+              imageIndex: i,
+              title: r.title.trim() || caption.slice(0, 80),
+              ingredients: parseLines(r.ingredients),
+              steps: parseLines(r.steps)
+            });
+          }
+        }
+      }
+
+      // Legacy recipe field for backward compat (first image recipe)
+      const firstRecipe = recipes.length > 0 ? recipes[0] : undefined;
+      const legacyRecipe = firstRecipe
+        ? {
+            title: firstRecipe.title,
+            ingredients: firstRecipe.ingredients,
+            steps: firstRecipe.steps
+          }
+        : undefined;
 
       await api.createPost(token, {
         images: uploads.map((upload) => ({
@@ -386,9 +444,11 @@ export function CreatePostScreen({ navigation, route }: any) {
         tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
         stickerId: isPremium ? selectedSticker : undefined,
         stickerPlacement: isPremium && selectedSticker ? stickerPlacement : undefined,
-        mealId: meal?._id,
-        nutritionSummary: meal?.result.total,
-        recipe,
+        mealId: nutritionDetails[0]?.mealId,
+        nutritionSummary: nutritionTotal,
+        nutritionDetails,
+        recipe: legacyRecipe,
+        recipes,
         visibility: "public"
       });
       resetDraft();
@@ -406,10 +466,13 @@ export function CreatePostScreen({ navigation, route }: any) {
     setCaption("");
     setTags("");
     setIncludeRecipe(false);
-    setRecipeTitle("");
-    setIngredients("");
-    setSteps("");
-    setMeal(undefined);
+    setPerImageRecipes({
+      0: { title: "", ingredients: "", steps: "" },
+      1: { title: "", ingredients: "", steps: "" },
+      2: { title: "", ingredients: "", steps: "" }
+    });
+    setRecipeEditingIndex(0);
+    setNutritionDetails([]);
     setSelectedSticker(undefined);
     setStickerPlacement(DEFAULT_STICKER);
     setLayout("stack");
@@ -549,8 +612,8 @@ export function CreatePostScreen({ navigation, route }: any) {
             </AppText>
           </Pressable>
 
-          <AppButton label="Tính calo bằng AI" onPress={analyzeFirstImage} loading={loading} variant="ghost" />
-          <NutritionCard nutrition={meal?.result.total} />
+          <AppButton label="Tính calo từng ảnh bằng AI" onPress={analyzeImages} loading={loading} variant="ghost" />
+          <NutritionCard nutrition={nutritionTotal} />
           <TextField label="Mô tả" value={caption} onChangeText={setCaption} multiline />
           <TextField label="Tags, cách nhau bằng dấu phẩy" value={tags} onChangeText={setTags} />
           <View style={styles.recipeToggle}>
@@ -564,23 +627,62 @@ export function CreatePostScreen({ navigation, route }: any) {
           </View>
           {includeRecipe ? (
             <View style={styles.recipeFields}>
+              {/* Image selector tabs */}
+              {images.length > 1 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recipeImageTabs}>
+                  {images.map((uri, idx) => (
+                    <Pressable
+                      key={`recipe-tab-${idx}`}
+                      style={[
+                        styles.recipeImageTab,
+                        recipeEditingIndex === idx && styles.recipeImageTabActive
+                      ]}
+                      onPress={() => setRecipeEditingIndex(idx)}
+                    >
+                      <Image source={{ uri }} style={styles.recipeTabImage} resizeMode="cover" />
+                      <AppText style={[
+                        styles.recipeTabLabel,
+                        recipeEditingIndex === idx && styles.recipeTabLabelActive
+                      ]}>
+                        Ảnh {idx + 1}
+                      </AppText>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              ) : null}
+
+              <AppText variant="caption" style={styles.recipeImageHint}>
+                {images.length > 1
+                  ? `Công thức cho ảnh ${recipeEditingIndex + 1} / ${images.length}`
+                  : "Công thức cho món ăn"}
+              </AppText>
+
               <TextField
-                label="Tên công thức"
-                value={recipeTitle}
-                onChangeText={setRecipeTitle}
+                label="Tên món"
+                value={perImageRecipes[recipeEditingIndex]?.title ?? ""}
+                onChangeText={(text) => setPerImageRecipes(prev => ({
+                  ...prev,
+                  [recipeEditingIndex]: { ...prev[recipeEditingIndex], title: text }
+                }))}
                 placeholder={caption ? caption.slice(0, 80) : "Ví dụ: Cơm gà sốt mè"}
               />
               <TextField
                 label="Nguyên liệu (mỗi dòng một nguyên liệu)"
-                value={ingredients}
-                onChangeText={setIngredients}
+                value={perImageRecipes[recipeEditingIndex]?.ingredients ?? ""}
+                onChangeText={(text) => setPerImageRecipes(prev => ({
+                  ...prev,
+                  [recipeEditingIndex]: { ...prev[recipeEditingIndex], ingredients: text }
+                }))}
                 multiline
                 style={styles.multiline}
               />
               <TextField
                 label="Cách làm (mỗi dòng một bước)"
-                value={steps}
-                onChangeText={setSteps}
+                value={perImageRecipes[recipeEditingIndex]?.steps ?? ""}
+                onChangeText={(text) => setPerImageRecipes(prev => ({
+                  ...prev,
+                  [recipeEditingIndex]: { ...prev[recipeEditingIndex], steps: text }
+                }))}
                 multiline
                 style={styles.multiline}
               />
@@ -591,17 +693,16 @@ export function CreatePostScreen({ navigation, route }: any) {
       ) : (
         <>
           {/* Interactive touch-dragging sticker placement screen */}
-          <View style={{ width: previewWidth, height: previewHeight }} {...stickerPanResponder.panHandlers}>
-            <PostPreview
-              images={images}
-              layout="stack"
-              transforms={transforms}
-              sticker={selectedStickerData}
-              stickerPlacement={stickerPlacement}
-              selectedIndex={selectedIndex}
-              onSelectImage={setSelectedIndex}
-            />
-          </View>
+          <PostPreview
+            images={images}
+            layout="stack"
+            transforms={transforms}
+            sticker={selectedStickerData}
+            stickerPlacement={stickerPlacement}
+            selectedIndex={selectedIndex}
+            onSelectImage={setSelectedIndex}
+            panHandlers={stickerPanResponder.panHandlers}
+          />
 
           <AppText variant="caption" style={styles.stickerTipText}>
             Chạm di chuyển ngón tay trên màn hình xem trước để chỉnh vị trí nhãn dán!
@@ -690,7 +791,8 @@ function PostPreview({
   stickerPlacement,
   selectedIndex,
   onSelectImage,
-  onCameraPress
+  onCameraPress,
+  panHandlers
 }: {
   images: string[];
   layout: PostLayout;
@@ -700,11 +802,12 @@ function PostPreview({
   selectedIndex: number;
   onSelectImage?: (index: number) => void;
   onCameraPress?: () => void;
+  panHandlers?: any;
 }) {
   const stickerSource = stickerImageSource(sticker);
 
   return (
-    <View style={styles.previewStage}>
+    <View style={styles.previewStage} {...(panHandlers ?? {})}>
       {images.length ? (
         <View style={styles.artworkCanvas}>
           {images.map((uri, index) => {
@@ -729,7 +832,7 @@ function PostPreview({
                 ]}
                 onPress={() => onSelectImage?.(index)}
               >
-                <Image source={{ uri }} style={styles.artworkImage} />
+                <Image source={{ uri }} style={styles.artworkImage} resizeMode="cover" />
                 {images.length > 1 ? (
                   <View style={styles.artworkOrderBadge}>
                     <AppText variant="caption" style={styles.artworkOrderText}>{index + 1}</AppText>
@@ -931,6 +1034,7 @@ const styles = StyleSheet.create({
   },
   artworkCanvas: {
     flex: 1,
+    width: "100%",
     backgroundColor: "rgba(255,255,255,0.2)"
   },
   emptyStage: {
@@ -1246,6 +1350,43 @@ const styles = StyleSheet.create({
   },
   recipeFields: {
     gap: 12
+  },
+  recipeImageTabs: {
+    flexDirection: "row",
+    gap: 10,
+    paddingBottom: 4
+  },
+  recipeImageTab: {
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: 12,
+    padding: 4
+  },
+  recipeImageTabActive: {
+    borderColor: colors.green,
+    backgroundColor: "rgba(76,175,80,0.08)"
+  },
+  recipeTabImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 10
+  },
+  recipeTabLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    color: colors.muted
+  },
+  recipeTabLabelActive: {
+    color: colors.green
+  },
+  recipeImageHint: {
+    color: colors.muted,
+    textAlign: "center",
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    marginBottom: 4
   },
   multiline: {
     minHeight: 92,

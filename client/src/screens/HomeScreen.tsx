@@ -8,6 +8,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  useWindowDimensions,
   View,
   ViewToken
 } from "react-native";
@@ -55,6 +56,7 @@ function cardRotation(index: number) {
 }
 
 export function HomeScreen({ navigation }: any) {
+  const { width: viewportWidth } = useWindowDimensions();
   const { token, user } = useAuth();
   const { socket } = useSocket();
   const [posts, setPosts] = useState<Post[]>(demoPosts);
@@ -139,6 +141,7 @@ export function HomeScreen({ navigation }: any) {
   const currentPost = posts[currentIndex];
   const isLiked = currentPost ? likedSet.has(currentPost._id) : false;
   const isSaved = currentPost ? savedSet.has(currentPost._id) : false;
+  const showDesktopFrame = Platform.OS === "web" && viewportWidth >= 520;
 
   async function handleLike() {
     if (!token || !currentPost) return;
@@ -235,7 +238,7 @@ export function HomeScreen({ navigation }: any) {
 
   return (
     <FigmaLineBackground>
-      <SafeAreaView style={[styles.safe, styles.phoneFrame]} edges={["top", "bottom"]}>
+      <SafeAreaView style={[styles.safe, showDesktopFrame && styles.phoneFrame]} edges={["top", "bottom"]}>
         <View style={styles.header}>
           <AppText style={styles.headerTitle}>Bảng tin</AppText>
           <View style={styles.headerRight}>
@@ -288,7 +291,7 @@ export function HomeScreen({ navigation }: any) {
           ) : null}
         </View>
 
-        <View style={styles.bottomBar}>
+        <View style={[styles.bottomBar, showDesktopFrame && styles.desktopBottomBar]}>
           <Pressable style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
             <Ionicons name="grid" size={28} color={colors.black} />
           </Pressable>
@@ -548,11 +551,11 @@ const styles = StyleSheet.create({
     maxWidth: PHONE_MAX_WIDTH,
     alignSelf: "center",
     backgroundColor: "transparent",
-    borderWidth: Platform.OS === "web" ? 1 : 0,
-    borderColor: Platform.OS === "web" ? colors.black : "transparent",
-    borderRadius: Platform.OS === "web" ? 40 : 0,
+    borderWidth: 1,
+    borderColor: colors.black,
+    borderRadius: 40,
     shadowColor: colors.black,
-    shadowOpacity: Platform.OS === "web" ? 0.14 : 0,
+    shadowOpacity: 0.14,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 }
   },
@@ -769,9 +772,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 34,
     paddingTop: 8,
     paddingBottom: 8,
-    maxWidth: PHONE_MAX_WIDTH,
     width: "100%",
     alignSelf: "center"
+  },
+  desktopBottomBar: {
+    maxWidth: PHONE_MAX_WIDTH
   },
   squareBtn: {
     width: 52,

@@ -13,6 +13,7 @@ export type User = {
     visibility: "hidden" | "dayMonth" | "full";
   };
   isPremium: boolean;
+  themeColor?: string;
   preferences: {
     interests: string[];
     eatingStyles: string[];

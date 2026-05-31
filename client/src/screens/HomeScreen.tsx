@@ -45,6 +45,30 @@ const CATEGORY_ITEMS = [
   { icon: "settings-outline" as const, label: "Cài đặt", screen: "Settings" }
 ] as const;
 
+export function authorAvatarSource(avatarUrl?: string) {
+  if (!avatarUrl) return undefined;
+  if (avatarUrl.startsWith("http") || avatarUrl.startsWith("file:") || avatarUrl.startsWith("data:")) {
+    return { uri: avatarUrl };
+  }
+  if (avatarUrl.includes("assets/") || avatarUrl.includes("cute_")) {
+    const name = avatarUrl.split("/").pop()?.replace(".png", "");
+    switch (name) {
+      case "cute_cat": return require("../../assets/avatar/cute_cat.png");
+      case "cute_dog": return require("../../assets/avatar/cute_dog.png");
+      case "cute_rabbit": return require("../../assets/avatar/cute_rabbit.png");
+      case "cute_bear": return require("../../assets/avatar/cute_bear.png");
+      case "cute_hamster": return require("../../assets/avatar/cute_hamster.png");
+      case "cute_panda": return require("../../assets/avatar/cute_panda.png");
+      case "cute_dino": return require("../../assets/avatar/cute_dino.png");
+      case "cute_koala": return require("../../assets/avatar/cute_koala.png");
+      case "cute_penguin": return require("../../assets/avatar/cute_penguin.png");
+      case "cute_fox": return require("../../assets/avatar/cute_fox.png");
+      default: break;
+    }
+  }
+  return { uri: `${api.baseUrl}${avatarUrl}` };
+}
+
 function imageSource(post: Post, index: number) {
   const url = post.images[index]?.url ?? post.images[0]?.url;
   if (!url) return DEMO_IMAGES[index % DEMO_IMAGES.length];
@@ -292,6 +316,13 @@ export function HomeScreen({ navigation }: any) {
                   slideWidth={listWidth}
                   onPress={() => navigation.navigate("Comments", { post: item })}
                   onRecipePress={() => navigation.navigate("Recipe", { post: item })}
+                  onAuthorPress={() => {
+                    if (!item._id.startsWith("demo") && item.author?.id) {
+                      navigation.navigate("PublicProfile", { userId: item.author.id });
+                    } else {
+                      navigation.navigate("Profile");
+                    }
+                  }}
                 />
               )}
               pagingEnabled
@@ -350,7 +381,8 @@ function PostSlide({
   slideHeight,
   slideWidth,
   onPress,
-  onRecipePress
+  onRecipePress,
+  onAuthorPress
 }: {
   post: Post;
   index: number;
@@ -358,6 +390,7 @@ function PostSlide({
   slideWidth: number;
   onPress: () => void;
   onRecipePress: () => void;
+  onAuthorPress: () => void;
 }) {
   const artworkWidth = Math.min(Math.max(slideWidth - 36, 280), ARTWORK_MAX_WIDTH);
   const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 130, 320));
@@ -396,12 +429,21 @@ function PostSlide({
         </View>
       </Pressable>
 
-      <View style={styles.authorChip}>
+      <Pressable
+        style={[styles.authorChip, { backgroundColor: post.author?.themeColor || colors.green }]}
+        onPress={onAuthorPress}
+      >
         <View style={styles.authorAvatar}>
-          {post._id.startsWith("demo") ? (
+          {post.author?.avatarUrl ? (
+            <Image
+              source={authorAvatarSource(post.author.avatarUrl)}
+              style={styles.authorAvatarImage}
+              resizeMode="cover"
+            />
+          ) : post._id.startsWith("demo") ? (
             <Image source={DEMO_AUTHOR_AVATAR} style={styles.authorAvatarImage} resizeMode="cover" />
           ) : (
-            <AppText style={styles.authorAvatarText}>
+            <AppText style={[styles.authorAvatarText, { color: post.author?.themeColor || colors.green }]}>
               {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
             </AppText>
           )}
@@ -409,7 +451,7 @@ function PostSlide({
         <AppText style={styles.authorName} numberOfLines={1}>
           {post.author?.displayName ?? "Daily Meal"}
         </AppText>
-      </View>
+      </Pressable>
 
       <View style={styles.swipeHint}>
         <Ionicons name="chevron-up" size={16} color={colors.muted} />
@@ -637,10 +679,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvasStrong,
     overflow: "hidden",
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 7
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 9
   },
   feedImage: {
     width: "100%",
@@ -657,9 +699,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 9,
     shadowColor: colors.black,
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 4
   },
   recipeChipText: {
     color: colors.black,
@@ -680,9 +723,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 9,
     shadowColor: colors.black,
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 4
   },
   statsNum: {
     fontFamily: fonts.semibold,
@@ -700,9 +744,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     shadowColor: colors.black,
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 4
   },
   caloText: {
     fontFamily: fonts.semibold,
@@ -724,9 +769,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     shadowColor: colors.black,
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 4
   },
   captionText: {
     color: colors.black,
@@ -742,25 +788,27 @@ const styles = StyleSheet.create({
   },
   authorChip: {
     marginTop: 16,
-    minWidth: 176,
+    alignSelf: "center",
     maxWidth: "86%",
-    minHeight: 42,
+    minHeight: 46,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     backgroundColor: colors.green,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 22,
+    paddingLeft: 4,
+    paddingRight: 16,
+    paddingVertical: 4,
+    borderRadius: 14,
     shadowColor: colors.black,
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    elevation: 4
   },
   authorAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center"
@@ -768,7 +816,7 @@ const styles = StyleSheet.create({
   authorAvatarImage: {
     width: "100%",
     height: "100%",
-    borderRadius: 15
+    borderRadius: 19
   },
   authorAvatarText: {
     fontFamily: fonts.bold,

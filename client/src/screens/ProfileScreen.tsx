@@ -17,8 +17,25 @@ function mediaSource(url?: string) {
     return undefined;
   }
 
-  if (url.startsWith("http")) {
+  if (url.startsWith("http") || url.startsWith("file:") || url.startsWith("data:")) {
     return { uri: url };
+  }
+
+  if (url.includes("assets/") || url.includes("cute_")) {
+    const name = url.split("/").pop()?.replace(".png", "");
+    switch (name) {
+      case "cute_cat": return require("../../assets/avatar/cute_cat.png");
+      case "cute_dog": return require("../../assets/avatar/cute_dog.png");
+      case "cute_rabbit": return require("../../assets/avatar/cute_rabbit.png");
+      case "cute_bear": return require("../../assets/avatar/cute_bear.png");
+      case "cute_hamster": return require("../../assets/avatar/cute_hamster.png");
+      case "cute_panda": return require("../../assets/avatar/cute_panda.png");
+      case "cute_dino": return require("../../assets/avatar/cute_dino.png");
+      case "cute_koala": return require("../../assets/avatar/cute_koala.png");
+      case "cute_penguin": return require("../../assets/avatar/cute_penguin.png");
+      case "cute_fox": return require("../../assets/avatar/cute_fox.png");
+      default: break;
+    }
   }
 
   return { uri: `${api.baseUrl}${url}` };

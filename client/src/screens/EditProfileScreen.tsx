@@ -1,6 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, Switch, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { api } from "../api/client";
 import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
@@ -11,13 +11,53 @@ import { colors } from "../theme/colors";
 
 type BirthdayVisibility = "hidden" | "dayMonth" | "full";
 
+const ACCENT_COLORS = [
+  { value: "#8BA58A", label: "Xanh lá" },
+  { value: "#F5B8B5", label: "Hồng đào" },
+  { value: "#9BBAD4", label: "Xanh dương" },
+  { value: "#E9D58E", label: "Vàng chanh" },
+  { value: "#EBB390", label: "Cam sữa" },
+  { value: "#CBB5F5", label: "Tím oải hương" },
+  { value: "#74746F", label: "Xám đá" }
+];
+
+const CUTE_AVATARS = [
+  { key: "cute_cat", label: "Mèo Noodle", source: require("../../assets/avatar/cute_cat.png") },
+  { key: "cute_dog", label: "Cún Chef", source: require("../../assets/avatar/cute_dog.png") },
+  { key: "cute_rabbit", label: "Thỏ Trà Sữa", source: require("../../assets/avatar/cute_rabbit.png") },
+  { key: "cute_bear", label: "Gấu Bánh", source: require("../../assets/avatar/cute_bear.png") },
+  { key: "cute_hamster", label: "Hamster Dâu", source: require("../../assets/avatar/cute_hamster.png") },
+  { key: "cute_panda", label: "Trúc Sữa", source: require("../../assets/avatar/cute_panda.png") },
+  { key: "cute_dino", label: "Dino Xanh", source: require("../../assets/avatar/cute_dino.png") },
+  { key: "cute_koala", label: "Koala Cookie", source: require("../../assets/avatar/cute_koala.png") },
+  { key: "cute_penguin", label: "Cụt Sushi", source: require("../../assets/avatar/cute_penguin.png") },
+  { key: "cute_fox", label: "Cáo Cà Phê", source: require("../../assets/avatar/cute_fox.png") }
+];
+
 function mediaSource(uri?: string) {
   if (!uri) {
     return undefined;
   }
 
-  if (uri.startsWith("http") || uri.startsWith("file:")) {
+  if (uri.startsWith("http") || uri.startsWith("file:") || uri.startsWith("data:")) {
     return { uri };
+  }
+
+  if (uri.includes("assets/") || uri.includes("cute_")) {
+    const name = uri.split("/").pop()?.replace(".png", "");
+    switch (name) {
+      case "cute_cat": return require("../../assets/avatar/cute_cat.png");
+      case "cute_dog": return require("../../assets/avatar/cute_dog.png");
+      case "cute_rabbit": return require("../../assets/avatar/cute_rabbit.png");
+      case "cute_bear": return require("../../assets/avatar/cute_bear.png");
+      case "cute_hamster": return require("../../assets/avatar/cute_hamster.png");
+      case "cute_panda": return require("../../assets/avatar/cute_panda.png");
+      case "cute_dino": return require("../../assets/avatar/cute_dino.png");
+      case "cute_koala": return require("../../assets/avatar/cute_koala.png");
+      case "cute_penguin": return require("../../assets/avatar/cute_penguin.png");
+      case "cute_fox": return require("../../assets/avatar/cute_fox.png");
+      default: break;
+    }
   }
 
   return { uri: `${api.baseUrl}${uri}` };
@@ -38,6 +78,7 @@ export function EditProfileScreen({ navigation }: any) {
     user?.birthday?.visibility ?? "hidden"
   );
   const [avatarUri, setAvatarUri] = useState(user?.avatarUrl ?? "");
+  const [themeColor, setThemeColor] = useState(user?.themeColor ?? "#8BA58A");
   const [premium, setPremium] = useState(Boolean(user?.isPremium));
   const [loading, setLoading] = useState(false);
 
@@ -90,6 +131,7 @@ export function EditProfileScreen({ navigation }: any) {
         bio: bio.trim(),
         avatarUrl: nextAvatarUrl,
         isPremium: premium,
+        themeColor: themeColor,
         birthday: {
           date: birthday,
           visibility: birthdayVisibility
@@ -125,6 +167,46 @@ export function EditProfileScreen({ navigation }: any) {
           </AppText>
         </View>
       </Pressable>
+
+      {/* ── SELECT CUTE AVATAR mẫu ── */}
+      <View style={styles.section}>
+        <AppText variant="button">Chọn Avatar mẫu dễ thương</AppText>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cuteAvatarScroll}>
+          {CUTE_AVATARS.map((item) => (
+            <Pressable
+              key={item.key}
+              style={[
+                styles.cuteAvatarCard,
+                avatarUri === item.key && styles.cuteAvatarCardActive
+              ]}
+              onPress={() => setAvatarUri(item.key)}
+            >
+              <Image source={item.source} style={styles.cuteAvatarThumb} />
+              <AppText variant="caption" style={styles.cuteAvatarLabel} numberOfLines={1}>
+                {item.label}
+              </AppText>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* ── CHOOSE BACKGROUND COLOR ── */}
+      <View style={styles.section}>
+        <AppText variant="button">Màu nền bảng tên</AppText>
+        <View style={styles.colorGrid}>
+          {ACCENT_COLORS.map((color) => (
+            <Pressable
+              key={color.value}
+              onPress={() => setThemeColor(color.value)}
+              style={[
+                styles.colorCircle,
+                { backgroundColor: color.value },
+                themeColor === color.value && styles.colorCircleActive
+              ]}
+            />
+          ))}
+        </View>
+      </View>
 
       <TextField label="Tên hiển thị" value={displayName} onChangeText={setDisplayName} />
       <TextField label="Giới thiệu" value={bio} onChangeText={setBio} multiline />
@@ -241,5 +323,56 @@ const styles = StyleSheet.create({
   premiumCopy: {
     flex: 1,
     paddingRight: 12
+  },
+  cuteAvatarScroll: {
+    paddingVertical: 4,
+    gap: 12
+  },
+  cuteAvatarCard: {
+    width: 86,
+    alignItems: "center",
+    padding: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.surface
+  },
+  cuteAvatarCardActive: {
+    borderColor: colors.black,
+    backgroundColor: colors.canvas
+  },
+  cuteAvatarThumb: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginBottom: 6,
+    backgroundColor: colors.canvasStrong
+  },
+  cuteAvatarLabel: {
+    fontSize: 10,
+    color: colors.black,
+    textAlign: "center"
+  },
+  colorGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 14,
+    paddingVertical: 4
+  },
+  colorCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 2,
+    borderColor: "rgba(0,0,0,0.05)",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  colorCircleActive: {
+    borderColor: colors.black,
+    borderWidth: 3
   }
 });

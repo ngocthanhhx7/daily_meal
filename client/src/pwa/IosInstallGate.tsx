@@ -1,5 +1,5 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import { getPwaEnvironment } from "./platform";
@@ -19,9 +19,12 @@ export function IosInstallGate() {
       contentContainerStyle={styles.content}
       bounces={false}
     >
-      <View style={styles.icon}>
-        <Text style={styles.iconText}>DM</Text>
-      </View>
+      {/* Logo khủng long dễ thương hiển thị thay cho chữ DM cũ */}
+      <Image
+        source={require("../../assets/logo/logo.png")}
+        style={styles.logo}
+        resizeMode="contain"
+      />
 
       <Text style={styles.title}>Cài Daily Meal trên iPhone</Text>
       <Text style={styles.subtitle}>
@@ -72,28 +75,16 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
     gap: 18
   },
-  icon: {
+  logo: {
     alignSelf: "center",
     width: 86,
     height: 86,
     borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.green,
-    // Note: React Native Web supports standard CSS properties like boxShadow as long as typescript/react-native types permit or through inline CSS.
-    // To be safe for React Native (iOS/Android/Web), standard boxShadow object can be used or shadow props.
-    // Let's use React Native's standard shadow styling or direct CSS web shadow if only running on web.
-    // Expo/React Native standard shadow properties:
-    shadowColor: "rgba(79, 111, 61, 0.22)",
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 1,
-    shadowRadius: 34,
-    elevation: 5
-  },
-  iconText: {
-    color: colors.white,
-    fontFamily: fonts.bold,
-    fontSize: 28
+    // Hiệu ứng đổ bóng sticker nổi chuẩn
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8
   },
   title: {
     color: colors.ink,

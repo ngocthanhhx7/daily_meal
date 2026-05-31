@@ -65,6 +65,15 @@ describe("Daily Meal API", () => {
     expect(me.body.user.email).toBe("auth@example.com");
   });
 
+  it("returns a user-readable validation error for invalid login input", async () => {
+    const response = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "not-an-email", password: "123" })
+      .expect(400);
+
+    expect(response.body.message).toBe("Email không hợp lệ. Mật khẩu cần ít nhất 6 ký tự.");
+  });
+
   it("saves onboarding preferences", async () => {
     const session = await register("onboarding@example.com");
 

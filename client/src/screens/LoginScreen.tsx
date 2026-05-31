@@ -22,6 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
+import { getAuthErrorMessage, validateLoginForm } from "./loginValidation";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -63,13 +64,28 @@ export function LoginScreen() {
     try {
       await signInWithFacebook(accessToken);
     } catch (error) {
-      Alert.alert("Không thể đăng nhập bằng Facebook", error instanceof Error ? error.message : "Thử lại sau");
+      Alert.alert("Không thể đăng nhập bằng Facebook", getAuthErrorMessage(error));
     } finally {
       setLoading(false);
     }
   }
 
   async function submit() {
+    const validation = validateLoginForm({
+      authMethod,
+      mode,
+      identifier,
+      password,
+      otp,
+      phoneOtpSent,
+      phoneNeedsPassword
+    });
+
+    if (validation) {
+      Alert.alert(validation.title, validation.message);
+      return;
+    }
+
     setLoading(true);
     try {
       if (authMethod === "phone") {
@@ -84,7 +100,7 @@ export function LoginScreen() {
         await register(identifier, password, displayName);
       }
     } catch (error) {
-      Alert.alert(mode === "login" ? "Không thể đăng nhập" : "Không thể tạo tài khoản", error instanceof Error ? error.message : "Thử lại sau");
+      Alert.alert(mode === "login" ? "Không thể đăng nhập" : "Không thể tạo tài khoản", getAuthErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -111,7 +127,7 @@ export function LoginScreen() {
       const idToken = await getGoogleIdToken();
       await signInWithGoogle(idToken);
     } catch (error) {
-      Alert.alert("Không thể đăng nhập bằng Google", error instanceof Error ? error.message : "Thử lại sau");
+      Alert.alert("Không thể đăng nhập bằng Google", getAuthErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -130,7 +146,7 @@ export function LoginScreen() {
     try {
       await requestPhoneCode();
     } catch (error) {
-      Alert.alert("Không thể gửi OTP", error instanceof Error ? error.message : "Thử lại sau");
+      Alert.alert("Không thể gửi OTP", getAuthErrorMessage(error));
     } finally {
       setLoading(false);
     }

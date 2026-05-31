@@ -80,7 +80,7 @@ export function EditProfileScreen({ navigation }: any) {
     try {
       let nextAvatarUrl = avatarUri;
 
-      if (avatarUri.startsWith("file:")) {
+      if (avatarUri.startsWith("file:") || avatarUri.startsWith("blob:") || avatarUri.startsWith("data:")) {
         const upload = await api.uploadImage(token, avatarUri, "avatar");
         nextAvatarUrl = upload.upload.url;
       }

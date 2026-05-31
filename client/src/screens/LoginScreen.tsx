@@ -23,11 +23,23 @@ import { fonts } from "../theme/typography";
 WebBrowser.maybeCompleteAuthSession();
 
 export function LoginScreen() {
-  const { signIn, register, signInWithFacebook } = useAuth();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const {
+    signIn,
+    signInWithPhone,
+    register,
+    registerWithPhone,
+    requestPhoneOtp,
+    verifyPhoneOtp,
+    signInWithFacebook
+  } = useAuth();
+  const [mode, setMode] = useState<"login" | "register" | "phoneOtp">("login");
+  const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [requiresPasswordSetup, setRequiresPasswordSetup] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Sử dụng AuthSession tổng quát để kiểm soát tuyệt đối các tham số gửi sang Facebook
@@ -65,10 +77,25 @@ export function LoginScreen() {
   async function submit() {
     setLoading(true);
     try {
-      if (mode === "login") {
-        await signIn(email, password);
+      if (mode === "phoneOtp") {
+        await verifyPhoneOtp(
+          phone,
+          otp,
+          requiresPasswordSetup ? password : undefined,
+          displayName || undefined
+        );
+      } else if (mode === "login") {
+        if (authMethod === "phone") {
+          await signInWithPhone(phone, password);
+        } else {
+          await signIn(email, password);
+        }
       } else {
-        await register(email, password, displayName);
+        if (authMethod === "phone") {
+          await registerWithPhone(phone, password, displayName);
+        } else {
+          await register(email, password, displayName);
+        }
       }
     } catch (error) {
       Alert.alert("Không thể đăng nhập", error instanceof Error ? error.message : "Thử lại sau");
@@ -77,17 +104,45 @@ export function LoginScreen() {
     }
   }
 
-  function placeholder() {
-    Alert.alert("Chưa hỗ trợ", "Phiên bản đầu chỉ hỗ trợ email, mật khẩu và Facebook.");
+  async function startPhoneOtp() {
+    if (!phone.trim()) {
+      Alert.alert("Thiếu số điện thoại", "Vui lòng nhập số điện thoại trước khi lấy mã OTP.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await requestPhoneOtp(phone);
+      setRequiresPasswordSetup(result.requiresPasswordSetup);
+      setMode("phoneOtp");
+      Alert.alert(
+        "Đã gửi mã OTP",
+        result.devOtp ? `Mã OTP môi trường dev: ${result.devOtp}` : "Vui lòng kiểm tra tin nhắn SMS."
+      );
+    } catch (error) {
+      Alert.alert("Không thể gửi OTP", error instanceof Error ? error.message : "Thử lại sau");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleSocialPress(icon: "logo-facebook" | "mail-outline" | "call-outline") {
     if (icon === "logo-facebook") {
       promptAsync();
+    } else if (icon === "call-outline") {
+      setAuthMethod("phone");
     } else {
-      placeholder();
+      setAuthMethod("email");
     }
   }
+
+  function toggleMode() {
+    setMode(mode === "register" ? "login" : "register");
+    setOtp("");
+    setRequiresPasswordSetup(false);
+  }
+
+  const isPhone = authMethod === "phone";
+  const isOtpMode = mode === "phoneOtp";
 
   return (
     <FigmaLineBackground>
@@ -112,14 +167,33 @@ export function LoginScreen() {
             {/* Heading */}
             <View style={styles.heading}>
               <AppText style={styles.titleText}>
-                {mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
+                {isOtpMode ? "Xác thực OTP" : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
               </AppText>
               <AppText style={styles.subtitleText}>
-                {mode === "login"
-                  ? "Chọn phương thức đăng nhập"
-                  : "Bắt đầu hành trình ẩm thực của bạn."}
+                {isOtpMode
+                  ? "Nhập mã xác thực đã gửi đến số điện thoại."
+                  : mode === "login"
+                    ? "Chọn phương thức đăng nhập"
+                    : "Bắt đầu hành trình ẩm thực của bạn."}
               </AppText>
             </View>
+
+            {!isOtpMode ? (
+              <View style={styles.methodTabs}>
+                <Pressable
+                  style={[styles.methodTab, !isPhone && styles.methodTabActive]}
+                  onPress={() => setAuthMethod("email")}
+                >
+                  <AppText style={[styles.methodTabText, !isPhone && styles.methodTabTextActive]}>Email</AppText>
+                </Pressable>
+                <Pressable
+                  style={[styles.methodTab, isPhone && styles.methodTabActive]}
+                  onPress={() => setAuthMethod("phone")}
+                >
+                  <AppText style={[styles.methodTabText, isPhone && styles.methodTabTextActive]}>Số điện thoại</AppText>
+                </Pressable>
+              </View>
+            ) : null}
 
             {/* Section header */}
             {mode === "login" ? (
@@ -129,41 +203,79 @@ export function LoginScreen() {
             ) : null}
 
             {/* Form */}
-            {mode === "register" ? (
+            {mode === "register" || (isOtpMode && requiresPasswordSetup) ? (
               <FigmaField label="Tên hiển thị" value={displayName} onChangeText={setDisplayName} placeholder="Nguyễn Văn A" autoCapitalize="words" />
             ) : null}
-            <FigmaField
-              label={mode === "login" ? "Tên đăng nhập" : "Email"}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholder={mode === "login" ? "Nhập tên đăng nhập" : "email@example.com"}
-            />
-            <FigmaField
-              label="Mật khẩu"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholder="Nhập mật khẩu"
-            />
+
+            {isPhone ? (
+              <FigmaField
+                label="Số điện thoại"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                autoCapitalize="none"
+                placeholder="Nhập số điện thoại"
+              />
+            ) : (
+              <FigmaField
+                label={mode === "login" ? "Tên đăng nhập" : "Email"}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholder={mode === "login" ? "Nhập tên đăng nhập" : "email@example.com"}
+              />
+            )}
+
+            {isOtpMode ? (
+              <FigmaField
+                label="Mã OTP"
+                value={otp}
+                onChangeText={setOtp}
+                keyboardType="number-pad"
+                maxLength={6}
+                placeholder="Nhập mã 6 chữ số"
+              />
+            ) : null}
+
+            {!isOtpMode || requiresPasswordSetup ? (
+              <FigmaField
+                label={requiresPasswordSetup ? "Tạo mật khẩu" : "Mật khẩu"}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                placeholder={requiresPasswordSetup ? "Tạo mật khẩu cho tài khoản" : "Nhập mật khẩu"}
+              />
+            ) : null}
 
             <View style={styles.primaryAction}>
               <AppButton
-                label={mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
+                label={isOtpMode ? "Xác thực" : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
                 onPress={submit}
                 loading={loading}
               />
             </View>
 
-            <Pressable onPress={() => setMode(mode === "login" ? "register" : "login")}>
+            {isPhone && !isOtpMode ? (
+              <Pressable style={styles.otpLinkWrap} onPress={startPhoneOtp} disabled={loading}>
+                <AppText style={styles.switchLink}>Đăng nhập bằng mã OTP</AppText>
+              </Pressable>
+            ) : null}
+
+            {isOtpMode ? (
+              <Pressable style={styles.otpLinkWrap} onPress={() => setMode("login")} disabled={loading}>
+                <AppText style={styles.switchLink}>Quay lại đăng nhập mật khẩu</AppText>
+              </Pressable>
+            ) : null}
+
+            {!isOtpMode ? <Pressable onPress={toggleMode}>
               <AppText style={styles.switchText}>
                 {mode === "login" ? "Chưa có tài khoản? " : "Đã có tài khoản? "}
                 <AppText style={styles.switchLink}>
                   {mode === "login" ? "Tạo tài khoản" : "Đăng nhập"}
                 </AppText>
               </AppText>
-            </Pressable>
+            </Pressable> : null}
 
             {/* Divider label */}
             <AppText style={styles.otherLoginText}>
@@ -252,6 +364,32 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginBottom: 5
   },
+  methodTabs: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.72)",
+    borderRadius: 18,
+    padding: 4,
+    marginBottom: 16,
+    gap: 4
+  },
+  methodTab: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  methodTabActive: {
+    backgroundColor: colors.green
+  },
+  methodTabText: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.muted
+  },
+  methodTabTextActive: {
+    color: colors.white
+  },
   fieldWrap: {
     gap: 9,
     marginBottom: 17
@@ -290,6 +428,11 @@ const styles = StyleSheet.create({
   switchLink: {
     color: colors.green,
     fontFamily: fonts.semibold
+  },
+  otpLinkWrap: {
+    alignItems: "center",
+    marginTop: -2,
+    marginBottom: 10
   },
   socialRow: {
     flexDirection: "row",

@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   mobileFrame: {
     flex: 1,
     width: "100%",
-    maxWidth: 430,
+    maxWidth: 480,
     minHeight: "100%",
     alignSelf: "center",
     backgroundColor: colors.canvas,

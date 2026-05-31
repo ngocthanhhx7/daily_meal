@@ -195,7 +195,7 @@ export function PublicProfileScreen({ route, navigation }: any) {
   const currentPosts = tab === "posts" ? posts : savedPosts;
 
   return (
-    <AppScreen style={styles.screen}>
+    <AppScreen style={styles.screen} scrollProps={{ contentContainerStyle: styles.scrollContent }}>
       <View style={styles.topBar}>
         <Pressable style={styles.backButton} onPress={() => navigation.goBack()} hitSlop={8}>
           <Ionicons name="arrow-back" size={18} color={colors.white} />
@@ -454,9 +454,13 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     gap: 14
   },
+  scrollContent: {
+    overflow: "hidden"
+  },
   topBar: {
     flexDirection: "row",
-    alignItems: "center"
+    alignItems: "center",
+    minWidth: 0
   },
   backButton: {
     width: 24,
@@ -572,10 +576,12 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: "row",
-    gap: 18
+    gap: 8,
+    width: "100%"
   },
   profileActionButton: {
     flex: 1,
+    minWidth: 0,
     minHeight: 34,
     borderRadius: 10,
     alignItems: "center",

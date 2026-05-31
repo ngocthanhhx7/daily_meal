@@ -17,7 +17,7 @@ type AppScreenProps = ViewProps & {
   keyboard?: boolean;
   /** Set true to skip the background image (e.g. login/onboarding manage their own) */
   noBackground?: boolean;
-  scrollProps?: Omit<ScrollViewProps, "contentContainerStyle" | "showsVerticalScrollIndicator">;
+  scrollProps?: Omit<ScrollViewProps, "showsVerticalScrollIndicator">;
 };
 
 export function AppScreen({
@@ -30,10 +30,10 @@ export function AppScreen({
 }: AppScreenProps) {
   const content = scroll ? (
     <ScrollView
-      contentContainerStyle={[styles.content, style]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       {...scrollProps}
+      contentContainerStyle={[styles.content, style, scrollProps?.contentContainerStyle]}
     >
       {children}
     </ScrollView>

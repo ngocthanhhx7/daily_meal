@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Dimensions,
   FlatList,
   Image,
   ImageBackground,
@@ -23,9 +22,8 @@ import { fonts } from "../theme/typography";
 import type { Post, PostLayout } from "../types/api";
 import { stickerImageSource } from "../utils/stickers";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const ARTWORK_WIDTH = Math.min(SCREEN_WIDTH - 28, 390);
-const ARTWORK_HEIGHT = Math.round(ARTWORK_WIDTH * 1.08);
+const ARTWORK_MAX_WIDTH = 390;
+const ARTWORK_ASPECT_RATIO = 1.08;
 
 const DEMO_IMAGES = [
   require("../../assets/figma-snapshots/image1.png"),
@@ -58,6 +56,7 @@ export function HomeScreen({ navigation }: any) {
   const [posts, setPosts] = useState<Post[]>(demoPosts);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [listHeight, setListHeight] = useState(0);
+  const [listWidth, setListWidth] = useState(0);
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [showCategory, setShowCategory] = useState(false);
@@ -249,7 +248,13 @@ export function HomeScreen({ navigation }: any) {
           </View>
         </View>
 
-        <View style={styles.feedWrap} onLayout={(event) => setListHeight(event.nativeEvent.layout.height)}>
+        <View
+          style={styles.feedWrap}
+          onLayout={(event) => {
+            setListHeight(event.nativeEvent.layout.height);
+            setListWidth(event.nativeEvent.layout.width);
+          }}
+        >
           {listHeight > 0 ? (
             <FlatList
               ref={flatRef}
@@ -260,6 +265,7 @@ export function HomeScreen({ navigation }: any) {
                   post={item}
                   index={index}
                   slideHeight={listHeight}
+                  slideWidth={listWidth}
                   onPress={() => navigation.navigate("Comments", { post: item })}
                   onRecipePress={() => navigation.navigate("Recipe", { post: item })}
                 />
@@ -318,18 +324,23 @@ function PostSlide({
   post,
   index,
   slideHeight,
+  slideWidth,
   onPress,
   onRecipePress
 }: {
   post: Post;
   index: number;
   slideHeight: number;
+  slideWidth: number;
   onPress: () => void;
   onRecipePress: () => void;
 }) {
+  const artworkWidth = Math.min(Math.max(slideWidth - 44, 260), ARTWORK_MAX_WIDTH);
+  const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 92, 280));
+
   return (
     <View style={[styles.slide, { height: slideHeight }]}>
-      <Pressable style={styles.artworkPress} onPress={onPress}>
+      <Pressable style={[styles.artworkPress, { width: artworkWidth, height: artworkHeight }]} onPress={onPress}>
         <View style={[styles.feedArtwork, { transform: [{ rotate: cardRotation(index) }] }]}>
           <FeedArtwork post={post} />
 
@@ -563,8 +574,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6
   },
   artworkPress: {
-    width: ARTWORK_WIDTH,
-    height: ARTWORK_HEIGHT
+    width: "100%",
+    height: "100%"
   },
   feedArtwork: {
     width: "100%",
@@ -684,7 +695,7 @@ const styles = StyleSheet.create({
   authorChip: {
     marginTop: 16,
     minWidth: 176,
-    maxWidth: ARTWORK_WIDTH - 24,
+    maxWidth: "86%",
     minHeight: 42,
     flexDirection: "row",
     alignItems: "center",
@@ -726,7 +737,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 40,
+    paddingHorizontal: 34,
     paddingTop: 12
   },
   squareBtn: {

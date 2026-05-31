@@ -11,32 +11,38 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import * as Facebook from "expo-auth-session/providers/facebook";
+import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import { AppButton } from "../components/AppButton";
 import { AppText } from "../components/AppText";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
-import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export function LoginScreen() {
-  const { signIn, signInWithPhone, register, registerWithPhone, signInWithFacebook, signInWithGoogle } = useAuth();
+  const { signIn, register, signInWithFacebook } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [request, response, promptAsync] = Facebook.useAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || "3483710358450589",
-    scopes: ["public_profile"]
-  });
+  // Sử dụng AuthSession tổng quát để kiểm soát tuyệt đối các tham số gửi sang Facebook
+  const [request, response, promptAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || "3483710358450589",
+      scopes: ["public_profile"],
+      redirectUri: AuthSession.makeRedirectUri(),
+      responseType: AuthSession.ResponseType.Token,
+    },
+    {
+      authorizationEndpoint: "https://www.facebook.com/v6.0/dialog/oauth",
+      tokenEndpoint: "https://graph.facebook.com/v6.0/oauth/access_token",
+    }
+  );
 
   React.useEffect(() => {
     if (response?.type === "success" && response.authentication) {
@@ -56,29 +62,11 @@ export function LoginScreen() {
     }
   }
 
-  async function handleGoogleLogin() {
-    setLoading(true);
-    try {
-      const idToken = await getGoogleIdToken();
-      await signInWithGoogle(idToken);
-    } catch (error) {
-      Alert.alert("Không thể đăng nhập bằng Google", error instanceof Error ? error.message : "Thử lại sau");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function submit() {
     setLoading(true);
     try {
       if (mode === "login") {
-        if (authMethod === "phone") {
-          await signInWithPhone(phone, password);
-        } else {
-          await signIn(email, password);
-        }
-      } else if (authMethod === "phone") {
-        await registerWithPhone(phone, password, displayName);
+        await signIn(email, password);
       } else {
         await register(email, password, displayName);
       }
@@ -89,17 +77,15 @@ export function LoginScreen() {
     }
   }
 
-  function handleSocialPress(icon: "logo-facebook" | "logo-google" | "mail-outline" | "call-outline") {
+  function placeholder() {
+    Alert.alert("Chưa hỗ trợ", "Phiên bản đầu chỉ hỗ trợ email, mật khẩu và Facebook.");
+  }
+
+  function handleSocialPress(icon: "logo-facebook" | "mail-outline" | "call-outline") {
     if (icon === "logo-facebook") {
       promptAsync();
-    } else if (icon === "logo-google") {
-      handleGoogleLogin();
-    } else if (icon === "mail-outline") {
-      setAuthMethod("email");
-    } else if (icon === "call-outline") {
-      setAuthMethod("phone");
     } else {
-      setAuthMethod("email");
+      placeholder();
     }
   }
 
@@ -139,37 +125,6 @@ export function LoginScreen() {
             ) : null}
 
             {/* Form */}
-            <View style={styles.methodTabs}>
-              <Pressable
-                accessibilityRole="button"
-                style={[styles.methodTab, authMethod === "email" && styles.methodTabActive]}
-                onPress={() => setAuthMethod("email")}
-              >
-                <Ionicons
-                  name="mail-outline"
-                  size={16}
-                  color={authMethod === "email" ? colors.white : colors.green}
-                />
-                <AppText style={[styles.methodText, authMethod === "email" && styles.methodTextActive]}>
-                  Email
-                </AppText>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={[styles.methodTab, authMethod === "phone" && styles.methodTabActive]}
-                onPress={() => setAuthMethod("phone")}
-              >
-                <Ionicons
-                  name="call-outline"
-                  size={16}
-                  color={authMethod === "phone" ? colors.white : colors.green}
-                />
-                <AppText style={[styles.methodText, authMethod === "phone" && styles.methodTextActive]}>
-                  Số điện thoại
-                </AppText>
-              </Pressable>
-            </View>
-
             {mode === "register" ? (
               <TextField
                 label="Tên hiển thị"
@@ -179,25 +134,14 @@ export function LoginScreen() {
                 autoCapitalize="words"
               />
             ) : null}
-            {authMethod === "phone" ? (
-              <TextField
-                label="Số điện thoại"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                autoCapitalize="none"
-                placeholder="0901234567 hoặc +84901234567"
-              />
-            ) : (
-              <TextField
-                label="Email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholder="email@example.com"
-              />
-            )}
+            <TextField
+              label={mode === "login" ? "Tên đăng nhập" : "Email"}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholder={mode === "login" ? "Nhập tên đăng nhập" : "email@example.com"}
+            />
             <TextField
               label="Mật khẩu"
               value={password}
@@ -228,7 +172,7 @@ export function LoginScreen() {
 
             {/* Social */}
             <View style={styles.socialRow}>
-              {(["logo-facebook", "logo-google", "mail-outline", "call-outline"] as const).map((icon) => (
+              {(["logo-facebook", "mail-outline", "call-outline"] as const).map((icon) => (
                 <Pressable
                   key={icon}
                   style={styles.socialButton}
@@ -265,32 +209,6 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     marginTop: 4
-  },
-  methodTabs: {
-    flexDirection: "row",
-    gap: 10
-  },
-  methodTab: {
-    flex: 1,
-    minHeight: 42,
-    borderRadius: 21,
-    borderWidth: 1,
-    borderColor: colors.green,
-    backgroundColor: colors.white,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6
-  },
-  methodTabActive: {
-    backgroundColor: colors.green
-  },
-  methodText: {
-    color: colors.green,
-    fontFamily: fonts.semibold
-  },
-  methodTextActive: {
-    color: colors.white
   },
   switchText: {
     textAlign: "center",

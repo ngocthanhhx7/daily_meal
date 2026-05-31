@@ -32,6 +32,7 @@ const userSchema = new Schema(
       completedOnboarding: { type: Boolean, default: false }
     },
     isPremium: { type: Boolean, default: false },
+    themeColor: { type: String, default: "#8BA58A" },
     counts: {
       posts: { type: Number, default: 0 },
       followers: { type: Number, default: 0 },

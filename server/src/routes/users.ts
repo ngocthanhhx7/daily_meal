@@ -93,6 +93,7 @@ async function publicUserDto(user: any, viewerId?: string) {
     bio: user.bio,
     birthday: birthdayDto(user, viewerId === id),
     isPremium: user.isPremium,
+    themeColor: user.themeColor,
     counts: user.counts,
     relationship: relation,
     viewerInteraction: {
@@ -163,7 +164,8 @@ const updateMeSchema = z.object({
       visibility: z.enum(["hidden", "dayMonth", "full"]).optional()
     })
     .optional(),
-  isPremium: z.boolean().optional()
+  isPremium: z.boolean().optional(),
+  themeColor: z.string().max(30).optional()
 });
 
 const interactionBodySchema = z.object({

@@ -452,10 +452,6 @@ function PostSlide({
           {post.author?.displayName ?? "Daily Meal"}
         </AppText>
       </Pressable>
-
-      <View style={styles.swipeHint}>
-        <Ionicons name="chevron-up" size={16} color={colors.muted} />
-      </View>
     </View>
   );
 }

@@ -17,13 +17,14 @@ import { AppButton } from "../components/AppButton";
 import { AppText } from "../components/AppText";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
+import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export function LoginScreen() {
-  const { signIn, register, signInWithFacebook } = useAuth();
+  const { signIn, register, signInWithFacebook, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -52,6 +53,18 @@ export function LoginScreen() {
     }
   }
 
+  async function handleGoogleLogin() {
+    setLoading(true);
+    try {
+      const idToken = await getGoogleIdToken();
+      await signInWithGoogle(idToken);
+    } catch (error) {
+      Alert.alert("Không thể đăng nhập bằng Google", error instanceof Error ? error.message : "Thử lại sau");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function submit() {
     setLoading(true);
     try {
@@ -71,9 +84,11 @@ export function LoginScreen() {
     Alert.alert("Chưa hỗ trợ", "Phiên bản đầu chỉ hỗ trợ email, mật khẩu và Facebook.");
   }
 
-  function handleSocialPress(icon: "logo-facebook" | "mail-outline" | "call-outline") {
+  function handleSocialPress(icon: "logo-facebook" | "logo-google" | "mail-outline" | "call-outline") {
     if (icon === "logo-facebook") {
       promptAsync();
+    } else if (icon === "logo-google") {
+      handleGoogleLogin();
     } else {
       placeholder();
     }
@@ -162,7 +177,7 @@ export function LoginScreen() {
 
             {/* Social */}
             <View style={styles.socialRow}>
-              {(["logo-facebook", "mail-outline", "call-outline"] as const).map((icon) => (
+              {(["logo-facebook", "logo-google", "mail-outline", "call-outline"] as const).map((icon) => (
                 <Pressable
                   key={icon}
                   style={styles.socialButton}

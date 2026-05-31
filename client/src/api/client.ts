@@ -105,6 +105,17 @@ export const api = {
       method: "POST",
       body: { accessToken }
     }),
+  googleLogin: (body: { idToken: string }) =>
+    request<{ token: string; user: User }>("/api/auth/google", {
+      method: "POST",
+      body
+    }),
+  linkGoogle: (token: string, body: { idToken: string }) =>
+    request<{ user: User }>("/api/auth/google/link", {
+      method: "POST",
+      token,
+      body
+    }),
   me: (token: string) => request<{ user: User }>("/api/auth/me", { token }),
   savePreferences: (
     token: string,

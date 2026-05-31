@@ -4,8 +4,15 @@ const userSchema = new Schema(
   {
     email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
     phone: { type: String, unique: true, sparse: true, trim: true },
-    passwordHash: { type: String, required: true },
+    passwordHash: { type: String },
     facebookId: { type: String, unique: true, sparse: true },
+    authProviders: {
+      google: {
+        sub: { type: String, unique: true, sparse: true },
+        email: { type: String, lowercase: true, trim: true },
+        linkedAt: { type: Date }
+      }
+    },
     displayName: { type: String, required: true, trim: true },
     avatarUrl: { type: String },
     coverUrl: { type: String },

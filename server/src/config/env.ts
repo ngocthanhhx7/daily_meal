@@ -37,7 +37,10 @@ const envSchema = z.object({
   S3_OBJECT_ACL: optionalString,
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default("gemini-2.0-flash-lite"),
-  GEMINI_FALLBACK_MODEL: z.string().default("gemini-2.5-flash-lite")
+  GEMINI_FALLBACK_MODEL: z.string().default("gemini-2.5-flash-lite"),
+  GOOGLE_WEB_CLIENT_ID: optionalString,
+  GOOGLE_ANDROID_CLIENT_ID: optionalString,
+  GOOGLE_IOS_CLIENT_ID: optionalString
 });
 
 const parsed = envSchema.parse(process.env);

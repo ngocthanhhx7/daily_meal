@@ -3,6 +3,7 @@ import { z } from "zod";
 import crypto from "node:crypto";
 import { User } from "../models/User.js";
 import { hashPassword, signAccessToken, verifyPassword } from "../services/auth.js";
+import { verifyGoogleIdToken } from "../services/googleAuth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 
@@ -22,6 +23,13 @@ const changePasswordSchema = z.object({
 const facebookAuthSchema = z.object({
   accessToken: z.string().min(1)
 });
+
+const googleAuthSchema = z.object({
+  idToken: z.string().min(1)
+});
+
+const GOOGLE_LINK_REQUIRED =
+  "Sign in with email and password first, then link Google in Settings.";
 
 function userDto(user: any) {
   return {
@@ -74,7 +82,7 @@ authRouter.post("/login", async (req, res, next) => {
     const body = authBodySchema.pick({ email: true, password: true }).parse(req.body);
     const user = await User.findOne({ email: body.email });
 
-    if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
+    if (!user?.passwordHash || !(await verifyPassword(body.password, user.passwordHash))) {
       throw new HttpError(401, "Invalid email or password");
     }
 
@@ -155,6 +163,87 @@ authRouter.post("/facebook", async (req, res, next) => {
   }
 });
 
+authRouter.post("/google", async (req, res, next) => {
+  try {
+    const { idToken } = googleAuthSchema.parse(req.body);
+    const googleUser = await verifyGoogleIdToken(idToken);
+
+    let user = await User.findOne({ "authProviders.google.sub": googleUser.sub });
+
+    if (!user) {
+      const existingByEmail = await User.findOne({ email: googleUser.email });
+
+      if (existingByEmail) {
+        throw new HttpError(409, GOOGLE_LINK_REQUIRED);
+      }
+
+      user = await User.create({
+        email: googleUser.email,
+        displayName: googleUser.displayName ?? googleUser.email.split("@")[0],
+        avatarUrl: googleUser.avatarUrl,
+        authProviders: {
+          google: {
+            sub: googleUser.sub,
+            email: googleUser.email,
+            linkedAt: new Date()
+          }
+        }
+      });
+    }
+
+    res.json({
+      token: signAccessToken(user._id.toString()),
+      user: userDto(user)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post("/google/link", requireAuth, async (req, res, next) => {
+  try {
+    const { idToken } = googleAuthSchema.parse(req.body);
+    const googleUser = await verifyGoogleIdToken(idToken);
+    const user = await User.findById(req.user?.id);
+
+    if (!user) {
+      throw new HttpError(404, "User not found");
+    }
+
+    if (!user.email || user.email !== googleUser.email) {
+      throw new HttpError(409, "Google email must match your Daily Meal account email.");
+    }
+
+    const owner = await User.findOne({
+      "authProviders.google.sub": googleUser.sub,
+      _id: { $ne: user._id }
+    }).lean();
+
+    if (owner) {
+      throw new HttpError(409, "This Google account is already linked to another Daily Meal account.");
+    }
+
+    user.authProviders = {
+      ...(user.authProviders ?? {}),
+      google: {
+        sub: googleUser.sub,
+        email: googleUser.email,
+        linkedAt: new Date()
+      }
+    };
+
+    if (!user.avatarUrl && googleUser.avatarUrl) {
+      user.avatarUrl = googleUser.avatarUrl;
+    }
+
+    await user.save();
+
+    res.json({ user: userDto(user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 authRouter.get("/me", requireAuth, async (req, res, next) => {
   try {
     const user = await User.findById(req.user?.id);
@@ -178,7 +267,7 @@ authRouter.patch("/password", requireAuth, async (req, res, next) => {
       throw new HttpError(404, "User not found");
     }
 
-    if (!(await verifyPassword(body.currentPassword, user.passwordHash))) {
+    if (!user.passwordHash || !(await verifyPassword(body.currentPassword, user.passwordHash))) {
       throw new HttpError(401, "Current password is incorrect");
     }
 

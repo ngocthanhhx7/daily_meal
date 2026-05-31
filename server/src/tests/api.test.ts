@@ -1,13 +1,19 @@
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
-import { beforeAll, afterAll, describe, expect, it } from "vitest";
+import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { seedDefaultStickers } from "../services/stickers.js";
 import { Sticker } from "../models/Sticker.js";
+import { verifyGoogleIdToken } from "../services/googleAuth.js";
+
+vi.mock("../services/googleAuth.js", () => ({
+  verifyGoogleIdToken: vi.fn()
+}));
 
 let mongo: MongoMemoryServer;
 const app = createApp();
+const mockedVerifyGoogleIdToken = vi.mocked(verifyGoogleIdToken);
 
 async function register(email: string) {
   const response = await request(app)
@@ -37,6 +43,10 @@ describe("Daily Meal API", () => {
     mongo = await MongoMemoryServer.create();
     await mongoose.connect(mongo.getUri());
     await seedDefaultStickers();
+  });
+
+  beforeEach(() => {
+    mockedVerifyGoogleIdToken.mockReset();
   });
 
   afterAll(async () => {
@@ -291,5 +301,127 @@ describe("Daily Meal API", () => {
       .post("/api/auth/login")
       .send({ email: "password@example.com", password: "newpassword123" })
       .expect(200);
+  });
+
+  it("creates a Google user and reads the current user", async () => {
+    mockedVerifyGoogleIdToken.mockResolvedValue({
+      sub: "google-new-user",
+      email: "google-new@example.com",
+      displayName: "Google New",
+      avatarUrl: "https://example.com/avatar.png"
+    });
+
+    const response = await request(app)
+      .post("/api/auth/google")
+      .send({ idToken: "valid-google-token" })
+      .expect(200);
+
+    expect(response.body.user.email).toBe("google-new@example.com");
+
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${response.body.token}`)
+      .expect(200);
+
+    expect(me.body.user.displayName).toBe("Google New");
+  });
+
+  it("signs in an existing linked Google user", async () => {
+    mockedVerifyGoogleIdToken.mockResolvedValue({
+      sub: "google-linked-user",
+      email: "google-linked@example.com",
+      displayName: "Google Linked",
+      avatarUrl: undefined
+    });
+
+    await request(app).post("/api/auth/google").send({ idToken: "first-token" }).expect(200);
+    const response = await request(app)
+      .post("/api/auth/google")
+      .send({ idToken: "second-token" })
+      .expect(200);
+
+    expect(response.body.user.email).toBe("google-linked@example.com");
+  });
+
+  it("blocks Google sign-in for an existing password account until it is linked", async () => {
+    await register("google-conflict@example.com");
+    mockedVerifyGoogleIdToken.mockResolvedValue({
+      sub: "google-conflict-sub",
+      email: "google-conflict@example.com",
+      displayName: "Conflict",
+      avatarUrl: undefined
+    });
+
+    const response = await request(app)
+      .post("/api/auth/google")
+      .send({ idToken: "conflict-token" })
+      .expect(409);
+
+    expect(response.body.message).toContain("Sign in with email and password first");
+  });
+
+  it("links Google to the current password account when email matches", async () => {
+    const session = await register("google-link@example.com");
+    mockedVerifyGoogleIdToken.mockResolvedValue({
+      sub: "google-link-sub",
+      email: "google-link@example.com",
+      displayName: "Google Link",
+      avatarUrl: undefined
+    });
+
+    const link = await request(app)
+      .post("/api/auth/google/link")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({ idToken: "link-token" })
+      .expect(200);
+
+    expect(link.body.user.email).toBe("google-link@example.com");
+
+    const login = await request(app)
+      .post("/api/auth/google")
+      .send({ idToken: "link-token" })
+      .expect(200);
+
+    expect(login.body.user.email).toBe("google-link@example.com");
+  });
+
+  it("rejects linking a Google account already linked to another user", async () => {
+    mockedVerifyGoogleIdToken.mockResolvedValue({
+      sub: "google-taken-sub",
+      email: "google-owner@example.com",
+      displayName: "Google Owner",
+      avatarUrl: undefined
+    });
+    await request(app).post("/api/auth/google").send({ idToken: "owner-token" }).expect(200);
+
+    const session = await register("google-link-taken@example.com");
+    mockedVerifyGoogleIdToken.mockResolvedValue({
+      sub: "google-taken-sub",
+      email: "google-link-taken@example.com",
+      displayName: "Taken",
+      avatarUrl: undefined
+    });
+
+    await request(app)
+      .post("/api/auth/google/link")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({ idToken: "taken-token" })
+      .expect(409);
+  });
+
+  it("rejects linking Google when the email differs from the current user", async () => {
+    const session = await register("google-link-owner@example.com");
+    mockedVerifyGoogleIdToken.mockResolvedValue({
+      sub: "google-different-email",
+      email: "different-google@example.com",
+      displayName: "Different",
+      avatarUrl: undefined
+    });
+
+    await request(app)
+      .post("/api/auth/google/link")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({ idToken: "different-email-token" })
+      .expect(409);
   });
 });

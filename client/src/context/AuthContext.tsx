@@ -10,8 +10,10 @@ type AuthContextValue = {
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithFacebook: (facebookToken: string) => Promise<void>;
+  signInWithGoogle: (idToken: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  linkGoogle: (idToken: string) => Promise<void>;
   savePreferences: (interests: string[], eatingStyles: string[]) => Promise<void>;
   updateUser: (patch: Partial<User>) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -124,6 +126,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const result = await api.loginWithFacebook(facebookToken);
         await persistSession(result.token, result.user);
       },
+      signInWithGoogle: async (idToken) => {
+        const result = await api.googleLogin({ idToken });
+        await persistSession(result.token, result.user);
+      },
       register: async (email, password, displayName) => {
         const result = await api.register({ email, password, displayName });
         await persistSession(result.token, result.user);
@@ -132,6 +138,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await safeStorage.deleteItem(TOKEN_KEY);
         setToken(null);
         setUser(null);
+      },
+      linkGoogle: async (idToken) => {
+        if (!token) {
+          return;
+        }
+        const result = await api.linkGoogle(token, { idToken });
+        setUser(result.user);
       },
       savePreferences: async (interests, eatingStyles) => {
         if (!token || !user) {

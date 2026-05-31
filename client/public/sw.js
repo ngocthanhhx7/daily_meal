@@ -1,5 +1,10 @@
-const CACHE_NAME = "daily-meal-shell-v1";
-const SHELL_PATHS = ["/", "/manifest.json", "/icons/daily-meal-icon.png", "/favicon.png"];
+const CACHE_NAME = "daily-meal-shell-v2";
+const SHELL_PATHS = [
+  "/",
+  "/manifest.json?v=2026-05-31-logo",
+  "/icons/daily-meal-icon.png?v=2026-05-31-logo",
+  "/favicon.png?v=2026-05-31-logo"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

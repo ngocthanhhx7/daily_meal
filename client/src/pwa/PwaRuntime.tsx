@@ -12,7 +12,7 @@ function upsertMeta(name: string, content: string) {
 }
 
 function upsertLink(rel: string, href: string, attrs: Record<string, string> = {}) {
-  const existing = document.querySelector(`link[rel="${rel}"][href="${href}"]`);
+  const existing = document.querySelector(`link[rel="${rel}"]`);
   const element = existing ?? document.createElement("link");
   element.setAttribute("rel", rel);
   element.setAttribute("href", href);
@@ -34,9 +34,9 @@ export function PwaRuntime() {
     upsertMeta("apple-mobile-web-app-title", "Daily Meal");
     upsertMeta("apple-mobile-web-app-status-bar-style", "default");
     upsertMeta("mobile-web-app-capable", "yes");
-    upsertLink("manifest", "/manifest.json");
-    upsertLink("apple-touch-icon", "/icons/daily-meal-icon.png");
-    upsertLink("icon", "/favicon.png", { type: "image/png" });
+    upsertLink("manifest", "/manifest.json?v=2026-05-31-logo");
+    upsertLink("apple-touch-icon", "/icons/daily-meal-icon.png?v=2026-05-31-logo");
+    upsertLink("icon", "/favicon.png?v=2026-05-31-logo", { type: "image/png" });
 
     if ("serviceWorker" in navigator && window.location.protocol === "https:") {
       navigator.serviceWorker.register("/sw.js").catch(() => {

@@ -20,6 +20,7 @@ import type {
 } from "../types/api";
 import { getPendingPickedImageUris, pickMultipleImages, pickSingleImage } from "../utils/imagePicker";
 import { stickerImageSource } from "../utils/stickers";
+import { resolveRecentPhotoUri } from "./createPostAssets";
 
 const MAX_IMAGES = 3;
 const DEFAULT_TRANSFORM: PostImageTransform = {
@@ -72,7 +73,9 @@ export function CreatePostScreen({ navigation, route }: any) {
   const [loading, setLoading] = useState(false);
 
   const recentUris = useMemo(() => {
-    return RECENT_PHOTOS.map((asset) => Image.resolveAssetSource(asset).uri);
+    return RECENT_PHOTOS.map((asset) =>
+      resolveRecentPhotoUri(asset, Image.resolveAssetSource)
+    ).filter((uri): uri is string => Boolean(uri));
   }, []);
 
   useEffect(() => {

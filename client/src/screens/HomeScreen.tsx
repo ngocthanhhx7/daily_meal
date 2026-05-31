@@ -55,6 +55,14 @@ function cardRotation(index: number) {
   return index % 2 === 0 ? "-1.5deg" : "1.5deg";
 }
 
+function isDesktopPointer() {
+  if (Platform.OS !== "web" || typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
 export function HomeScreen({ navigation }: any) {
   const { width: viewportWidth } = useWindowDimensions();
   const { token, user } = useAuth();
@@ -141,7 +149,7 @@ export function HomeScreen({ navigation }: any) {
   const currentPost = posts[currentIndex];
   const isLiked = currentPost ? likedSet.has(currentPost._id) : false;
   const isSaved = currentPost ? savedSet.has(currentPost._id) : false;
-  const showDesktopFrame = Platform.OS === "web" && viewportWidth >= 520;
+  const showDesktopFrame = viewportWidth >= 720 && isDesktopPointer();
 
   async function handleLike() {
     if (!token || !currentPost) return;

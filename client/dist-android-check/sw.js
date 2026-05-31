@@ -1,4 +1,4 @@
-const CACHE_NAME = "daily-meal-shell-v2";
+const CACHE_NAME = "daily-meal-shell-v3";
 const SHELL_PATHS = [
   "/",
   "/manifest.json?v=2026-05-31-logo",

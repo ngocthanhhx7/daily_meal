@@ -1,78 +1,90 @@
-<svg width="375" height="812" viewBox="0 0 375 812" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g clip-path="url(#clip0_3432_2214)">
-<rect width="375" height="812" rx="40" fill="#F5F5F5"/>
-<line x1="-20" y1="179.5" x2="414" y2="191.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="683.5" x2="414" y2="695.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="623.5" x2="414" y2="635.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="443.5" x2="414" y2="455.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="275.5" x2="414" y2="287.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="95.5" x2="414" y2="107.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="779.5" x2="414" y2="791.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="575.5" x2="414" y2="587.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="395.5" x2="414" y2="407.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="227.5" x2="414" y2="239.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="47.5" x2="414" y2="59.5" stroke="black" stroke-opacity="0.04"/>
-<path d="M-20 732.5H414" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="671.5" x2="414" y2="683.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="491.5" x2="414" y2="503.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="323.5" x2="414" y2="335.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="143.5" x2="414" y2="155.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="551.5" x2="414" y2="563.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="371.5" x2="414" y2="383.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="203.5" x2="414" y2="215.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="23.5" x2="414" y2="35.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="707.5" x2="414" y2="719.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="647.5" x2="414" y2="659.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="467.5" x2="414" y2="479.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="299.5" x2="414" y2="311.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="119.5" x2="414" y2="131.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="803.5" x2="414" y2="815.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="599.5" x2="414" y2="611.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="419.5" x2="414" y2="431.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="251.5" x2="414" y2="263.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="71.5" x2="414" y2="83.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="755.5" x2="414" y2="767.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="515.5" x2="414" y2="527.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="347.5" x2="414" y2="359.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="167.5" x2="414" y2="179.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="539.5" x2="414" y2="551.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="191.5" x2="414" y2="203.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="11.5" x2="414" y2="23.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="695.5" x2="414" y2="707.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="635.5" x2="414" y2="647.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="455.5" x2="414" y2="467.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="287.5" x2="414" y2="299.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="107.5" x2="414" y2="119.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="791.5" x2="414" y2="803.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="587.5" x2="414" y2="599.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="407.5" x2="414" y2="419.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="239.5" x2="414" y2="251.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="59.5" x2="414" y2="71.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="743.5" x2="414" y2="755.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="503.5" x2="414" y2="515.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="335.5" x2="414" y2="347.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="155.5" x2="414" y2="167.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="563.5" x2="414" y2="575.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="383.5" x2="414" y2="395.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="215.5" x2="414" y2="227.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="35.5" x2="414" y2="47.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="719.5" x2="414" y2="731.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="659.5" x2="414" y2="671.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="479.5" x2="414" y2="491.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="311.5" x2="414" y2="323.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="131.5" x2="414" y2="143.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="611.5" x2="414" y2="623.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="431.5" x2="414" y2="443.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="263.5" x2="414" y2="275.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="83.5" x2="414" y2="95.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="767.5" x2="414" y2="779.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="527.5" x2="414" y2="539.5" stroke="black" stroke-opacity="0.04"/>
-<line x1="-20" y1="359.5" x2="414" y2="371.5" stroke="black" stroke-opacity="0.04"/>
-<rect x="115" y="800" width="146" height="4" rx="2" fill="black"/>
+<svg width="383" height="820" viewBox="0 0 383 820" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g filter="url(#filter0_d_2_331)">
+<g clip-path="url(#clip0_2_331)">
+<rect x="4" width="375" height="812" rx="40" fill="#F5F5F5"/>
+<line x1="-16" y1="179.5" x2="418" y2="191.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="683.5" x2="418" y2="695.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="623.5" x2="418" y2="635.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="443.5" x2="418" y2="455.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="275.5" x2="418" y2="287.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="95.5" x2="418" y2="107.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="779.5" x2="418" y2="791.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="575.5" x2="418" y2="587.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="395.5" x2="418" y2="407.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="227.5" x2="418" y2="239.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="47.5" x2="418" y2="59.5" stroke="black" stroke-opacity="0.04"/>
+<path d="M-16 732.5H418" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="671.5" x2="418" y2="683.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="491.5" x2="418" y2="503.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="323.5" x2="418" y2="335.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="143.5" x2="418" y2="155.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="551.5" x2="418" y2="563.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="371.5" x2="418" y2="383.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="203.5" x2="418" y2="215.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="23.5" x2="418" y2="35.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="707.5" x2="418" y2="719.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="647.5" x2="418" y2="659.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="467.5" x2="418" y2="479.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="299.5" x2="418" y2="311.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="119.5" x2="418" y2="131.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="803.5" x2="418" y2="815.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="599.5" x2="418" y2="611.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="419.5" x2="418" y2="431.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="251.5" x2="418" y2="263.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="71.5" x2="418" y2="83.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="755.5" x2="418" y2="767.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="515.5" x2="418" y2="527.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="347.5" x2="418" y2="359.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="167.5" x2="418" y2="179.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="539.5" x2="418" y2="551.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="191.5" x2="418" y2="203.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="11.5" x2="418" y2="23.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="695.5" x2="418" y2="707.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="635.5" x2="418" y2="647.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="455.5" x2="418" y2="467.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="287.5" x2="418" y2="299.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="107.5" x2="418" y2="119.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="791.5" x2="418" y2="803.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="587.5" x2="418" y2="599.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="407.5" x2="418" y2="419.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="239.5" x2="418" y2="251.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="59.5" x2="418" y2="71.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="743.5" x2="418" y2="755.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="503.5" x2="418" y2="515.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="335.5" x2="418" y2="347.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="155.5" x2="418" y2="167.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="563.5" x2="418" y2="575.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="383.5" x2="418" y2="395.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="215.5" x2="418" y2="227.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="35.5" x2="418" y2="47.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="719.5" x2="418" y2="731.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="659.5" x2="418" y2="671.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="479.5" x2="418" y2="491.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="311.5" x2="418" y2="323.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="131.5" x2="418" y2="143.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="611.5" x2="418" y2="623.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="431.5" x2="418" y2="443.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="263.5" x2="418" y2="275.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="83.5" x2="418" y2="95.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="767.5" x2="418" y2="779.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="527.5" x2="418" y2="539.5" stroke="black" stroke-opacity="0.04"/>
+<line x1="-16" y1="359.5" x2="418" y2="371.5" stroke="black" stroke-opacity="0.04"/>
+</g>
+<rect x="4.5" y="0.5" width="374" height="811" rx="39.5" stroke="black"/>
 </g>
 <defs>
-<clipPath id="clip0_3432_2214">
-<rect width="375" height="812" rx="40" fill="white"/>
+<filter id="filter0_d_2_331" x="0" y="0" width="383" height="820" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="2"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_2_331"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_2_331" result="shape"/>
+</filter>
+<clipPath id="clip0_2_331">
+<rect x="4" width="375" height="812" rx="40" fill="white"/>
 </clipPath>
 </defs>
 </svg>

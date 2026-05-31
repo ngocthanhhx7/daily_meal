@@ -10,7 +10,7 @@
   "theme_color": "#F4F3EF",
   "icons": [
     {
-      "src": "/icons/daily-meal-icon.png?v=2026-05-31-logo",
+      "src": "/icons/daily-meal-icon-v2.png",
       "sizes": "180x180 192x192 512x512 1024x1024",
       "type": "image/png",
       "purpose": "any maskable"

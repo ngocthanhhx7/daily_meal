@@ -21,6 +21,7 @@ import { useSocket } from "../context/SocketContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
+import { getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
 import { getParticipantAccent, getParticipantAvatarLabel, isDoubleTap } from "./messagePresentation";
 
 type Comment = {
@@ -321,7 +322,8 @@ export function CommentsScreen({ navigation, route }: any) {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.select({ ios: "padding", android: undefined })}
+        behavior={getKeyboardAvoidingBehavior(Platform.OS)}
+        contentContainerStyle={styles.flex}
         keyboardVerticalOffset={0}
       >
         {/* ── HEADER ── */}

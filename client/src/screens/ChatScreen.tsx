@@ -20,6 +20,7 @@ import { useSocket } from "../context/SocketContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { ChatMessage, Conversation } from "../types/api";
+import { getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
 import { getParticipantAccent, getParticipantAvatarLabel } from "./messagePresentation";
 
 function avatarSource(url?: string) {
@@ -111,7 +112,8 @@ export function ChatScreen({ route, navigation }: any) {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.select({ ios: "padding", android: undefined })}
+        behavior={getKeyboardAvoidingBehavior(Platform.OS)}
+        contentContainerStyle={styles.flex}
         keyboardVerticalOffset={0}
       >
       <View style={styles.header}>

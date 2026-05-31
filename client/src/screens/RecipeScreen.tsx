@@ -3,6 +3,7 @@ import React from "react";
 import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { AppText } from "../components/AppText";
 import { FigmaLineBackground } from "../components/AppScreen";
+import { StaggerItem, Wiggle, FadeSlideIn } from "../components/Animations";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../api/client";
 import { authorAvatarSource } from "./HomeScreen";
@@ -86,7 +87,8 @@ export function RecipeScreen({ navigation, route }: any) {
             </View>
           ) : (
             recipes.map((recipe, idx) => (
-              <View key={`recipe-${idx}`} style={styles.recipeCard}>
+              <StaggerItem key={`recipe-${idx}`} index={idx}>
+              <View style={styles.recipeCard}>
                 {/* Food image with title tag and sticker */}
                 <View style={styles.recipeImageWrap}>
                   <Image
@@ -102,12 +104,13 @@ export function RecipeScreen({ navigation, route }: any) {
                   </View>
                   {/* Sticker on image */}
                   {stickerSource ? (
-                    <Image
-                      source={stickerSource}
-                      style={[
-                        styles.recipeSticker,
-                        {
-                          right: 12,
+                    <Wiggle>
+                      <Image
+                        source={stickerSource}
+                        style={[
+                          styles.recipeSticker,
+                          {
+                            right: 12,
                           top: 8,
                           transform: [
                             { rotate: `${placement.rotation}deg` },
@@ -117,6 +120,7 @@ export function RecipeScreen({ navigation, route }: any) {
                       ]}
                       resizeMode="contain"
                     />
+                    </Wiggle>
                   ) : null}
                 </View>
 
@@ -145,6 +149,7 @@ export function RecipeScreen({ navigation, route }: any) {
                   ) : null}
                 </View>
               </View>
+              </StaggerItem>
             ))
           )}
 

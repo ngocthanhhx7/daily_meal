@@ -7,6 +7,7 @@ import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { EmptyState } from "../components/EmptyState";
 import { PostCard } from "../components/PostCard";
+import { StaggerItem, BouncePress } from "../components/Animations";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
 import { demoPosts } from "../data/sample";
@@ -97,10 +98,13 @@ export function SearchScreen({ navigation, route }: any) {
       {/* Header */}
       <View style={styles.headerBlock}>
         <View style={styles.headerRow}>
-          <Pressable style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={10}>
+          <BouncePress style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={10}>
             <Ionicons name="chevron-back" size={26} color={colors.black} />
-          </Pressable>
+          </BouncePress>
           <AppText variant="title" style={styles.headerTitle}>Tìm kiếm</AppText>
+          <BouncePress style={styles.backBtn} onPress={() => navigation.navigate("Home")} hitSlop={10}>
+            <Ionicons name="home-outline" size={24} color={colors.black} />
+          </BouncePress>
         </View>
         <AppText muted>Tìm món ăn, nguyên liệu, người dùng hoặc thẻ.</AppText>
       </View>
@@ -118,27 +122,27 @@ export function SearchScreen({ navigation, route }: any) {
             style={styles.inputField}
           />
         </View>
-        <Pressable style={styles.searchButton} onPress={search}>
+        <BouncePress style={styles.searchButton} onPress={search}>
           {loading
             ? <Ionicons name="reload-outline" size={20} color={colors.white} />
             : <Ionicons name="search" size={20} color={colors.white} />
           }
-        </Pressable>
+        </BouncePress>
       </View>
 
       {/* Quick filters */}
       <View style={styles.filters}>
         {["Dưới 500 calo", "Đã lưu", "Sticker VIP"].map((filter) => (
-          <Pressable key={filter} style={styles.filter} onPress={search}>
+          <BouncePress key={filter} style={styles.filter} onPress={search}>
             <AppText variant="caption">{filter}</AppText>
-          </Pressable>
+          </BouncePress>
         ))}
       </View>
 
       {/* Segment control */}
       <View style={styles.segment}>
         {(["posts", "people"] as SearchMode[]).map((seg) => (
-          <Pressable
+          <BouncePress
             key={seg}
             onPress={() => setMode(seg)}
             style={[styles.segmentItem, mode === seg && styles.segmentItemActive]}
@@ -149,45 +153,47 @@ export function SearchScreen({ navigation, route }: any) {
             >
               {seg === "posts" ? "Bài viết" : "Người dùng"}
             </AppText>
-          </Pressable>
+          </BouncePress>
         ))}
       </View>
 
       {/* Results */}
       {mode === "people" ? (
         users.length ? (
-          users.map((item) => (
-            <View key={item.id} style={styles.userRow}>
-              <Pressable
-                style={styles.userInfo}
-                onPress={() => navigation.navigate("PublicProfile", { userId: item.id })}
-              >
-                <View style={styles.avatar}>
-                  {avatarSource(item.avatarUrl) ? (
-                    <Image source={avatarSource(item.avatarUrl)} style={styles.avatarImage} />
-                  ) : (
-                    <AppText variant="caption" style={styles.avatarText}>
-                      {item.displayName.slice(0, 1).toUpperCase()}
+          users.map((item, index) => (
+            <StaggerItem key={item.id} index={index}>
+              <View style={styles.userRow}>
+                <Pressable
+                  style={styles.userInfo}
+                  onPress={() => navigation.navigate("PublicProfile", { userId: item.id })}
+                >
+                  <View style={styles.avatar}>
+                    {avatarSource(item.avatarUrl) ? (
+                      <Image source={avatarSource(item.avatarUrl)} style={styles.avatarImage} />
+                    ) : (
+                      <AppText variant="caption" style={styles.avatarText}>
+                        {item.displayName.slice(0, 1).toUpperCase()}
+                      </AppText>
+                    )}
+                  </View>
+                  <View style={styles.userCopy}>
+                    <AppText variant="button" numberOfLines={1}>
+                      {item.displayName}
                     </AppText>
-                  )}
-                </View>
-                <View style={styles.userCopy}>
-                  <AppText variant="button" numberOfLines={1}>
-                    {item.displayName}
-                  </AppText>
-                  <AppText variant="caption" muted numberOfLines={1}>
-                    {item.bio || `${item.counts?.followers ?? 0} người theo dõi`}
-                  </AppText>
-                </View>
-              </Pressable>
-              <AppButton
-                label={followLabel(item)}
-                variant={item.relationship?.isFollowing ? "ghost" : "primary"}
-                onPress={() => toggleFollow(item)}
-                size="sm"
-                style={styles.followButton}
-              />
-            </View>
+                    <AppText variant="caption" muted numberOfLines={1}>
+                      {item.bio || `${item.counts?.followers ?? 0} người theo dõi`}
+                    </AppText>
+                  </View>
+                </Pressable>
+                <AppButton
+                  label={followLabel(item)}
+                  variant={item.relationship?.isFollowing ? "ghost" : "primary"}
+                  onPress={() => toggleFollow(item)}
+                  size="sm"
+                  style={styles.followButton}
+                />
+              </View>
+            </StaggerItem>
           ))
         ) : (
           <EmptyState
@@ -197,17 +203,18 @@ export function SearchScreen({ navigation, route }: any) {
           />
         )
       ) : posts.length ? (
-        posts.map((post) => (
-          <PostCard
-            key={post._id}
-            post={post}
-            token={token}
-            onAuthorPress={() =>
-              navigation.navigate("PublicProfile", { userId: post.author.id })
-            }
-            onCommentPress={() => navigation.navigate("Comments", { post })}
-            onRecipePress={() => navigation.navigate("Recipe", { post })}
-          />
+        posts.map((post, index) => (
+          <StaggerItem key={post._id} index={index}>
+            <PostCard
+              post={post}
+              token={token}
+              onAuthorPress={() =>
+                navigation.navigate("PublicProfile", { userId: post.author.id })
+              }
+              onCommentPress={() => navigation.navigate("Comments", { post })}
+              onRecipePress={() => navigation.navigate("Recipe", { post })}
+            />
+          </StaggerItem>
         ))
       ) : (
         <EmptyState

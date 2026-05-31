@@ -22,6 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
+import { getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
 import { getAuthErrorMessage, validateLoginForm } from "./loginValidation";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -190,7 +191,8 @@ export function LoginScreen() {
         </View>
         <SafeAreaView style={styles.safeArea}>
           <KeyboardAvoidingView
-            behavior={Platform.select({ ios: "padding", android: undefined })}
+            behavior={getKeyboardAvoidingBehavior(Platform.OS)}
+            contentContainerStyle={styles.flex1}
             style={styles.flex1}
           >
             <ScrollView

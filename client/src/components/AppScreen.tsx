@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
+import { getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
 
 type AppScreenProps = ViewProps & {
   scroll?: boolean;
@@ -43,7 +44,8 @@ export function AppScreen({
   const inner = (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.select({ ios: "padding", android: undefined })}
+        behavior={getKeyboardAvoidingBehavior(Platform.OS)}
+        contentContainerStyle={styles.fill}
         enabled={keyboard}
         style={styles.fill}
       >

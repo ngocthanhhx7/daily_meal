@@ -2,7 +2,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
+  Easing,
   FlatList,
   Image,
   Modal,
@@ -18,6 +20,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { api } from "../api/client";
 import { AppText } from "../components/AppText";
 import { FigmaLineBackground } from "../components/AppScreen";
+import { BouncePress, FadeSlideIn, Wiggle, Pulse } from "../components/Animations";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { useNotifications } from "../context/NotificationContext";
@@ -107,6 +110,22 @@ export function HomeScreen({ navigation }: any) {
   const [nutritionPost, setNutritionPost] = useState<Post | null>(null);
   const flatRef = useRef<FlatList>(null);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
+
+  // Animation refs
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const saveScale = useRef(new Animated.Value(1)).current;
+  function bounceHeart() {
+    Animated.sequence([
+      Animated.timing(heartScale, { toValue: 1.5, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.spring(heartScale, { toValue: 1, friction: 3, tension: 200, useNativeDriver: true })
+    ]).start();
+  }
+  function bounceSave() {
+    Animated.sequence([
+      Animated.timing(saveScale, { toValue: 1.4, duration: 120, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.spring(saveScale, { toValue: 1, friction: 3, tension: 200, useNativeDriver: true })
+    ]).start();
+  }
 
   // Real-time feed interaction updates
   useEffect(() => {
@@ -349,27 +368,33 @@ export function HomeScreen({ navigation }: any) {
           ) : null}
         </View>
 
+        <FadeSlideIn delay={200} slideDistance={20} duration={500}>
         <View style={[styles.bottomBar, showDesktopFrame && styles.desktopBottomBar]}>
-          <Pressable style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
+          <BouncePress style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
             <Ionicons name="apps" size={30} color={colors.black} />
-          </Pressable>
+          </BouncePress>
 
           <View style={styles.actionPill}>
-            <Pressable style={styles.pillBtn} onPress={handleComment} hitSlop={4}>
+            <BouncePress style={styles.pillBtn} onPress={handleComment} hitSlop={4}>
               <Ionicons name="chatbubble" size={24} color={colors.white} />
+            </BouncePress>
+            <Pressable style={styles.pillBtn} onPress={() => { bounceHeart(); handleLike(); }} hitSlop={4}>
+              <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+                <Ionicons name={isLiked ? "heart" : "heart-outline"} size={26} color={isLiked ? colors.red : colors.white} />
+              </Animated.View>
             </Pressable>
-            <Pressable style={styles.pillBtn} onPress={handleLike} hitSlop={4}>
-              <Ionicons name={isLiked ? "heart" : "heart-outline"} size={26} color={isLiked ? colors.red : colors.white} />
-            </Pressable>
-            <Pressable style={styles.pillBtn} onPress={handleSave} hitSlop={4}>
-              <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={25} color={isSaved ? colors.yellow : colors.white} />
+            <Pressable style={styles.pillBtn} onPress={() => { bounceSave(); handleSave(); }} hitSlop={4}>
+              <Animated.View style={{ transform: [{ scale: saveScale }] }}>
+                <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={25} color={isSaved ? colors.yellow : colors.white} />
+              </Animated.View>
             </Pressable>
           </View>
 
-          <Pressable style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
+          <BouncePress style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
             <Ionicons name="camera" size={30} color={colors.black} />
-          </Pressable>
+          </BouncePress>
         </View>
+        </FadeSlideIn>
 
         <ExpandedPostModal
           post={expandedPost}
@@ -529,22 +554,24 @@ function FeedArtwork({ post }: { post: Post }) {
       })}
 
       {stickerSource ? (
-        <Image
-          source={stickerSource}
-          style={[
-            styles.feedSticker,
-            {
-              left: `${placement.x * 100}%`,
-              top: `${placement.y * 100}%`,
-              transform: [
-                { translateX: -25 },
-                { translateY: -25 },
-                { rotate: `${placement.rotation}deg` },
-                { scale: placement.scale }
-              ]
-            }
-          ]}
-        />
+        <Wiggle>
+          <Image
+            source={stickerSource}
+            style={[
+              styles.feedSticker,
+              {
+                left: `${placement.x * 100}%`,
+                top: `${placement.y * 100}%`,
+                transform: [
+                  { translateX: -25 },
+                  { translateY: -25 },
+                  { rotate: `${placement.rotation}deg` },
+                  { scale: placement.scale }
+                ]
+              }
+            ]}
+          />
+        </Wiggle>
       ) : null}
     </View>
   );
@@ -667,7 +694,9 @@ function ExpandedPostModal({
                 </AppText>
               </View>
               {stickerSource ? (
-                <Image source={stickerSource} style={expandedStyles.headerSticker} resizeMode="contain" />
+                <Wiggle>
+                  <Image source={stickerSource} style={expandedStyles.headerSticker} resizeMode="contain" />
+                </Wiggle>
               ) : null}
             </View>
 

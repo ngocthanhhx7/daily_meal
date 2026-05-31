@@ -1,4 +1,4 @@
-﻿import React, { useEffect } from "react";
+import React, { useEffect } from "react";
 import { Platform } from "react-native";
 
 function upsertMeta(name: string, content: string) {
@@ -35,8 +35,8 @@ export function PwaRuntime() {
     upsertMeta("apple-mobile-web-app-status-bar-style", "default");
     upsertMeta("mobile-web-app-capable", "yes");
     upsertLink("manifest", "/manifest.json?v=2026-05-31-logo");
-    upsertLink("apple-touch-icon", "/icons/daily-meal-icon.png?v=2026-05-31-logo");
-    upsertLink("icon", "/favicon.png?v=2026-05-31-logo", { type: "image/png" });
+    upsertLink("apple-touch-icon", "/icons/daily-meal-icon-v2.png");
+    upsertLink("icon", "/favicon.png?v=2026-05-31-logo-v2", { type: "image/png" });
 
     if ("serviceWorker" in navigator && window.location.protocol === "https:") {
       navigator.serviceWorker.register("/sw.js").catch(() => {

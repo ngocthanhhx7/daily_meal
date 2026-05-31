@@ -9,9 +9,8 @@ type AuthContextValue = {
   user: User | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signInWithPhone: (phone: string, password: string) => Promise<void>;
+  signInWithFacebook: (facebookToken: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
-  registerWithPhone: (phone: string, password: string, displayName?: string) => Promise<void>;
   signOut: () => Promise<void>;
   savePreferences: (interests: string[], eatingStyles: string[]) => Promise<void>;
   updateUser: (patch: Partial<User>) => Promise<void>;
@@ -121,16 +120,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const result = await api.login({ email, password });
         await persistSession(result.token, result.user);
       },
-      signInWithPhone: async (phone, password) => {
-        const result = await api.loginWithPhone({ phone, password });
+      signInWithFacebook: async (facebookToken) => {
+        const result = await api.loginWithFacebook(facebookToken);
         await persistSession(result.token, result.user);
       },
       register: async (email, password, displayName) => {
         const result = await api.register({ email, password, displayName });
-        await persistSession(result.token, result.user);
-      },
-      registerWithPhone: async (phone, password, displayName) => {
-        const result = await api.registerWithPhone({ phone, password, displayName });
         await persistSession(result.token, result.user);
       },
       signOut: async () => {

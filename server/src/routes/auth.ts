@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
+import crypto from "node:crypto";
 import { User } from "../models/User.js";
-import { hashPassword, normalizePhoneNumber, signAccessToken, verifyPassword } from "../services/auth.js";
+import { hashPassword, signAccessToken, verifyPassword } from "../services/auth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 
@@ -13,22 +14,19 @@ const authBodySchema = z.object({
   displayName: z.string().min(1).max(80).optional()
 });
 
-const phoneAuthBodySchema = z.object({
-  phone: z.string().min(8).max(20).transform(normalizePhoneNumber),
-  password: z.string().min(6),
-  displayName: z.string().min(1).max(80).optional()
-});
-
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(6),
   newPassword: z.string().min(8).max(128)
+});
+
+const facebookAuthSchema = z.object({
+  accessToken: z.string().min(1)
 });
 
 function userDto(user: any) {
   return {
     id: user._id.toString(),
     email: user.email,
-    phone: user.phone,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
     coverUrl: user.coverUrl,
@@ -71,37 +69,13 @@ authRouter.post("/register", async (req, res, next) => {
   }
 });
 
-authRouter.post("/phone/register", async (req, res, next) => {
+authRouter.post("/login", async (req, res, next) => {
   try {
-    const body = phoneAuthBodySchema.parse(req.body);
-    const existing = await User.findOne({ phone: body.phone }).lean();
-
-    if (existing) {
-      throw new HttpError(409, "Phone number is already registered");
-    }
-
-    const user = await User.create({
-      phone: body.phone,
-      passwordHash: await hashPassword(body.password),
-      displayName: body.displayName ?? body.phone
-    });
-
-    res.status(201).json({
-      token: signAccessToken(user._id.toString()),
-      user: userDto(user)
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-authRouter.post("/phone/login", async (req, res, next) => {
-  try {
-    const body = phoneAuthBodySchema.pick({ phone: true, password: true }).parse(req.body);
-    const user = await User.findOne({ phone: body.phone });
+    const body = authBodySchema.pick({ email: true, password: true }).parse(req.body);
+    const user = await User.findOne({ email: body.email });
 
     if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
-      throw new HttpError(401, "Invalid phone number or password");
+      throw new HttpError(401, "Invalid email or password");
     }
 
     res.json({
@@ -113,13 +87,63 @@ authRouter.post("/phone/login", async (req, res, next) => {
   }
 });
 
-authRouter.post("/login", async (req, res, next) => {
+authRouter.post("/facebook", async (req, res, next) => {
   try {
-    const body = authBodySchema.pick({ email: true, password: true }).parse(req.body);
-    const user = await User.findOne({ email: body.email });
+    const { accessToken } = facebookAuthSchema.parse(req.body);
 
-    if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
-      throw new HttpError(401, "Invalid email or password");
+    // Call Facebook Graph API to verify the token and get user profile
+    const fbResponse = await fetch(
+      `https://graph.facebook.com/me?fields=id,name,email,picture.type(large)&access_token=${accessToken}`
+    );
+
+    if (!fbResponse.ok) {
+      const errorData = await fbResponse.json().catch(() => ({}));
+      throw new HttpError(400, (errorData as any)?.error?.message || "Failed to authenticate with Facebook");
+    }
+
+    const fbUser = (await fbResponse.json()) as {
+      id: string;
+      name: string;
+      email?: string;
+      picture?: {
+        data?: {
+          url?: string;
+        };
+      };
+    };
+
+    let user = await User.findOne({ facebookId: fbUser.id });
+
+    if (!user) {
+      // If user not found by facebookId, check by email (if email exists)
+      if (fbUser.email) {
+        user = await User.findOne({ email: fbUser.email.toLowerCase() });
+        if (user) {
+          // Link account if email matches
+          user.facebookId = fbUser.id;
+          if (!user.avatarUrl && fbUser.picture?.data?.url) {
+            user.avatarUrl = fbUser.picture.data.url;
+          }
+          await user.save();
+        }
+      }
+    }
+
+    if (!user) {
+      // Create new user if not found at all
+      const email = fbUser.email ? fbUser.email.toLowerCase() : `fb_${fbUser.id}@facebook.dailymeal.com`;
+      
+      // Generate a secure random password hash since passwordHash is required
+      const randomPassword = crypto.randomUUID();
+      const passwordHash = await hashPassword(randomPassword);
+
+      user = await User.create({
+        email,
+        passwordHash,
+        facebookId: fbUser.id,
+        displayName: fbUser.name || `fb_${fbUser.id}`,
+        avatarUrl: fbUser.picture?.data?.url || ""
+      });
     }
 
     res.json({

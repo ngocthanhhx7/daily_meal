@@ -4,16 +4,27 @@ import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
+import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
 
 export function SettingsScreen({ navigation }: any) {
-  const { signOut } = useAuth();
+  const { signOut, linkGoogle } = useAuth();
 
   function handleLogout() {
     Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
       { text: "Huỷ", style: "cancel" },
       { text: "Đăng xuất", style: "destructive", onPress: signOut }
     ]);
+  }
+
+  async function handleLinkGoogle() {
+    try {
+      const idToken = await getGoogleIdToken();
+      await linkGoogle(idToken);
+      Alert.alert("Đã liên kết Google", "Bạn có thể đăng nhập bằng Google từ lần sau.");
+    } catch (error) {
+      Alert.alert("Không thể liên kết Google", error instanceof Error ? error.message : "Thử lại sau");
+    }
   }
 
   return (
@@ -43,6 +54,10 @@ export function SettingsScreen({ navigation }: any) {
         </Pressable>
         <Pressable style={styles.rowPremium}>
           <AppText style={styles.rowText}>Daily premium</AppText>
+        </Pressable>
+        <Pressable style={styles.row} onPress={handleLinkGoogle}>
+          <Ionicons name="logo-google" size={18} color={colors.black} />
+          <AppText style={styles.rowText}>Liên kết Google</AppText>
         </Pressable>
       </View>
 

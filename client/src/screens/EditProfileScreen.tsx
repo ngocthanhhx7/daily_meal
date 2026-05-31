@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
@@ -8,6 +9,19 @@ import { AppText } from "../components/AppText";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
+
+function Header({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <View style={styles.screenHeader}>
+      <Pressable onPress={onBack} style={styles.backBtn} hitSlop={8}>
+        <Ionicons name="arrow-back-circle" size={18} color={colors.ink} />
+      </Pressable>
+      <AppText variant="title" style={styles.screenTitle} numberOfLines={1}>
+        {title}
+      </AppText>
+    </View>
+  );
+}
 
 type BirthdayVisibility = "hidden" | "dayMonth" | "full";
 
@@ -149,7 +163,7 @@ export function EditProfileScreen({ navigation }: any) {
 
   return (
     <AppScreen keyboard>
-      <AppText variant="title">Chỉnh sửa cá nhân</AppText>
+      <Header title="Chỉnh sửa cá nhân" onBack={() => navigation.goBack()} />
       <Pressable style={styles.avatarBlock} onPress={pickAvatar}>
         {mediaSource(avatarUri) ? (
           <Image source={mediaSource(avatarUri)} style={styles.avatarImage} />
@@ -374,5 +388,23 @@ const styles = StyleSheet.create({
   colorCircleActive: {
     borderColor: colors.black,
     borderWidth: 3
+  },
+  screenHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8
+  },
+  backBtn: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  screenTitle: {
+    flex: 1,
+    fontSize: 25,
+    lineHeight: 31,
+    color: colors.black
   }
 });

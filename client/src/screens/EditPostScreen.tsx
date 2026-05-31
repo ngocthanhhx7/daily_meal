@@ -1,11 +1,13 @@
+import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { Alert } from "react-native";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 import { api } from "../api/client";
 import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
+import { colors } from "../theme/colors";
 
 export function EditPostScreen({ route, navigation }: any) {
   const { token } = useAuth();
@@ -44,7 +46,7 @@ export function EditPostScreen({ route, navigation }: any) {
 
   return (
     <AppScreen>
-      <AppText variant="title">Chỉnh sửa bài viết</AppText>
+      <Header title="Chỉnh sửa bài viết" onBack={() => navigation.goBack()} />
       <TextField label="Mô tả" value={caption} onChangeText={setCaption} multiline />
       <TextField label="Tags" value={tags} onChangeText={setTags} />
       <AppButton label="Lưu thay đổi" onPress={save} loading={loading} />
@@ -52,3 +54,37 @@ export function EditPostScreen({ route, navigation }: any) {
     </AppScreen>
   );
 }
+
+function Header({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <View style={styles.screenHeader}>
+      <Pressable onPress={onBack} style={styles.backBtn} hitSlop={8}>
+        <Ionicons name="arrow-back-circle" size={18} color={colors.ink} />
+      </Pressable>
+      <AppText variant="title" style={styles.screenTitle} numberOfLines={1}>
+        {title}
+      </AppText>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screenHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8
+  },
+  backBtn: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  screenTitle: {
+    flex: 1,
+    fontSize: 25,
+    lineHeight: 31,
+    color: colors.black
+  }
+});

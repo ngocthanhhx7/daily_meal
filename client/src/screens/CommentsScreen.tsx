@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +21,7 @@ import { useSocket } from "../context/SocketContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
+import { getParticipantAccent, getParticipantAvatarLabel, isDoubleTap } from "./messagePresentation";
 
 type Comment = {
   _id: string;
@@ -44,10 +46,6 @@ function relativeTime(iso?: string) {
   return new Date(iso).toLocaleDateString("vi-VN");
 }
 
-function avatarInitial(name?: string) {
-  return name?.slice(0, 1)?.toUpperCase() ?? "D";
-}
-
 function imageSource(post?: Post) {
   const first = post?.images?.[0]?.url;
   if (!first) return require("../../assets/figma-snapshots/image3.png");
@@ -55,18 +53,47 @@ function imageSource(post?: Post) {
   return { uri: `${api.baseUrl}${first}` };
 }
 
+function avatarSource(url?: string) {
+  if (!url) return undefined;
+  if (url.startsWith("http")) return { uri: url };
+  return { uri: `${api.baseUrl}${url}` };
+}
+
 // --- Avatar ---
-function Avatar({ name, size = 36, bg }: { name?: string; size?: number; bg?: string }) {
+function Avatar({
+  name,
+  id,
+  avatarUrl,
+  size = 36,
+  bg
+}: {
+  name?: string;
+  id?: string;
+  avatarUrl?: string;
+  size?: number;
+  bg?: string;
+}) {
+  const source = avatarSource(avatarUrl);
+
   return (
     <View
       style={[
         styles.avatar,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor: bg ?? colors.green }
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: bg ?? getParticipantAccent(id ?? name)
+        }
       ]}
     >
-      <AppText style={[styles.avatarText, { fontSize: size * 0.38 }]}>
-        {avatarInitial(name)}
-      </AppText>
+      {source ? (
+        <Image source={source} style={styles.avatarImage} />
+      ) : (
+        <AppText style={[styles.avatarText, { fontSize: size * 0.38 }]}>
+          {getParticipantAvatarLabel({ displayName: name, id })}
+        </AppText>
+      )}
     </View>
   );
 }
@@ -74,18 +101,37 @@ function Avatar({ name, size = 36, bg }: { name?: string; size?: number; bg?: st
 // --- Bubble ---
 function CommentBubble({
   comment,
-  isMine
+  isMine,
+  onDoubleLike
 }: {
   comment: Comment;
   isMine: boolean;
+  onDoubleLike: (commentId: string) => void;
 }) {
+  const lastTapRef = useRef<number | undefined>(undefined);
   const bubbleBg = isMine ? colors.yellow : colors.green;
   const textColor = isMine ? colors.ink : colors.white;
+
+  function handleBubblePress() {
+    const now = Date.now();
+    if (isDoubleTap(lastTapRef.current, now)) {
+      onDoubleLike(comment._id);
+      lastTapRef.current = undefined;
+      return;
+    }
+
+    lastTapRef.current = now;
+  }
 
   return (
     <View style={[styles.bubbleRow, isMine ? styles.bubbleRight : styles.bubbleLeft]}>
       {!isMine && (
-        <Avatar name={comment.author?.displayName} size={34} bg={colors.greenDark} />
+        <Avatar
+          name={comment.author?.displayName}
+          id={comment.author?.id}
+          avatarUrl={comment.author?.avatarUrl}
+          size={34}
+        />
       )}
 
       <View style={[styles.bubbleWrap, isMine ? styles.bubbleWrapRight : styles.bubbleWrapLeft]}>
@@ -95,11 +141,11 @@ function CommentBubble({
           </AppText>
         )}
 
-        <View style={[styles.bubble, { backgroundColor: bubbleBg }]}>
+        <Pressable onPress={handleBubblePress} style={[styles.bubble, { backgroundColor: bubbleBg }]}>
           <AppText style={[styles.bubbleText, { color: textColor }]}>
             {comment.body}
           </AppText>
-        </View>
+        </Pressable>
 
         <View style={[styles.bubbleMeta, isMine && styles.bubbleMetaRight]}>
           <AppText variant="caption" muted>
@@ -122,7 +168,13 @@ function CommentBubble({
       </View>
 
       {isMine && (
-        <Avatar name={comment.author?.displayName} size={34} bg={colors.blue} />
+        <Avatar
+          name={comment.author?.displayName}
+          id={comment.author?.id}
+          avatarUrl={comment.author?.avatarUrl}
+          size={34}
+          bg={colors.black}
+        />
       )}
     </View>
   );
@@ -254,6 +306,16 @@ export function CommentsScreen({ navigation, route }: any) {
     }
   }
 
+  function likeComment(commentId: string) {
+    setComments((current) =>
+      current.map((comment) =>
+        comment._id === commentId
+          ? { ...comment, likes: (comment.likes ?? 0) + 1 }
+          : comment
+      )
+    );
+  }
+
   return (
     <FigmaLineBackground>
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -263,6 +325,13 @@ export function CommentsScreen({ navigation, route }: any) {
         keyboardVerticalOffset={0}
       >
         {/* ── HEADER ── */}
+        <ImageBackground
+          source={imageSource(post)}
+          style={styles.postHero}
+          imageStyle={styles.postHeroImage}
+          resizeMode="cover"
+        >
+        <View style={styles.postHeroShade}>
         <View style={styles.header}>
           <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
             <Ionicons name="arrow-back" size={22} color={colors.ink} />
@@ -284,17 +353,24 @@ export function CommentsScreen({ navigation, route }: any) {
         <View style={styles.postStrip}>
           <Image source={imageSource(post)} style={styles.postThumb} resizeMode="cover" />
           <View style={styles.statsRow}>
-            <Avatar name={post?.author?.displayName ?? ""} size={30} />
+            <Avatar
+              name={post?.author?.displayName ?? ""}
+              id={post?.author?.id}
+              avatarUrl={post?.author?.avatarUrl}
+              size={30}
+            />
             <View style={styles.statItem}>
               <Ionicons name="chatbubble-outline" size={14} color={colors.muted} />
-              <AppText variant="caption" muted>{totalComments}</AppText>
+              <AppText variant="caption" style={styles.statText}>{totalComments}</AppText>
             </View>
             <View style={styles.statItem}>
               <Ionicons name="heart" size={14} color={colors.red} />
-              <AppText variant="caption" muted>{totalLikes}</AppText>
+              <AppText variant="caption" style={styles.statText}>{totalLikes}</AppText>
             </View>
           </View>
         </View>
+        </View>
+        </ImageBackground>
 
         {/* ── CHAT BUBBLES ── */}
         <ScrollView
@@ -310,7 +386,12 @@ export function CommentsScreen({ navigation, route }: any) {
           {comments.map((comment) => {
             const isMine = comment.author?.id === user?.id;
             return (
-              <CommentBubble key={comment._id} comment={comment} isMine={isMine} />
+              <CommentBubble
+                key={comment._id}
+                comment={comment}
+                isMine={isMine}
+                onDoubleLike={likeComment}
+              />
             );
           })}
         </ScrollView>
@@ -363,61 +444,81 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.line
+    paddingTop: 4,
+    paddingBottom: 8
   },
   headerBtn: {
     width: 36,
     height: 36,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 18
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.82)"
   },
   headerTitle: {
-    flex: 1,
+    position: "absolute",
+    left: 88,
+    right: 88,
     textAlign: "center",
-    marginHorizontal: 8
+    color: colors.ink
   },
   headerRight: {
     flexDirection: "row",
     gap: 2
   },
 
-  // Post strip
+  // Post hero
+  postHero: {
+    height: 148,
+    marginHorizontal: 12,
+    marginTop: 2,
+    marginBottom: 10,
+    overflow: "hidden",
+    borderRadius: 10,
+    backgroundColor: colors.canvasStrong
+  },
+  postHeroImage: {
+    borderRadius: 10
+  },
+  postHeroShade: {
+    flex: 1,
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.18)"
+  },
   postStrip: {
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.line,
     alignItems: "center",
-    paddingVertical: 10,
+    paddingBottom: 10,
     gap: 8
   },
   postThumb: {
-    width: "92%",
-    height: 90,
-    borderRadius: 10,
-    backgroundColor: colors.canvasStrong
+    display: "none"
   },
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.9)"
   },
   statItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5
   },
+  statText: {
+    color: colors.ink
+  },
 
   // Chat
   chatContent: {
     paddingHorizontal: 14,
-    paddingTop: 14,
+    paddingTop: 4,
     paddingBottom: 8,
-    gap: 10
+    gap: 12
   },
 
   // Bubble row
@@ -425,7 +526,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
-    maxWidth: "88%"
+    maxWidth: "92%"
   },
   bubbleLeft: {
     alignSelf: "flex-start"
@@ -438,7 +539,7 @@ const styles = StyleSheet.create({
   // Bubble wrap
   bubbleWrap: {
     gap: 4,
-    flex: 1
+    flexShrink: 1
   },
   bubbleWrapLeft: {
     alignItems: "flex-start"
@@ -455,7 +556,8 @@ const styles = StyleSheet.create({
   bubble: {
     borderRadius: 18,
     paddingHorizontal: 14,
-    paddingVertical: 10
+    paddingVertical: 9,
+    maxWidth: 250
   },
   bubbleText: {
     fontSize: 15,
@@ -492,7 +594,12 @@ const styles = StyleSheet.create({
   avatar: {
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0
+    flexShrink: 0,
+    overflow: "hidden"
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%"
   },
   avatarText: {
     color: colors.white,
@@ -503,29 +610,27 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 10,
+    gap: 8,
     paddingHorizontal: 14,
-    paddingTop: 10,
-    backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.line
+    paddingTop: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.94)"
   },
   textInput: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 40,
     maxHeight: 120,
-    backgroundColor: colors.canvas,
-    borderRadius: 21,
+    backgroundColor: "#F0F0EC",
+    borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 9,
     fontFamily: fonts.regular,
-    fontSize: 15,
+    fontSize: 14,
     color: colors.ink
   },
   sendBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.black,
     alignItems: "center",
     justifyContent: "center",

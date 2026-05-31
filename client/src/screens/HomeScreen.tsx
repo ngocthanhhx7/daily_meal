@@ -345,23 +345,23 @@ export function HomeScreen({ navigation }: any) {
 
         <View style={[styles.bottomBar, showDesktopFrame && styles.desktopBottomBar]}>
           <Pressable style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
-            <Ionicons name="grid" size={32} color={colors.black} />
+            <Ionicons name="apps" size={30} color={colors.black} />
           </Pressable>
 
           <View style={styles.actionPill}>
             <Pressable style={styles.pillBtn} onPress={handleComment} hitSlop={4}>
-              <Ionicons name="chatbubble" size={28} color={colors.white} />
+              <Ionicons name="chatbubble" size={24} color={colors.white} />
             </Pressable>
             <Pressable style={styles.pillBtn} onPress={handleLike} hitSlop={4}>
-              <Ionicons name={isLiked ? "heart" : "heart-outline"} size={30} color={isLiked ? colors.red : colors.white} />
+              <Ionicons name={isLiked ? "heart" : "heart-outline"} size={26} color={isLiked ? colors.red : colors.white} />
             </Pressable>
             <Pressable style={styles.pillBtn} onPress={handleSave} hitSlop={4}>
-              <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={29} color={isSaved ? colors.yellow : colors.white} />
+              <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={25} color={isSaved ? colors.yellow : colors.white} />
             </Pressable>
           </View>
 
           <Pressable style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
-            <Ionicons name="camera" size={32} color={colors.black} />
+            <Ionicons name="camera" size={30} color={colors.black} />
           </Pressable>
         </View>
 
@@ -853,14 +853,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.black,
-    borderRadius: 36,
-    paddingHorizontal: 22,
-    paddingVertical: 10,
-    gap: 18
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 7,
+    gap: 22
   },
   pillBtn: {
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 32,
     alignItems: "center",
     justifyContent: "center"
   },

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, Switch, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Animated, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { api } from "../api/client";
 import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
@@ -35,6 +35,20 @@ const DEFAULT_STICKER: StickerPlacement = {
   rotation: 0
 };
 
+const RECENT_PHOTOS = [
+  require("../../assets/figma-snapshots/image1.png"),
+  require("../../assets/figma-snapshots/image2.png"),
+  require("../../assets/figma-snapshots/image3.png"),
+  require("../../assets/figma-snapshots/image4.png"),
+  require("../../assets/figma-snapshots/image5.png"),
+  require("../../assets/figma-snapshots/image6.png"),
+  require("../../assets/figma-snapshots/image7.png"),
+  require("../../assets/figma-snapshots/image8.png"),
+  require("../../assets/figma-snapshots/image9.png"),
+  require("../../assets/figma-snapshots/image10.png")
+];
+
+
 type Step = "capture" | "edit";
 
 export function CreatePostScreen({ navigation, route }: any) {
@@ -56,6 +70,20 @@ export function CreatePostScreen({ navigation, route }: any) {
   const [transforms, setTransforms] = useState<PostImageTransform[]>([]);
   const [meal, setMeal] = useState<Meal | undefined>(route?.params?.meal);
   const [loading, setLoading] = useState(false);
+
+  const recentUris = useMemo(() => {
+    return RECENT_PHOTOS.map((asset) => Image.resolveAssetSource(asset).uri);
+  }, []);
+
+  useEffect(() => {
+    // Automatically select the first recent photo on mount if selection is empty
+    if (images.length === 0 && recentUris.length > 0) {
+      setImages([recentUris[0]]);
+      setTransforms([{ ...DEFAULT_TRANSFORM }]);
+      setSelectedIndex(0);
+    }
+  }, [recentUris]);
+
 
   const selectedStickerData = useMemo(
     () => stickers.find((sticker) => sticker._id === selectedSticker),
@@ -108,6 +136,40 @@ export function CreatePostScreen({ navigation, route }: any) {
       setSelectedIndex(current.length);
       return [...current, ...accepted];
     });
+  }
+
+  function handleSelectRecentPhoto(uri: string) {
+    const existingIndex = images.indexOf(uri);
+    if (existingIndex > -1) {
+      removeImage(existingIndex);
+    } else {
+      if (images.length >= MAX_IMAGES) {
+        Alert.alert("Giới hạn ảnh", `Bài đăng tối đa ${MAX_IMAGES} ảnh.`);
+        return;
+      }
+      appendImages([uri]);
+    }
+  }
+
+  function handleSwapImages(fromIndex: number, toIndex: number) {
+    if (toIndex < 0 || toIndex >= images.length) {
+      return;
+    }
+    setImages((current) => {
+      const next = [...current];
+      const temp = next[fromIndex];
+      next[fromIndex] = next[toIndex];
+      next[toIndex] = temp;
+      return next;
+    });
+    setTransforms((current) => {
+      const next = [...current];
+      const temp = next[fromIndex];
+      next[fromIndex] = next[toIndex];
+      next[toIndex] = temp;
+      return next;
+    });
+    setSelectedIndex(toIndex);
   }
 
   async function captureImage() {
@@ -285,6 +347,7 @@ export function CreatePostScreen({ navigation, route }: any) {
             stickerPlacement={stickerPlacement}
             selectedIndex={selectedIndex}
             onSelectImage={setSelectedIndex}
+            onCameraPress={captureImage}
           />
 
           <View style={styles.captureMetaRow}>
@@ -298,24 +361,45 @@ export function CreatePostScreen({ navigation, route }: any) {
             )}
           </View>
 
-          <View style={styles.captureStrip}>
-            <View style={styles.thumbnailRail}>
-              {images.map((uri, index) => (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.recentScroll}
+            contentContainerStyle={styles.recentRail}
+          >
+            {recentUris.map((uri) => {
+              const isSelected = images.includes(uri);
+              const selectedIdx = images.indexOf(uri);
+              const isActive = images[selectedIndex] === uri;
+
+              return (
                 <Pressable
                   key={uri}
-                  style={[styles.thumbnail, selectedIndex === index && styles.thumbnailActive]}
-                  onPress={() => setSelectedIndex(index)}
+                  style={[
+                    styles.recentThumb,
+                    isActive && styles.recentThumbActive
+                  ]}
+                  onPress={() => handleSelectRecentPhoto(uri)}
                 >
-                  <Image source={{ uri }} style={styles.thumbnailImage} />
-                  <View style={styles.thumbnailBadge}>
-                    <AppText variant="caption" style={styles.thumbnailBadgeText}>{index + 1}</AppText>
-                  </View>
-                  <Pressable style={styles.removeThumb} onPress={() => removeImage(index)}>
-                    <Ionicons name="close" size={12} color={colors.white} />
-                  </Pressable>
+                  <Image source={{ uri }} style={styles.recentThumbImage} />
+                  {isSelected && (
+                    <>
+                      <View style={styles.thumbnailOverlay} />
+                      <View style={styles.thumbnailCenterBadge}>
+                        <View style={styles.thumbnailCenterBadgeCircle}>
+                          <AppText variant="caption" style={styles.thumbnailCenterBadgeText}>
+                            {selectedIdx + 1}
+                          </AppText>
+                        </View>
+                      </View>
+                    </>
+                  )}
                 </Pressable>
-              ))}
-            </View>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.captureControlBar}>
             <Pressable style={styles.shutterButton} onPress={captureImage}>
               <View style={styles.shutterInner} />
             </Pressable>
@@ -332,9 +416,9 @@ export function CreatePostScreen({ navigation, route }: any) {
         <>
           <PostPreview
             images={images}
-            layout={isPremium ? layout : "stack"}
+            layout="stack"
             transforms={transforms}
-            sticker={isPremium ? selectedStickerData : undefined}
+            sticker={undefined}
             stickerPlacement={stickerPlacement}
             selectedIndex={selectedIndex}
             onSelectImage={setSelectedIndex}
@@ -342,149 +426,16 @@ export function CreatePostScreen({ navigation, route }: any) {
 
           <View style={styles.editRail}>
             {images.map((uri, index) => (
-              <Pressable
+              <DraggableEditThumb
                 key={uri}
-                style={[styles.editThumb, selectedIndex === index && styles.editThumbActive]}
+                uri={uri}
+                index={index}
+                isActive={selectedIndex === index}
                 onPress={() => setSelectedIndex(index)}
-              >
-                <Image source={{ uri }} style={styles.editThumbImage} />
-                <AppText variant="caption" style={styles.editThumbIndex}>{index + 1}</AppText>
-              </Pressable>
+                onSwap={handleSwapImages}
+              />
             ))}
           </View>
-
-          {isPremium ? (
-            <>
-              <View style={styles.toolSection}>
-                <AppText variant="button">Bố cục</AppText>
-                <View style={styles.segmentRow}>
-                  {(["stack", "grid", "cascade"] as PostLayout[]).map((item) => (
-                    <Pressable
-                      key={item}
-                      onPress={() => setLayout(item)}
-                      style={[styles.segment, layout === item && styles.segmentActive]}
-                    >
-                      <AppText
-                        variant="caption"
-                        style={layout === item ? styles.segmentTextActive : undefined}
-                      >
-                        {layoutLabel(item)}
-                      </AppText>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.toolSection}>
-                <AppText variant="button">Ảnh {selectedIndex + 1}</AppText>
-                <View style={styles.controlGrid}>
-                  <ControlButton
-                    icon="remove"
-                    label="Thu"
-                    onPress={() =>
-                      updateSelectedTransform({ scale: (transforms[selectedIndex]?.scale ?? 1) - 0.1 })
-                    }
-                  />
-                  <ControlButton
-                    icon="add"
-                    label="Phóng"
-                    onPress={() =>
-                      updateSelectedTransform({ scale: (transforms[selectedIndex]?.scale ?? 1) + 0.1 })
-                    }
-                  />
-                  <ControlButton
-                    icon="refresh"
-                    label="Xoay"
-                    onPress={() =>
-                      updateSelectedTransform({ rotation: (transforms[selectedIndex]?.rotation ?? 0) + 15 })
-                    }
-                  />
-                  <ControlButton
-                    icon="arrow-up"
-                    label="Lên"
-                    onPress={() =>
-                      updateSelectedTransform({ offsetY: (transforms[selectedIndex]?.offsetY ?? 0) - 8 })
-                    }
-                  />
-                  <ControlButton
-                    icon="arrow-down"
-                    label="Xuống"
-                    onPress={() =>
-                      updateSelectedTransform({ offsetY: (transforms[selectedIndex]?.offsetY ?? 0) + 8 })
-                    }
-                  />
-                  <ControlButton
-                    icon="arrow-forward"
-                    label="Phải"
-                    onPress={() =>
-                      updateSelectedTransform({ offsetX: (transforms[selectedIndex]?.offsetX ?? 0) + 8 })
-                    }
-                  />
-                </View>
-              </View>
-
-              <View style={styles.toolSection}>
-                <AppText variant="button">Nhãn dán VIP</AppText>
-                <View style={styles.stickerRow}>
-                  {stickers.map((sticker) => {
-                    const locked = sticker.premiumOnly && !isPremium;
-                    const source = stickerImageSource(sticker);
-                    return (
-                      <Pressable
-                        key={sticker._id}
-                        disabled={locked}
-                        onPress={() => setSelectedSticker((current) => current === sticker._id ? undefined : sticker._id)}
-                        style={[
-                          styles.stickerTile,
-                          selectedSticker === sticker._id && styles.stickerTileActive,
-                          locked && styles.locked
-                        ]}
-                      >
-                        {source ? <Image source={source} style={styles.stickerImage} /> : null}
-                        <AppText variant="caption" numberOfLines={1}>
-                          {sticker.name}
-                        </AppText>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                {selectedSticker ? (
-                  <View style={styles.controlGrid}>
-                    <ControlButton
-                      icon="remove"
-                      label="Thu"
-                      onPress={() => updateStickerPlacement({ scale: stickerPlacement.scale - 0.1 })}
-                    />
-                    <ControlButton
-                      icon="add"
-                      label="Phóng"
-                      onPress={() => updateStickerPlacement({ scale: stickerPlacement.scale + 0.1 })}
-                    />
-                    <ControlButton
-                      icon="refresh"
-                      label="Xoay"
-                      onPress={() => updateStickerPlacement({ rotation: stickerPlacement.rotation + 15 })}
-                    />
-                    <ControlButton
-                      icon="arrow-up"
-                      label="Lên"
-                      onPress={() => updateStickerPlacement({ y: stickerPlacement.y - 0.06 })}
-                    />
-                    <ControlButton
-                      icon="arrow-down"
-                      label="Xuống"
-                      onPress={() => updateStickerPlacement({ y: stickerPlacement.y + 0.06 })}
-                    />
-                    <ControlButton
-                      icon="arrow-forward"
-                      label="Phải"
-                      onPress={() => updateStickerPlacement({ x: stickerPlacement.x + 0.06 })}
-                    />
-                  </View>
-                ) : null}
-              </View>
-            </>
-          ) : null}
 
           <AppButton label="Tính calo bằng AI" onPress={analyzeFirstImage} loading={loading} variant="ghost" />
           <NutritionCard nutrition={meal?.result.total} />
@@ -550,7 +501,8 @@ function PostPreview({
   sticker,
   stickerPlacement,
   selectedIndex,
-  onSelectImage
+  onSelectImage,
+  onCameraPress
 }: {
   images: string[];
   layout: PostLayout;
@@ -559,6 +511,7 @@ function PostPreview({
   stickerPlacement: StickerPlacement;
   selectedIndex: number;
   onSelectImage?: (index: number) => void;
+  onCameraPress?: () => void;
 }) {
   const stickerSource = stickerImageSource(sticker);
 
@@ -577,7 +530,7 @@ function PostPreview({
                   position,
                   selectedIndex === index && styles.artworkSelected,
                   {
-                    zIndex: 10 + index,
+                    zIndex: selectedIndex === index ? 50 : 10 + index,
                     transform: [
                       { translateX: transform.offsetX },
                       { translateY: transform.offsetY },
@@ -615,11 +568,17 @@ function PostPreview({
               ]}
             />
           ) : null}
+          {/* Glassmorphic camera button overlayed in the center */}
+          <Pressable style={styles.centerCameraBtn} onPress={onCameraPress} hitSlop={8}>
+            <Ionicons name="camera" size={24} color={colors.white} />
+          </Pressable>
         </View>
       ) : (
-        <View style={styles.emptyStage}>
-          <Ionicons name="camera" size={34} color={colors.yellow} />
-        </View>
+        <Pressable style={styles.emptyStage} onPress={onCameraPress}>
+          <View style={styles.centerCameraBtn}>
+            <Ionicons name="camera" size={24} color={colors.white} />
+          </View>
+        </Pressable>
       )}
     </View>
   );
@@ -687,6 +646,68 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Number(value.toFixed(2))));
 }
 
+function DraggableEditThumb({
+  uri,
+  index,
+  isActive,
+  onPress,
+  onSwap
+}: {
+  uri: string;
+  index: number;
+  isActive: boolean;
+  onPress: () => void;
+  onSwap: (fromIndex: number, toIndex: number) => void;
+}) {
+  const pan = useRef(new Animated.ValueXY()).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 10;
+      },
+      onPanResponderMove: Animated.event(
+        [null, { dx: pan.x }],
+        { useNativeDriver: false }
+      ),
+      onPanResponderRelease: (_, gestureState) => {
+        const threshold = 40;
+        if (gestureState.dx > threshold) {
+          onSwap(index, index + 1);
+        } else if (gestureState.dx < -threshold) {
+          onSwap(index, index - 1);
+        } else {
+          onPress();
+        }
+        Animated.spring(pan, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false
+        }).start();
+      }
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      style={[
+        styles.editThumb,
+        isActive && styles.editThumbActive,
+        {
+          transform: [{ translateX: pan.x }],
+          zIndex: isActive ? 99 : 1
+        }
+      ]}
+      {...panResponder.panHandlers}
+    >
+      <Image source={{ uri }} style={styles.editThumbImage} />
+      <AppText variant="caption" style={styles.editThumbIndex}>
+        {index + 1}
+      </AppText>
+    </Animated.View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: {
     gap: 14
@@ -710,10 +731,15 @@ const styles = StyleSheet.create({
   },
   previewStage: {
     width: "100%",
-    aspectRatio: 0.84,
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.30)",
-    overflow: "hidden"
+    aspectRatio: 0.85,
+    borderRadius: 24,
+    backgroundColor: colors.canvasStrong,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4
   },
   artworkCanvas: {
     flex: 1,
@@ -722,11 +748,32 @@ const styles = StyleSheet.create({
   emptyStage: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.05)"
+  },
+  centerCameraBtn: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    transform: [{ translateX: -28 }, { translateY: -28 }],
+    zIndex: 100,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)"
   },
   artworkImageWrap: {
     position: "absolute",
-    borderRadius: 16,
+    borderRadius: 24,
     backgroundColor: colors.canvasStrong,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 8 },
@@ -741,7 +788,7 @@ const styles = StyleSheet.create({
   artworkImage: {
     width: "100%",
     height: "100%",
-    borderRadius: 16
+    borderRadius: 24
   },
   artworkOrderBadge: {
     position: "absolute",
@@ -769,101 +816,134 @@ const styles = StyleSheet.create({
   captureMetaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center"
+    alignItems: "center",
+    marginTop: 6,
+    marginBottom: 2
   },
   recentLabel: {
     color: colors.black,
-    fontFamily: fonts.semibold
+    fontFamily: fonts.bold,
+    fontSize: 16
   },
   libraryLink: {
     color: colors.muted,
-    textDecorationLine: "underline"
+    textDecorationLine: "underline",
+    fontSize: 14
   },
-  captureStrip: {
-    minHeight: 72,
+  recentScroll: {
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+    marginVertical: 4,
+    minHeight: 72
+  },
+  recentRail: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10
+    gap: 12,
+    paddingBottom: 4
   },
-  thumbnailRail: {
-    flex: 1,
-    flexDirection: "row",
-    gap: 8
+  recentThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: colors.canvasStrong,
+    overflow: "hidden",
+    position: "relative"
   },
-  thumbnail: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: colors.canvasStrong
-  },
-  thumbnailActive: {
+  recentThumbActive: {
     borderWidth: 2,
-    borderColor: colors.yellow
+    borderColor: colors.green
   },
-  thumbnailImage: {
+  recentThumbImage: {
     width: "100%",
-    height: "100%",
-    borderRadius: 12
+    height: "100%"
   },
-  thumbnailBadge: {
+  thumbnailOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.35)"
+  },
+  thumbnailCenterBadge: {
     position: "absolute",
-    left: 4,
-    bottom: 4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.white
-  },
-  thumbnailBadgeText: {
-    fontSize: 9,
-    color: colors.black,
-    fontFamily: fonts.bold
-  },
-  removeThumb: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.black
-  },
-  shutterButton: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 2,
-    borderColor: colors.line,
-    backgroundColor: colors.white,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: "center",
     justifyContent: "center"
   },
-  shutterInner: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  thumbnailCenterBadgeCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.canvasStrong
-  },
-  nextButton: {
-    minWidth: 70,
-    minHeight: 36,
-    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.blue
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2
+  },
+  thumbnailCenterBadgeText: {
+    fontSize: 12,
+    color: colors.black,
+    fontFamily: fonts.bold
+  },
+  captureControlBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    position: "relative",
+    width: "100%",
+    minHeight: 80
+  },
+  shutterButton: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    borderWidth: 4,
+    borderColor: "rgba(0, 0, 0, 0.05)",
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5
+  },
+  shutterInner: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)"
+  },
+  nextButton: {
+    position: "absolute",
+    right: 0,
+    bottom: 16,
+    paddingHorizontal: 20,
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.blue,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
   },
   nextButtonDisabled: {
-    opacity: 0.42
+    backgroundColor: "rgba(0,0,0,0.06)",
+    opacity: 0.5
   },
   nextButtonText: {
     color: colors.black,
-    fontFamily: fonts.semibold
+    fontFamily: fonts.bold,
+    fontSize: 14
   },
   editRail: {
     flexDirection: "row",

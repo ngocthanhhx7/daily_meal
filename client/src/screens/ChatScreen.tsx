@@ -1,14 +1,26 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, TextInput, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../api/client";
-import { AppScreen } from "../components/AppScreen";
+import { FigmaLineBackground } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { ChatMessage, Conversation } from "../types/api";
+import { getParticipantAccent, getParticipantAvatarLabel } from "./messagePresentation";
 
 function avatarSource(url?: string) {
   if (!url) {
@@ -27,6 +39,8 @@ export function ChatScreen({ route, navigation }: any) {
   const { socket } = useSocket();
   const conversationId = route.params?.conversationId as string;
   const otherUser = route.params?.otherUser as Conversation["otherUser"] | undefined;
+  const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -47,6 +61,7 @@ export function ChatScreen({ route, navigation }: any) {
         }
         return [...current, newMessage];
       });
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     });
 
     return () => {
@@ -63,7 +78,10 @@ export function ChatScreen({ route, navigation }: any) {
 
     api
       .conversationMessages(token, conversationId)
-      .then((result) => setMessages(result.messages))
+      .then((result) => {
+        setMessages(result.messages);
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 100);
+      })
       .catch(() => undefined);
   }, [token, conversationId]);
 
@@ -79,6 +97,7 @@ export function ChatScreen({ route, navigation }: any) {
     try {
       const result = await api.sendMessage(token, conversationId, text);
       setMessages((current) => [...current, result.message]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       setBody(text);
       Alert.alert("Không thể gửi tin nhắn", error instanceof Error ? error.message : "Thử lại sau");
@@ -88,17 +107,23 @@ export function ChatScreen({ route, navigation }: any) {
   }
 
   return (
-    <AppScreen keyboard>
+    <FigmaLineBackground>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.select({ ios: "padding", android: undefined })}
+        keyboardVerticalOffset={0}
+      >
       <View style={styles.header}>
         <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={22} color={colors.black} />
         </Pressable>
-        <View style={styles.avatar}>
+        <View style={[styles.avatar, { backgroundColor: getParticipantAccent(otherUser?.id ?? otherUser?.displayName) }]}>
           {avatarSource(otherUser?.avatarUrl) ? (
             <Image source={avatarSource(otherUser?.avatarUrl)} style={styles.avatarImage} />
           ) : (
             <AppText variant="button" style={styles.avatarText}>
-              {otherUser?.displayName?.slice(0, 1).toUpperCase() ?? "D"}
+              {getParticipantAvatarLabel({ displayName: otherUser?.displayName, id: otherUser?.id })}
             </AppText>
           )}
         </View>
@@ -112,13 +137,41 @@ export function ChatScreen({ route, navigation }: any) {
         </View>
       </View>
 
-      <View style={styles.messages}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.messages}
+        contentContainerStyle={styles.messagesContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+      >
         {messages.map((message) => {
           const mine = message.sender.id === user?.id;
 
           return (
-            <View key={message.id} style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
+            <View key={message.id} style={[styles.messageRow, mine && styles.messageRowMine]}>
+              {!mine && (
+                <View
+                  style={[
+                    styles.messageAvatar,
+                    { backgroundColor: getParticipantAccent(message.sender.id ?? message.sender.displayName) }
+                  ]}
+                >
+                  {avatarSource(message.sender.avatarUrl) ? (
+                    <Image source={avatarSource(message.sender.avatarUrl)} style={styles.messageAvatarImage} />
+                  ) : (
+                    <AppText style={styles.messageAvatarText}>
+                      {getParticipantAvatarLabel({
+                        displayName: message.sender.displayName,
+                        id: message.sender.id
+                      })}
+                    </AppText>
+                  )}
+                </View>
+              )}
+            <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
               <AppText style={mine ? styles.mineText : undefined}>{message.body}</AppText>
+            </View>
             </View>
           );
         })}
@@ -128,9 +181,9 @@ export function ChatScreen({ route, navigation }: any) {
             <AppText muted>Gửi lời chào hoặc hỏi công thức món ăn.</AppText>
           </View>
         ) : null}
-      </View>
+      </ScrollView>
 
-      <View style={styles.composer}>
+      <View style={[styles.composer, { paddingBottom: insets.bottom + 8 }]}>
         <TextInput
           value={body}
           onChangeText={setBody}
@@ -143,15 +196,27 @@ export function ChatScreen({ route, navigation }: any) {
           <Ionicons name="send" size={18} color={colors.white} />
         </Pressable>
       </View>
-    </AppScreen>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+    </FigmaLineBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1
+  },
+  flex: {
+    flex: 1
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingTop: 4,
+    paddingBottom: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.9)"
   },
   backButton: {
     width: 38,
@@ -183,25 +248,59 @@ const styles = StyleSheet.create({
     flex: 1
   },
   messages: {
-    flex: 1,
+    flex: 1
+  },
+  messagesContent: {
+    flexGrow: 1,
+    justifyContent: "flex-end",
     gap: 8,
-    justifyContent: "flex-end"
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 14
+  },
+  messageRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 7,
+    maxWidth: "86%",
+    alignSelf: "flex-start"
+  },
+  messageRowMine: {
+    alignSelf: "flex-end"
+  },
+  messageAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    overflow: "hidden"
+  },
+  messageAvatarImage: {
+    width: "100%",
+    height: "100%"
+  },
+  messageAvatarText: {
+    color: colors.white,
+    fontFamily: fonts.semibold,
+    fontSize: 11
   },
   bubble: {
-    maxWidth: "78%",
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    maxWidth: "100%",
+    borderRadius: 18,
+    paddingHorizontal: 13,
     paddingVertical: 9
   },
   mine: {
-    alignSelf: "flex-end",
-    backgroundColor: colors.black
+    backgroundColor: colors.black,
+    borderBottomRightRadius: 7
   },
   theirs: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.surface,
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderWidth: 1,
-    borderColor: colors.line
+    borderColor: colors.line,
+    borderBottomLeftRadius: 7
   },
   mineText: {
     color: colors.white
@@ -209,30 +308,33 @@ const styles = StyleSheet.create({
   emptyChat: {
     alignItems: "center",
     gap: 8,
-    paddingVertical: 48
+    paddingVertical: 48,
+    paddingHorizontal: 18
   },
   composer: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
-    padding: 8
+    gap: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    paddingHorizontal: 14,
+    paddingTop: 8
   },
   input: {
     flex: 1,
     maxHeight: 110,
-    minHeight: 38,
+    minHeight: 40,
+    borderRadius: 20,
+    backgroundColor: "#F0F0EC",
+    paddingHorizontal: 16,
+    paddingVertical: 9,
     color: colors.ink,
     fontFamily: fonts.regular,
     fontSize: 15
   },
   sendButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.black

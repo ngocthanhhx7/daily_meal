@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -30,6 +31,8 @@ export function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const { width: viewportWidth } = useWindowDimensions();
+  const showDesktopFrame = Platform.OS === "web" && viewportWidth >= 520;
 
   const [request, response, promptAsync] = AuthSession.useAuthRequest(
     {
@@ -89,98 +92,120 @@ export function LoginScreen() {
   }
 
   return (
-    <ImageBackground
-      source={require("../../assets/backgrounds/background1.png")}
-      style={styles.background}
-      resizeMode="stretch"
-    >
-      <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView
-          behavior={Platform.select({ ios: "padding", android: undefined })}
-          style={styles.flex1}
-        >
-          <ScrollView
-            contentContainerStyle={styles.formContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+    <View style={[styles.page, showDesktopFrame && styles.desktopPage]}>
+      <ImageBackground
+        source={require("../../assets/backgrounds/background1.png")}
+        style={[styles.background, showDesktopFrame && styles.desktopFrame]}
+        resizeMode="stretch"
+      >
+        <View pointerEvents="none" style={styles.foodCluster}>
+          <Image
+            source={require("../../assets/feed/home-food-back.png")}
+            style={[styles.foodCard, styles.foodLeft]}
+            resizeMode="cover"
+          />
+          <Image
+            source={require("../../assets/feed/home-food-mid.png")}
+            style={[styles.foodCard, styles.foodCenter]}
+            resizeMode="cover"
+          />
+          <Image
+            source={require("../../assets/feed/home-food-main.png")}
+            style={[styles.foodCard, styles.foodRight]}
+            resizeMode="cover"
+          />
+        </View>
+        <SafeAreaView style={styles.safeArea}>
+          <KeyboardAvoidingView
+            behavior={Platform.select({ ios: "padding", android: undefined })}
+            style={styles.flex1}
           >
-            <View style={styles.logoBadge}>
-              <Image source={require("../../assets/logo/logo.png")} style={styles.logo} resizeMode="cover" />
-            </View>
+            <ScrollView
+              contentContainerStyle={styles.formContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.logoBadge}>
+                <Image source={require("../../assets/logo/logo.png")} style={styles.logo} resizeMode="cover" />
+              </View>
 
-            <View style={styles.heading}>
-              <AppText style={styles.titleText}>
-                {mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
-              </AppText>
-              <AppText style={styles.subtitleText}>
-                {mode === "login" ? "Chọn phương thức đăng nhập" : "Bắt đầu hành trình ẩm thực của bạn."}
-              </AppText>
-            </View>
-
-            {mode === "login" ? (
-              <AppText style={styles.sectionHeader}>Đăng nhập vào tk hiện có</AppText>
-            ) : null}
-
-            {mode === "register" ? (
-              <FigmaField
-                label="Tên hiển thị"
-                value={displayName}
-                onChangeText={setDisplayName}
-                placeholder="Nguyễn Văn A"
-                autoCapitalize="words"
-              />
-            ) : null}
-
-            <FigmaField
-              label={mode === "login" ? "Tên đăng nhập" : "Email"}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholder={mode === "login" ? "Nhập tên đăng nhập" : "email@example.com"}
-            />
-            <FigmaField
-              label="Mật khẩu"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholder="Nhập mật khẩu"
-            />
-
-            <AppButton
-              label={mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
-              onPress={submit}
-              loading={loading}
-              style={styles.primaryAction}
-            />
-
-            <Pressable onPress={() => setMode(mode === "login" ? "register" : "login")}>
-              <AppText style={styles.switchText}>
-                {mode === "login" ? "Chưa có tài khoản? " : "Đã có tài khoản? "}
-                <AppText style={styles.switchLink}>
-                  {mode === "login" ? "Tạo tài khoản" : "Đăng nhập"}
+              <View style={styles.heading}>
+                <AppText style={styles.titleText}>
+                  {mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
                 </AppText>
-              </AppText>
-            </Pressable>
+                <AppText style={styles.subtitleText}>
+                  {mode === "login" ? "Chọn phương thức đăng nhập" : "Bắt đầu hành trình ẩm thực của bạn."}
+                </AppText>
+              </View>
 
-            <AppText style={styles.otherLoginText}>Phương thức đăng nhập khác</AppText>
+              {mode === "login" ? (
+                <AppText style={styles.sectionHeader}>Đăng nhập vào tk hiện có</AppText>
+              ) : null}
 
-            <View style={styles.socialRow}>
-              {(["logo-facebook", "mail-outline", "call-outline"] as const).map((icon) => (
-                <Pressable
-                  key={icon}
-                  style={styles.socialButton}
-                  onPress={() => handleSocialPress(icon)}
-                  disabled={icon === "logo-facebook" && !request}
-                >
-                  <Ionicons name={icon} size={23} color={colors.white} />
-                </Pressable>
-              ))}
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </ImageBackground>
+              {mode === "register" ? (
+                <FigmaField
+                  label="Tên hiển thị"
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                  placeholder="Nguyễn Văn A"
+                  autoCapitalize="words"
+                />
+              ) : null}
+
+              <FigmaField
+                label={mode === "login" ? "Tên đăng nhập" : "Email"}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholder={mode === "login" ? "Nhập tên đăng nhập" : "email@example.com"}
+              />
+              <FigmaField
+                label="Mật khẩu"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                returnKeyType="done"
+                onSubmitEditing={submit}
+                placeholder="Nhập mật khẩu"
+              />
+
+              {mode === "register" ? (
+                <>
+                  <AppButton
+                    label="Tạo tài khoản"
+                    onPress={submit}
+                    loading={loading}
+                    style={styles.primaryAction}
+                  />
+
+                  <Pressable onPress={() => setMode("login")}>
+                    <AppText style={styles.switchText}>
+                      Đã có tài khoản? <AppText style={styles.switchLink}>Đăng nhập</AppText>
+                    </AppText>
+                  </Pressable>
+                </>
+              ) : null}
+
+              <AppText style={styles.otherLoginText}>Phương thức đăng nhập khác</AppText>
+
+              <View style={styles.socialRow}>
+                {(["logo-facebook", "mail-outline", "call-outline"] as const).map((icon) => (
+                  <Pressable
+                    key={icon}
+                    style={styles.socialButton}
+                    onPress={() => handleSocialPress(icon)}
+                    disabled={icon === "logo-facebook" && !request}
+                  >
+                    <Ionicons name={icon} size={23} color={colors.white} />
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </ImageBackground>
+    </View>
   );
 }
 
@@ -200,11 +225,29 @@ function FigmaField({ label, style, ...props }: FigmaFieldProps) {
 }
 
 const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+    backgroundColor: colors.canvas
+  },
+  desktopPage: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.black
+  },
   background: {
-    flex: 1
+    flex: 1,
+    width: "100%",
+    overflow: "hidden"
+  },
+  desktopFrame: {
+    maxWidth: 390,
+    maxHeight: 844,
+    alignSelf: "center",
+    borderRadius: 28
   },
   safeArea: {
-    flex: 1
+    flex: 1,
+    zIndex: 1
   },
   flex1: {
     flex: 1
@@ -212,16 +255,53 @@ const styles = StyleSheet.create({
   formContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 260
+    paddingTop: 10,
+    paddingBottom: 236
+  },
+  foodCluster: {
+    position: "absolute",
+    left: -44,
+    right: -44,
+    bottom: -18,
+    height: 198,
+    zIndex: 0
+  },
+  foodCard: {
+    position: "absolute",
+    width: 206,
+    height: 166,
+    borderRadius: 20,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 4
+  },
+  foodLeft: {
+    left: -2,
+    bottom: -4,
+    opacity: 0.9,
+    transform: [{ rotate: "-14deg" }]
+  },
+  foodCenter: {
+    left: "29%",
+    bottom: 8,
+    opacity: 0.46,
+    transform: [{ rotate: "2deg" }]
+  },
+  foodRight: {
+    right: -2,
+    bottom: -3,
+    opacity: 0.92,
+    transform: [{ rotate: "13deg" }]
   },
   logoBadge: {
     position: "absolute",
-    top: 0,
+    top: -6,
     alignSelf: "center",
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
@@ -233,14 +313,14 @@ const styles = StyleSheet.create({
     zIndex: 5
   },
   logo: {
-    width: 46,
-    height: 46,
-    borderRadius: 23
+    width: 42,
+    height: 42,
+    borderRadius: 21
   },
   heading: {
     gap: 4,
-    marginTop: 48,
-    marginBottom: 22
+    marginTop: 42,
+    marginBottom: 16
   },
   titleText: {
     fontFamily: fonts.bold,

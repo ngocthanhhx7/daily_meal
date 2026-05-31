@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../api/client";
+import { FigmaLineBackground } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
@@ -255,11 +255,7 @@ export function CommentsScreen({ navigation, route }: any) {
   }
 
   return (
-    <ImageBackground
-      source={require("../../assets/backgrounds/background2.png")}
-      style={styles.background}
-      resizeMode="stretch"
-    >
+    <FigmaLineBackground>
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -348,7 +344,7 @@ export function CommentsScreen({ navigation, route }: any) {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
-    </ImageBackground>
+    </FigmaLineBackground>
   );
 }
 

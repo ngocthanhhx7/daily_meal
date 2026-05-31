@@ -33,6 +33,7 @@ export function LoginScreen() {
 
   const [request, response, promptAsync] = Facebook.useAuthRequest({
     clientId: process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || "3483710358450589",
+    scopes: ["public_profile"]
   });
 
   React.useEffect(() => {

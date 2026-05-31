@@ -19,17 +19,22 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppButton } from "../components/AppButton";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
+import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export function LoginScreen() {
-  const { signIn, register, signInWithFacebook } = useAuth();
+  const { signIn, register, requestPhoneOtp, verifyPhoneOtp, signInWithFacebook, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
   const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneNeedsPassword, setPhoneNeedsPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { width: viewportWidth } = useWindowDimensions();
   const showDesktopFrame = Platform.OS === "web" && viewportWidth >= 520;
@@ -67,10 +72,16 @@ export function LoginScreen() {
   async function submit() {
     setLoading(true);
     try {
-      if (mode === "login") {
-        await signIn(email, password);
+      if (authMethod === "phone") {
+        if (!phoneOtpSent) {
+          await requestPhoneCode();
+          return;
+        }
+        await verifyPhoneOtp(identifier, otp, phoneNeedsPassword ? password : undefined, displayName);
+      } else if (mode === "login") {
+        await signIn(identifier, password);
       } else {
-        await register(email, password, displayName);
+        await register(identifier, password, displayName);
       }
     } catch (error) {
       Alert.alert(mode === "login" ? "Không thể đăng nhập" : "Không thể tạo tài khoản", error instanceof Error ? error.message : "Thử lại sau");
@@ -79,16 +90,62 @@ export function LoginScreen() {
     }
   }
 
-  function placeholder() {
-    Alert.alert("Chưa hỗ trợ", "Phiên bản này đang ưu tiên email, mật khẩu và Facebook.");
+  async function requestPhoneCode() {
+    if (!identifier.trim()) {
+      Alert.alert("Nhập số điện thoại", "Vui lòng nhập số điện thoại trước khi lấy mã OTP.");
+      return;
+    }
+    const result = await requestPhoneOtp(identifier);
+    setPhoneOtpSent(true);
+    setPhoneNeedsPassword(result.requiresPasswordSetup);
+    setOtp("");
+    Alert.alert(
+      "Đã gửi mã OTP",
+      result.devOtp ? `Mã OTP dev: ${result.devOtp}` : "Vui lòng kiểm tra tin nhắn trên điện thoại."
+    );
   }
 
-  function handleSocialPress(icon: "logo-facebook" | "mail-outline" | "call-outline") {
+  async function handleGoogleLogin() {
+    setLoading(true);
+    try {
+      const idToken = await getGoogleIdToken();
+      await signInWithGoogle(idToken);
+    } catch (error) {
+      Alert.alert("Không thể đăng nhập bằng Google", error instanceof Error ? error.message : "Thử lại sau");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePhoneLoginPress() {
+    if (authMethod !== "phone") {
+      setAuthMethod("phone");
+      setPhoneOtpSent(false);
+      setPhoneNeedsPassword(false);
+      setOtp("");
+      setPassword("");
+      return;
+    }
+    setLoading(true);
+    try {
+      await requestPhoneCode();
+    } catch (error) {
+      Alert.alert("Không thể gửi OTP", error instanceof Error ? error.message : "Thử lại sau");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleSocialPress(icon: "logo-facebook" | "logo-google" | "call-outline") {
     if (icon === "logo-facebook") {
       promptAsync();
       return;
     }
-    placeholder();
+    if (icon === "logo-google") {
+      handleGoogleLogin();
+      return;
+    }
+    handlePhoneLoginPress();
   }
 
   return (
@@ -125,9 +182,6 @@ export function LoginScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <View style={styles.logoBadge}>
-                <Image source={require("../../assets/logo/logo.png")} style={styles.logo} resizeMode="cover" />
-              </View>
 
               <View style={styles.heading}>
                 <AppText style={styles.titleText}>
@@ -142,7 +196,7 @@ export function LoginScreen() {
                 <AppText style={styles.sectionHeader}>Đăng nhập vào tk hiện có</AppText>
               ) : null}
 
-              {mode === "register" ? (
+              {mode === "register" || (authMethod === "phone" && phoneNeedsPassword) ? (
                 <FigmaField
                   label="Tên hiển thị"
                   value={displayName}
@@ -153,24 +207,77 @@ export function LoginScreen() {
               ) : null}
 
               <FigmaField
-                label={mode === "login" ? "Tên đăng nhập" : "Email"}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
+                label={authMethod === "phone" ? "Số điện thoại" : mode === "login" ? "Tên đăng nhập" : "Email"}
+                value={identifier}
+                onChangeText={(value) => {
+                  setIdentifier(value);
+                  if (authMethod === "phone") {
+                    setPhoneOtpSent(false);
+                    setPhoneNeedsPassword(false);
+                    setOtp("");
+                  }
+                }}
+                keyboardType={authMethod === "phone" ? "phone-pad" : "email-address"}
                 autoCapitalize="none"
-                placeholder={mode === "login" ? "Nhập tên đăng nhập" : "email@example.com"}
-              />
-              <FigmaField
-                label="Mật khẩu"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                returnKeyType="done"
-                onSubmitEditing={submit}
-                placeholder="Nhập mật khẩu"
+                placeholder={
+                  authMethod === "phone"
+                    ? "Nhập số điện thoại"
+                    : mode === "login"
+                      ? "Nhập tên đăng nhập"
+                      : "email@example.com"
+                }
               />
 
-              {mode === "register" ? (
+              {authMethod === "phone" && phoneOtpSent ? (
+                <FigmaField
+                  label="Mã OTP"
+                  value={otp}
+                  onChangeText={setOtp}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  placeholder="Nhập mã OTP"
+                />
+              ) : null}
+
+              {authMethod === "email" || (authMethod === "phone" && phoneOtpSent && phoneNeedsPassword) ? (
+                <FigmaField
+                  label={authMethod === "phone" ? "Tạo mật khẩu" : "Mật khẩu"}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  returnKeyType="done"
+                  onSubmitEditing={submit}
+                  placeholder={authMethod === "phone" ? "Tạo mật khẩu cho tài khoản mới" : "Nhập mật khẩu"}
+                />
+              ) : null}
+
+              {authMethod === "phone" ? (
+                <>
+                  <AppButton
+                    label={phoneOtpSent ? "Xác nhận OTP" : "Gửi OTP"}
+                    onPress={submit}
+                    loading={loading}
+                    style={styles.primaryAction}
+                  />
+                  <Pressable
+                    onPress={() => {
+                      setAuthMethod("email");
+                      setPhoneOtpSent(false);
+                      setPhoneNeedsPassword(false);
+                      setOtp("");
+                    }}
+                  >
+                    <AppText style={styles.switchText}>Đăng nhập bằng email</AppText>
+                  </Pressable>
+                </>
+              ) : mode === "login" ? (
+                <AppButton
+                  label="Đăng nhập"
+                  onPress={submit}
+                  loading={loading}
+                  style={styles.primaryAction}
+                />
+              ) : (
                 <>
                   <AppButton
                     label="Tạo tài khoản"
@@ -185,17 +292,17 @@ export function LoginScreen() {
                     </AppText>
                   </Pressable>
                 </>
-              ) : null}
+              )}
 
               <AppText style={styles.otherLoginText}>Phương thức đăng nhập khác</AppText>
 
               <View style={styles.socialRow}>
-                {(["logo-facebook", "mail-outline", "call-outline"] as const).map((icon) => (
+                {(["logo-facebook", "logo-google", "call-outline"] as const).map((icon) => (
                   <Pressable
                     key={icon}
                     style={styles.socialButton}
                     onPress={() => handleSocialPress(icon)}
-                    disabled={icon === "logo-facebook" && !request}
+                    disabled={loading || (icon === "logo-facebook" && !request)}
                   >
                     <Ionicons name={icon} size={23} color={colors.white} />
                   </Pressable>

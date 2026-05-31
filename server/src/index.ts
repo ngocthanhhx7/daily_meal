@@ -4,12 +4,14 @@ import { createApp } from "./app.js";
 import { connectDatabase } from "./config/db.js";
 import { env } from "./config/env.js";
 import { seedDefaultStickers } from "./services/stickers.js";
+import { seedMockData } from "./services/seeder.js";
 import { initSocket } from "./services/socket.js";
 
 async function bootstrap() {
   fs.mkdirSync(env.UPLOAD_DIR, { recursive: true });
   await connectDatabase();
   await seedDefaultStickers();
+  await seedMockData();
 
   const app = createApp();
   const httpServer = createServer(app);

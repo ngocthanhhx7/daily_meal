@@ -18,6 +18,7 @@ import { AppText } from "../components/AppText";
 import { FigmaLineBackground } from "../components/AppScreen";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
+import { useNotifications } from "../context/NotificationContext";
 import { demoPosts } from "../data/sample";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
@@ -67,6 +68,7 @@ export function HomeScreen({ navigation }: any) {
   const { width: viewportWidth } = useWindowDimensions();
   const { token, user } = useAuth();
   const { socket } = useSocket();
+  const { unreadCount } = useNotifications();
   const [posts, setPosts] = useState<Post[]>(demoPosts);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [listHeight, setListHeight] = useState(0);
@@ -250,8 +252,19 @@ export function HomeScreen({ navigation }: any) {
         <View style={styles.header}>
           <AppText style={styles.headerTitle}>Bảng tin</AppText>
           <View style={styles.headerRight}>
-            <Pressable style={styles.headerIconBtn} hitSlop={8}>
+            <Pressable
+              style={styles.headerIconBtn}
+              onPress={() => navigation.navigate("Notifications")}
+              hitSlop={8}
+            >
               <Ionicons name="notifications" size={23} color={colors.black} />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <AppText style={styles.badgeText}>
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </AppText>
+                </View>
+              )}
             </Pressable>
             <Pressable style={styles.headerIconBtn} onPress={() => navigation.navigate("Profile")} hitSlop={8}>
               <Ionicons name="person" size={24} color={colors.black} />
@@ -852,5 +865,23 @@ const styles = StyleSheet.create({
   categoryLabel: {
     color: colors.muted,
     textAlign: "center"
+  },
+  badge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: colors.red,
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: colors.white
+  },
+  badgeText: {
+    color: colors.white,
+    fontFamily: fonts.bold,
+    fontSize: 9
   }
 });

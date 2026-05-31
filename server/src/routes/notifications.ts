@@ -2,12 +2,18 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 import { Notification } from "../models/Notification.js";
+import { seedWelcomeNotificationsForUser } from "../services/seeder.js";
 
 export const notificationsRouter = Router();
 
 // Get list of notifications for current authenticated user
 notificationsRouter.get("/", requireAuth, async (req, res, next) => {
   try {
+    const userId = req.user?.id;
+    if (userId) {
+      await seedWelcomeNotificationsForUser(userId);
+    }
+
     const notifications = await Notification.find({ user: req.user?.id })
       .sort({ createdAt: -1 })
       .limit(50)

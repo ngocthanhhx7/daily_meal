@@ -195,6 +195,17 @@ usersRouter.patch("/me", requireAuth, async (req, res, next) => {
   }
 });
 
+usersRouter.get("/me/interactions/blocked", requireAuth, async (req, res, next) => {
+  try {
+    const blocks = await UserInteraction.find({ actor: req.user?.id, type: "block" }).select("target").lean();
+    const targetIds = blocks.map(b => b.target);
+    const users = await User.find({ _id: { $in: targetIds } }).lean();
+    res.json({ users: await userListDto(users, req.user?.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 usersRouter.get("/search", requireAuth, async (req, res, next) => {
   try {
     const q = String(req.query.q ?? "").trim();
@@ -275,7 +286,7 @@ usersRouter.post("/:id/follow", requireAuth, async (req, res, next) => {
         user: targetId,
         sender: req.user?.id,
         type: "follow",
-        body: `${senderName} đã bắt đầu theo dõi bạn.`
+        body: `đã bắt đầu theo dõi bạn.`
       });
 
       const populatedNotification = await Notification.findById(notification._id)

@@ -324,7 +324,7 @@ postsRouter.post("/:id/like", requireAuth, async (req, res, next) => {
         sender: req.user?.id,
         type: "like",
         post: post._id,
-        body: `${senderName} đã thích bài viết của bạn.`
+        body: `đã thích bài viết của bạn.`
       });
 
       const populatedNotification = await Notification.findById(notification._id)
@@ -436,7 +436,7 @@ postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
         type: "comment",
         post: post._id,
         comment: comment._id,
-        body: `${senderName} đã bình luận về bài viết của bạn: "${snippet}"`
+        body: `đã bình luận về bài viết của bạn: "${snippet}"`
       });
 
       const populatedNotification = await Notification.findById(notification._id)

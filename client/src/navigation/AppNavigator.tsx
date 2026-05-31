@@ -23,6 +23,12 @@ import { PublicProfileScreen } from "../screens/PublicProfileScreen";
 import { RecipeScreen } from "../screens/RecipeScreen";
 import { SearchScreen } from "../screens/SearchScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
+import { NotificationsScreen } from "../screens/NotificationsScreen";
+import { SavedScreen } from "../screens/SavedScreen";
+import { BlockedScreen } from "../screens/BlockedScreen";
+import { SupportScreen } from "../screens/SupportScreen";
+import { ShareAccountScreen } from "../screens/ShareAccountScreen";
+import { PremiumBenefitsScreen } from "../screens/PremiumBenefitsScreen";
 
 // NOTE: MealsScreen removed – calo analysis is now in CreatePostScreen
 
@@ -101,6 +107,12 @@ export function AppNavigator() {
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
             <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="Saved" component={SavedScreen} />
+            <Stack.Screen name="Blocked" component={BlockedScreen} />
+            <Stack.Screen name="Support" component={SupportScreen} />
+            <Stack.Screen name="ShareAccount" component={ShareAccountScreen} />
+            <Stack.Screen name="PremiumBenefits" component={PremiumBenefitsScreen} />
           </>
         )}
       </Stack.Navigator>

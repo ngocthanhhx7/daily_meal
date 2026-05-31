@@ -17,12 +17,12 @@ function getMetroHost() {
 }
 
 function resolveApiBaseUrl() {
-  if (Platform.OS === "web" && typeof window !== "undefined") {
-    return window.location.origin;
-  }
-
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    return window.location.origin;
   }
 
   const metroHost = getMetroHost();
@@ -160,6 +160,8 @@ export const api = {
     }),
   searchUsers: (token: string, query: string) =>
     request<{ users: User[] }>(`/api/users/search?q=${encodeURIComponent(query)}`, { token }),
+  getBlockedUsers: (token: string) =>
+    request<{ users: User[] }>("/api/users/me/interactions/blocked", { token }),
   getUser: (token: string, id: string) => request<{ user: User }>(`/api/users/${id}`, { token }),
   getUserPosts: (token: string, id: string) =>
     request<{ posts: Post[] }>(`/api/users/${id}/posts`, { token }),

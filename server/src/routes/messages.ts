@@ -184,7 +184,7 @@ messagesRouter.post("/conversations/:id/messages", requireAuth, async (req, res,
         user: recipientId,
         sender: req.user?.id,
         type: "message",
-        body: `${senderName} đã gửi tin nhắn: "${snippet}"`
+        body: `đã gửi tin nhắn: "${snippet}"`
       });
 
       const populatedNotification = await Notification.findById(notification._id)

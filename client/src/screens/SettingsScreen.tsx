@@ -52,7 +52,7 @@ export function SettingsScreen({ navigation }: any) {
           <Ionicons name="person" size={18} color={colors.black} />
           <AppText style={styles.rowText}>Trung tâm tài khoản</AppText>
         </Pressable>
-        <Pressable style={styles.rowPremium}>
+        <Pressable style={styles.rowPremium} onPress={() => navigation.navigate("PremiumBenefits")}>
           <AppText style={styles.rowText}>Daily premium</AppText>
         </Pressable>
         <Pressable style={styles.row} onPress={handleLinkGoogle}>
@@ -66,17 +66,17 @@ export function SettingsScreen({ navigation }: any) {
         <AppText variant="caption" muted style={styles.sectionLabel}>
           Cách bạn dùng Daily Meal
         </AppText>
-        <Pressable style={styles.row}>
+        <Pressable style={styles.row} onPress={() => navigation.navigate("Saved")}>
           <Ionicons name="bookmark" size={18} color={colors.black} />
           <AppText style={styles.rowText}>Đã lưu</AppText>
         </Pressable>
-        <Pressable style={styles.row}>
+        <Pressable style={styles.row} onPress={() => navigation.navigate("Notifications")}>
           <AppText style={styles.rowText}>Thông báo</AppText>
         </Pressable>
-        <Pressable style={styles.row}>
+        <Pressable style={styles.row} onPress={() => Alert.alert("Theo dõi tiến độ", "Hệ thống sẽ tự động nhắc nhở khi đến giờ đăng bài ăn uống hàng ngày!")}>
           <AppText style={styles.rowText}>Theo dõi tiến độ đăng bài</AppText>
         </Pressable>
-        <Pressable style={styles.row}>
+        <Pressable style={styles.row} onPress={() => navigation.navigate("Blocked")}>
           <Ionicons name="ban-outline" size={18} color={colors.black} />
           <AppText style={styles.rowText}>Đã chặn</AppText>
         </Pressable>
@@ -84,16 +84,16 @@ export function SettingsScreen({ navigation }: any) {
 
       {/* Standalone items */}
       <View style={styles.section}>
-        <Pressable style={styles.row}>
+        <Pressable style={styles.row} onPress={() => navigation.navigate("Support")}>
           <AppText style={styles.rowText}>Hỗ trợ</AppText>
         </Pressable>
-        <Pressable style={styles.row}>
+        <Pressable style={styles.row} onPress={() => navigation.navigate("ShareAccount")}>
           <AppText style={styles.rowText}>Chia sẻ tài khoản</AppText>
         </Pressable>
         <Pressable style={styles.rowLogout} onPress={handleLogout}>
           <AppText style={styles.logoutText}>Đăng xuất</AppText>
         </Pressable>
-        <Pressable style={styles.row}>
+        <Pressable style={styles.row} onPress={() => navigation.navigate("PremiumBenefits")}>
           <AppText style={styles.rowText}>Quyền lợi</AppText>
         </Pressable>
       </View>

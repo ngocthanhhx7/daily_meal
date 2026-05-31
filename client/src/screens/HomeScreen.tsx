@@ -52,7 +52,6 @@ function cardRotation(index: number) {
 export function HomeScreen({ navigation }: any) {
   const { token, user } = useAuth();
   const { socket } = useSocket();
-  const insets = useSafeAreaInsets();
   const [posts, setPosts] = useState<Post[]>(demoPosts);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [listHeight, setListHeight] = useState(0);
@@ -235,7 +234,7 @@ export function HomeScreen({ navigation }: any) {
       style={styles.background}
       resizeMode="stretch"
     >
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         <View style={styles.header}>
           <AppText style={styles.headerTitle}>Bảng tin</AppText>
           <View style={styles.headerRight}>
@@ -288,7 +287,7 @@ export function HomeScreen({ navigation }: any) {
           ) : null}
         </View>
 
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
+        <View style={styles.bottomBar}>
           <Pressable style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
             <Ionicons name="grid" size={28} color={colors.black} />
           </Pressable>
@@ -335,8 +334,8 @@ function PostSlide({
   onPress: () => void;
   onRecipePress: () => void;
 }) {
-  const artworkWidth = Math.min(Math.max(slideWidth - 44, 260), ARTWORK_MAX_WIDTH);
-  const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 92, 280));
+  const artworkWidth = Math.min(Math.max(slideWidth - 56, 250), ARTWORK_MAX_WIDTH);
+  const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 128, 260));
 
   return (
     <View style={[styles.slide, { height: slideHeight }]}>
@@ -536,7 +535,8 @@ const styles = StyleSheet.create({
     flex: 1
   },
   safe: {
-    flex: 1
+    flex: 1,
+    overflow: "hidden"
   },
   header: {
     flexDirection: "row",
@@ -544,7 +544,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 6
+    paddingBottom: 6,
+    overflow: "hidden"
   },
   headerTitle: {
     fontFamily: fonts.bold,
@@ -571,7 +572,8 @@ const styles = StyleSheet.create({
   slide: {
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 6
+    paddingHorizontal: 18,
+    overflow: "hidden"
   },
   artworkPress: {
     width: "100%",
@@ -738,7 +740,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 34,
-    paddingTop: 12
+    paddingTop: 8,
+    paddingBottom: 8
   },
   squareBtn: {
     width: 52,

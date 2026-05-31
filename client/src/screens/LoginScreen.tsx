@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   Alert,
-  Image,
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
@@ -106,6 +105,7 @@ export function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            <View style={styles.formCard}>
 
             {/* Heading */}
             <View style={styles.heading}>
@@ -185,6 +185,7 @@ export function LoginScreen() {
                 </Pressable>
               ))}
             </View>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -204,6 +205,10 @@ const styles = StyleSheet.create({
   },
   formContent: {
     padding: 20,
+    flexGrow: 1,
+    justifyContent: "center"
+  },
+  formCard: {
     gap: 16
   },
 

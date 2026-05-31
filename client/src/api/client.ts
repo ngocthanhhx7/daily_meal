@@ -100,6 +100,16 @@ export const api = {
       method: "POST",
       body
     }),
+  registerWithPhone: (body: { phone: string; password: string; displayName?: string }) =>
+    request<{ token: string; user: User }>("/api/auth/phone/register", {
+      method: "POST",
+      body
+    }),
+  loginWithPhone: (body: { phone: string; password: string }) =>
+    request<{ token: string; user: User }>("/api/auth/phone/login", {
+      method: "POST",
+      body
+    }),
   loginWithFacebook: (accessToken: string) =>
     request<{ token: string; user: User }>("/api/auth/facebook", {
       method: "POST",

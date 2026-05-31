@@ -24,10 +24,12 @@ import { fonts } from "../theme/typography";
 WebBrowser.maybeCompleteAuthSession();
 
 export function LoginScreen() {
-  const { signIn, register, signInWithFacebook, signInWithGoogle } = useAuth();
+  const { signIn, signInWithPhone, register, registerWithPhone, signInWithFacebook, signInWithGoogle } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -70,7 +72,13 @@ export function LoginScreen() {
     setLoading(true);
     try {
       if (mode === "login") {
-        await signIn(email, password);
+        if (authMethod === "phone") {
+          await signInWithPhone(phone, password);
+        } else {
+          await signIn(email, password);
+        }
+      } else if (authMethod === "phone") {
+        await registerWithPhone(phone, password, displayName);
       } else {
         await register(email, password, displayName);
       }
@@ -81,17 +89,17 @@ export function LoginScreen() {
     }
   }
 
-  function placeholder() {
-    Alert.alert("Chưa hỗ trợ", "Phiên bản đầu chỉ hỗ trợ email, mật khẩu và Facebook.");
-  }
-
   function handleSocialPress(icon: "logo-facebook" | "logo-google" | "mail-outline" | "call-outline") {
     if (icon === "logo-facebook") {
       promptAsync();
     } else if (icon === "logo-google") {
       handleGoogleLogin();
+    } else if (icon === "mail-outline") {
+      setAuthMethod("email");
+    } else if (icon === "call-outline") {
+      setAuthMethod("phone");
     } else {
-      placeholder();
+      setAuthMethod("email");
     }
   }
 
@@ -131,6 +139,37 @@ export function LoginScreen() {
             ) : null}
 
             {/* Form */}
+            <View style={styles.methodTabs}>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.methodTab, authMethod === "email" && styles.methodTabActive]}
+                onPress={() => setAuthMethod("email")}
+              >
+                <Ionicons
+                  name="mail-outline"
+                  size={16}
+                  color={authMethod === "email" ? colors.white : colors.green}
+                />
+                <AppText style={[styles.methodText, authMethod === "email" && styles.methodTextActive]}>
+                  Email
+                </AppText>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.methodTab, authMethod === "phone" && styles.methodTabActive]}
+                onPress={() => setAuthMethod("phone")}
+              >
+                <Ionicons
+                  name="call-outline"
+                  size={16}
+                  color={authMethod === "phone" ? colors.white : colors.green}
+                />
+                <AppText style={[styles.methodText, authMethod === "phone" && styles.methodTextActive]}>
+                  Số điện thoại
+                </AppText>
+              </Pressable>
+            </View>
+
             {mode === "register" ? (
               <TextField
                 label="Tên hiển thị"
@@ -140,14 +179,25 @@ export function LoginScreen() {
                 autoCapitalize="words"
               />
             ) : null}
-            <TextField
-              label={mode === "login" ? "Tên đăng nhập" : "Email"}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholder={mode === "login" ? "Nhập tên đăng nhập" : "email@example.com"}
-            />
+            {authMethod === "phone" ? (
+              <TextField
+                label="Số điện thoại"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                autoCapitalize="none"
+                placeholder="0901234567 hoặc +84901234567"
+              />
+            ) : (
+              <TextField
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholder="email@example.com"
+              />
+            )}
             <TextField
               label="Mật khẩu"
               value={password}
@@ -215,6 +265,32 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     marginTop: 4
+  },
+  methodTabs: {
+    flexDirection: "row",
+    gap: 10
+  },
+  methodTab: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: colors.green,
+    backgroundColor: colors.white,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6
+  },
+  methodTabActive: {
+    backgroundColor: colors.green
+  },
+  methodText: {
+    color: colors.green,
+    fontFamily: fonts.semibold
+  },
+  methodTextActive: {
+    color: colors.white
   },
   switchText: {
     textAlign: "center",

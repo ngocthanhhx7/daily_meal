@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import crypto from "node:crypto";
 import { User } from "../models/User.js";
-import { hashPassword, signAccessToken, verifyPassword } from "../services/auth.js";
+import { hashPassword, normalizePhoneNumber, signAccessToken, verifyPassword } from "../services/auth.js";
 import { verifyGoogleIdToken } from "../services/googleAuth.js";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
@@ -28,6 +28,12 @@ const googleAuthSchema = z.object({
   idToken: z.string().min(1)
 });
 
+const phoneAuthBodySchema = z.object({
+  phone: z.string().min(8).max(20).transform(normalizePhoneNumber),
+  password: z.string().min(6),
+  displayName: z.string().min(1).max(80).optional()
+});
+
 const GOOGLE_LINK_REQUIRED =
   "Sign in with email and password first, then link Google in Settings.";
 
@@ -35,6 +41,7 @@ function userDto(user: any) {
   return {
     id: user._id.toString(),
     email: user.email,
+    phone: user.phone,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
     coverUrl: user.coverUrl,
@@ -84,6 +91,48 @@ authRouter.post("/login", async (req, res, next) => {
 
     if (!user?.passwordHash || !(await verifyPassword(body.password, user.passwordHash))) {
       throw new HttpError(401, "Invalid email or password");
+    }
+
+    res.json({
+      token: signAccessToken(user._id.toString()),
+      user: userDto(user)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post("/phone/register", async (req, res, next) => {
+  try {
+    const body = phoneAuthBodySchema.parse(req.body);
+    const existing = await User.findOne({ phone: body.phone }).lean();
+
+    if (existing) {
+      throw new HttpError(409, "Số điện thoại đã được đăng ký");
+    }
+
+    const user = await User.create({
+      phone: body.phone,
+      passwordHash: await hashPassword(body.password),
+      displayName: body.displayName ?? body.phone
+    });
+
+    res.status(201).json({
+      token: signAccessToken(user._id.toString()),
+      user: userDto(user)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post("/phone/login", async (req, res, next) => {
+  try {
+    const body = phoneAuthBodySchema.pick({ phone: true, password: true }).parse(req.body);
+    const user = await User.findOne({ phone: body.phone });
+
+    if (!user?.passwordHash || !(await verifyPassword(body.password, user.passwordHash))) {
+      throw new HttpError(401, "Số điện thoại hoặc mật khẩu không đúng");
     }
 
     res.json({

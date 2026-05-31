@@ -96,7 +96,12 @@ export function SearchScreen({ navigation, route }: any) {
     <AppScreen>
       {/* Header */}
       <View style={styles.headerBlock}>
-        <AppText variant="title">Tìm kiếm</AppText>
+        <View style={styles.headerRow}>
+          <Pressable style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={10}>
+            <Ionicons name="chevron-back" size={26} color={colors.black} />
+          </Pressable>
+          <AppText variant="title" style={styles.headerTitle}>Tìm kiếm</AppText>
+        </View>
         <AppText muted>Tìm món ăn, nguyên liệu, người dùng hoặc thẻ.</AppText>
       </View>
 
@@ -218,6 +223,20 @@ export function SearchScreen({ navigation, route }: any) {
 const styles = StyleSheet.create({
   headerBlock: {
     gap: 4
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  headerTitle: {
+    flex: 1
   },
   searchRow: {
     flexDirection: "row",

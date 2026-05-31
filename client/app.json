@@ -6,12 +6,19 @@
     "orientation": "portrait",
     "scheme": "dailymeal",
     "userInterfaceStyle": "light",
+    "icon": "./assets/logo/logo.png",
+    "splash": {
+      "image": "./assets/logo/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4F3EF"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dailymeal.app",
+      "icon": "./assets/logo/logo.png",
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
@@ -23,6 +30,7 @@
       "versionCode": 1,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/logo/logo.png",
         "backgroundColor": "#F4F3EF"
       },
       "permissions": [

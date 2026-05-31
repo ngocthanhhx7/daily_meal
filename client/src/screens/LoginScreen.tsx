@@ -287,12 +287,19 @@ export function LoginScreen() {
                   </Pressable>
                 </>
               ) : mode === "login" ? (
-                <AppButton
-                  label="Đăng nhập"
-                  onPress={submit}
-                  loading={loading}
-                  style={styles.primaryAction}
-                />
+                <>
+                  <AppButton
+                    label="Đăng nhập"
+                    onPress={submit}
+                    loading={loading}
+                    style={styles.primaryAction}
+                  />
+                  <Pressable onPress={() => setMode("register")}>
+                    <AppText style={styles.switchText}>
+                      Chưa có tài khoản? <AppText style={styles.switchLink}>Đăng ký ngay</AppText>
+                    </AppText>
+                  </Pressable>
+                </>
               ) : (
                 <>
                   <AppButton

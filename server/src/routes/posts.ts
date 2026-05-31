@@ -212,10 +212,18 @@ postsRouter.get("/search", requireAuth, async (req, res, next) => {
 postsRouter.post("/", requireAuth, async (req, res, next) => {
   try {
     const body = postBodySchema.parse(req.body);
-    const maxImages = 3;
+    const isPremium = Boolean(req.user?.isPremium);
+    const maxImages = isPremium ? 3 : 1;
 
     if (body.images.length > maxImages) {
-      throw new HttpError(403, `This account can upload up to ${maxImages} images per post`);
+      throw new HttpError(403, `Tài khoản miễn phí chỉ được đăng tối đa ${maxImages} ảnh mỗi bài viết. Hãy nâng cấp VIP để đăng tới 3 ảnh!`);
+    }
+
+    if (!isPremium) {
+      const postCount = await Post.countDocuments({ author: req.user?.id });
+      if (postCount >= 6) {
+        throw new HttpError(403, "Tài khoản miễn phí chỉ được đăng tối đa 6 bài viết. Hãy nâng cấp VIP để đăng bài không giới hạn!");
+      }
     }
 
     await assertStickerAllowed(body.stickerId, Boolean(req.user?.isPremium));

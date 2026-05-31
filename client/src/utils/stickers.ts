@@ -13,5 +13,13 @@ export function stickerImageSource(sticker?: Sticker): ImageSourcePropType | und
     return undefined;
   }
 
+  if (sticker._id.startsWith("custom-user-") || sticker.key.startsWith("custom-user-")) {
+    return { uri: sticker.assetPath };
+  }
+
+  if (sticker.assetPath && (sticker.assetPath.startsWith("http") || sticker.assetPath.startsWith("file:") || sticker.assetPath.startsWith("content:"))) {
+    return { uri: sticker.assetPath };
+  }
+
   return stickerAssets[sticker.key];
 }

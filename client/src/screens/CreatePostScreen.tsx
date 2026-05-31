@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { Alert, Animated, Dimensions, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { api } from "../api/client";
 import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
@@ -49,12 +49,63 @@ const RECENT_PHOTOS = [
   require("../../assets/figma-snapshots/image10.png")
 ];
 
+const DEFAULT_VIP_STICKERS: Sticker[] = [
+  { _id: "v1", key: "apple", name: "Táo đỏ", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f34e/512.webp", premiumOnly: true },
+  { _id: "v2", key: "pancake", name: "Bánh kếp", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f95e/512.webp", premiumOnly: true },
+  { _id: "v3", key: "salad", name: "Xà lách", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f957/512.webp", premiumOnly: true },
+  { _id: "v4", key: "noodles", name: "Mì ramen", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f35c/512.webp", premiumOnly: true },
+  { _id: "v5", key: "cooking", name: "Chiên trứng", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f373/512.webp", premiumOnly: true },
+  { _id: "v6", key: "heart-eyes", name: "Mê mẩn", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f60d/512.webp", premiumOnly: true },
+  { _id: "v7", key: "yum", name: "Ngon tuyệt", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f60b/512.webp", premiumOnly: true },
+  { _id: "v8", key: "sparkling", name: "Lấp lánh", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/2728/512.webp", premiumOnly: true },
+  { _id: "v9", key: "fire", name: "Nóng bỏng", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f525/512.webp", premiumOnly: true },
+  { _id: "v10", key: "cute-cat", name: "Mèo con", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f431/512.webp", premiumOnly: true },
+  { _id: "v11", key: "dino", name: "Khủng long", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f995/512.webp", premiumOnly: true },
+  { _id: "v12", key: "bear", name: "Gấu trúc", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f43b/512.webp", premiumOnly: true },
+  { _id: "v13", key: "rabbit", name: "Thỏ hồng", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f430/512.webp", premiumOnly: true },
+  { _id: "v14", key: "hamburger", name: "Burger", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f354/512.webp", premiumOnly: true },
+  { _id: "v15", key: "pizza", name: "Pizza", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f355/512.webp", premiumOnly: true },
+  { _id: "v16", key: "cake", name: "Bánh kem", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f370/512.webp", premiumOnly: true },
+  { _id: "v17", key: "strawberry", name: "Dâu tây", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f353/512.webp", premiumOnly: true },
+  { _id: "v18", key: "coffee", name: "Cà phê", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/2615/512.webp", premiumOnly: true },
+  { _id: "v19", key: "taco", name: "Taco", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f32e/512.webp", premiumOnly: true },
+  { _id: "v20", key: "sushi", name: "Sushi", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f363/512.webp", premiumOnly: true }
+];
 
-type Step = "capture" | "edit";
+type Step = "capture" | "edit" | "sticker";
 
 export function CreatePostScreen({ navigation, route }: any) {
   const { token, user } = useAuth();
   const isPremium = Boolean(user?.isPremium);
+  const maxImagesLimit = isPremium ? 3 : 1;
+
+  const screenWidth = Dimensions.get("window").width;
+  const previewWidth = screenWidth - 40;
+  const previewHeight = previewWidth / 0.85;
+
+  const stickerPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        const { locationX, locationY } = evt.nativeEvent;
+        setStickerPlacement((current) => ({
+          ...current,
+          x: Math.max(0, Math.min(1, locationX / previewWidth)),
+          y: Math.max(0, Math.min(1, locationY / previewHeight))
+        }));
+      },
+      onPanResponderMove: (evt) => {
+        const { locationX, locationY } = evt.nativeEvent;
+        setStickerPlacement((current) => ({
+          ...current,
+          x: Math.max(0, Math.min(1, locationX / previewWidth)),
+          y: Math.max(0, Math.min(1, locationY / previewHeight))
+        }));
+      }
+    })
+  ).current;
+
   const [step, setStep] = useState<Step>("capture");
   const [images, setImages] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -65,6 +116,7 @@ export function CreatePostScreen({ navigation, route }: any) {
   const [ingredients, setIngredients] = useState("");
   const [steps, setSteps] = useState("");
   const [stickers, setStickers] = useState<Sticker[]>([]);
+  const [customStickers, setCustomStickers] = useState<Sticker[]>([]);
   const [selectedSticker, setSelectedSticker] = useState<string | undefined>();
   const [stickerPlacement, setStickerPlacement] = useState<StickerPlacement>(DEFAULT_STICKER);
   const [layout, setLayout] = useState<PostLayout>("stack");
@@ -78,6 +130,14 @@ export function CreatePostScreen({ navigation, route }: any) {
     ).filter((uri): uri is string => Boolean(uri));
   }, []);
 
+  const [localGalleryImages, setLocalGalleryImages] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (recentUris.length > 0 && localGalleryImages.length === 0) {
+      setLocalGalleryImages(recentUris);
+    }
+  }, [recentUris, localGalleryImages]);
+
   useEffect(() => {
     // Automatically select the first recent photo on mount if selection is empty
     if (images.length === 0 && recentUris.length > 0) {
@@ -87,10 +147,20 @@ export function CreatePostScreen({ navigation, route }: any) {
     }
   }, [recentUris]);
 
+  const allStickers = useMemo(() => {
+    const merged = [...customStickers, ...DEFAULT_VIP_STICKERS];
+    const keys = new Set(merged.map(s => s.key));
+    for (const s of stickers) {
+      if (!keys.has(s.key)) {
+        merged.push(s);
+      }
+    }
+    return merged;
+  }, [customStickers, stickers]);
 
   const selectedStickerData = useMemo(
-    () => stickers.find((sticker) => sticker._id === selectedSticker),
-    [selectedSticker, stickers]
+    () => allStickers.find((sticker) => sticker._id === selectedSticker || sticker.key === selectedSticker),
+    [selectedSticker, allStickers]
   );
 
   useEffect(() => {
@@ -121,11 +191,11 @@ export function CreatePostScreen({ navigation, route }: any) {
   function appendImages(nextUris: string[]) {
     setImages((current) => {
       const unique = nextUris.filter((uri) => uri && !current.includes(uri));
-      const openSlots = MAX_IMAGES - current.length;
+      const openSlots = maxImagesLimit - current.length;
       const accepted = unique.slice(0, openSlots);
 
       if (unique.length > openSlots) {
-        Alert.alert("Giới hạn ảnh", `Bạn chỉ có thể chọn tối đa ${MAX_IMAGES} ảnh cho một bài đăng.`);
+        Alert.alert("Giới hạn ảnh", isPremium ? `Tài khoản VIP chỉ có thể chọn tối đa 3 ảnh.` : `Tài khoản miễn phí chỉ được đăng tối đa 1 ảnh. Hãy nâng cấp VIP để đăng tới 3 ảnh!`);
       }
 
       if (!accepted.length) {
@@ -146,8 +216,8 @@ export function CreatePostScreen({ navigation, route }: any) {
     if (existingIndex > -1) {
       removeImage(existingIndex);
     } else {
-      if (images.length >= MAX_IMAGES) {
-        Alert.alert("Giới hạn ảnh", `Bài đăng tối đa ${MAX_IMAGES} ảnh.`);
+      if (images.length >= maxImagesLimit) {
+        Alert.alert("Giới hạn ảnh", isPremium ? `Bài đăng tối đa 3 ảnh cho tài khoản VIP.` : `Tài khoản miễn phí chỉ được đăng 1 ảnh mỗi bài viết. Hãy nâng cấp VIP để đăng tới 3 ảnh!`);
         return;
       }
       appendImages([uri]);
@@ -176,14 +246,16 @@ export function CreatePostScreen({ navigation, route }: any) {
   }
 
   async function captureImage() {
-    if (images.length >= MAX_IMAGES) {
-      Alert.alert("Đã đủ ảnh", `Bài đăng tối đa ${MAX_IMAGES} ảnh.`);
+    if (images.length >= maxImagesLimit) {
+      Alert.alert("Đã đủ ảnh", isPremium ? `Bài đăng tối đa 3 ảnh cho tài khoản VIP.` : `Tài khoản miễn phí chỉ được đăng 1 ảnh mỗi bài viết. Hãy nâng cấp VIP để đăng tới 3 ảnh!`);
       return;
     }
 
     const uri = await pickSingleImage("camera");
 
     if (uri) {
+      // Prioritize recently captured image: prepend to the local gallery list
+      setLocalGalleryImages((current) => [uri, ...current]);
       appendImages([uri]);
     }
   }
@@ -194,13 +266,32 @@ export function CreatePostScreen({ navigation, route }: any) {
       return;
     }
 
-    if (images.length >= MAX_IMAGES) {
-      Alert.alert("Đã đủ ảnh", `Bài đăng tối đa ${MAX_IMAGES} ảnh.`);
+    if (images.length >= maxImagesLimit) {
+      Alert.alert("Đã đủ ảnh", `Bài đăng tối đa 3 ảnh cho tài khoản VIP.`);
       return;
     }
 
-    const uris = await pickMultipleImages(MAX_IMAGES - images.length);
+    const uris = await pickMultipleImages(maxImagesLimit - images.length);
     appendImages(uris);
+  }
+
+  async function handleUploadCustomSticker() {
+    if (!isPremium) {
+      Alert.alert("Chỉ dành cho VIP", "Tính năng tự tải nhãn dán chỉ dành cho tài khoản VIP.");
+      return;
+    }
+    const uri = await pickSingleImage("library");
+    if (uri) {
+      const newSticker: Sticker = {
+        _id: `custom-user-${Date.now()}`,
+        key: `custom-user-${Date.now()}`,
+        name: "Tự tải",
+        assetPath: uri,
+        premiumOnly: true
+      };
+      setCustomStickers((current) => [newSticker, ...current]);
+      setSelectedSticker(newSticker._id);
+    }
   }
 
   function removeImage(index: number) {
@@ -257,6 +348,10 @@ export function CreatePostScreen({ navigation, route }: any) {
   async function publish() {
     if (!token || !images.length) {
       Alert.alert("Thiếu ảnh", "Bài viết cần ít nhất một ảnh.");
+      return;
+    }
+    if (!isPremium && user?.counts?.posts !== undefined && user.counts.posts >= 6) {
+      Alert.alert("Đạt giới hạn bài đăng", "Tài khoản miễn phí chỉ được đăng tối đa 6 bài viết. Hãy nâng cấp VIP để đăng bài không giới hạn!");
       return;
     }
     setLoading(true);
@@ -329,6 +424,10 @@ export function CreatePostScreen({ navigation, route }: any) {
   }
 
   function goBack() {
+    if (step === "sticker") {
+      setStep("edit");
+      return;
+    }
     if (step === "edit") {
       setStep("capture");
       return;
@@ -338,7 +437,10 @@ export function CreatePostScreen({ navigation, route }: any) {
 
   return (
     <AppScreen style={styles.screen}>
-      <Header title={step === "capture" ? "Thêm bài viết" : "Chỉnh bài viết"} onBack={goBack} />
+      <Header
+        title={step === "capture" ? "Thêm bài viết" : step === "sticker" ? "Nhãn dán" : "Chỉnh bài viết"}
+        onBack={goBack}
+      />
 
       {step === "capture" ? (
         <>
@@ -370,7 +472,7 @@ export function CreatePostScreen({ navigation, route }: any) {
             style={styles.recentScroll}
             contentContainerStyle={styles.recentRail}
           >
-            {recentUris.map((uri) => {
+            {localGalleryImages.map((uri) => {
               const isSelected = images.includes(uri);
               const selectedIdx = images.indexOf(uri);
               const isActive = images[selectedIndex] === uri;
@@ -415,13 +517,13 @@ export function CreatePostScreen({ navigation, route }: any) {
             </Pressable>
           </View>
         </>
-      ) : (
+      ) : step === "edit" ? (
         <>
           <PostPreview
             images={images}
             layout="stack"
             transforms={transforms}
-            sticker={undefined}
+            sticker={selectedStickerData}
             stickerPlacement={stickerPlacement}
             selectedIndex={selectedIndex}
             onSelectImage={setSelectedIndex}
@@ -439,6 +541,13 @@ export function CreatePostScreen({ navigation, route }: any) {
               />
             ))}
           </View>
+
+          {/* Touch-drag sticker customization entry card */}
+          <Pressable style={styles.addStickerCard} onPress={() => setStep("sticker")}>
+            <AppText style={styles.addStickerText}>
+              {selectedSticker ? `Nhãn dán: ${selectedStickerData?.name || "Đã chọn"}` : "Thêm nhãn dán"}
+            </AppText>
+          </Pressable>
 
           <AppButton label="Tính calo bằng AI" onPress={analyzeFirstImage} loading={loading} variant="ghost" />
           <NutritionCard nutrition={meal?.result.total} />
@@ -478,6 +587,82 @@ export function CreatePostScreen({ navigation, route }: any) {
             </View>
           ) : null}
           <AppButton label="Đăng bài" onPress={publish} loading={loading} />
+        </>
+      ) : (
+        <>
+          {/* Interactive touch-dragging sticker placement screen */}
+          <View style={{ width: previewWidth, height: previewHeight }} {...stickerPanResponder.panHandlers}>
+            <PostPreview
+              images={images}
+              layout="stack"
+              transforms={transforms}
+              sticker={selectedStickerData}
+              stickerPlacement={stickerPlacement}
+              selectedIndex={selectedIndex}
+              onSelectImage={setSelectedIndex}
+            />
+          </View>
+
+          <AppText variant="caption" style={styles.stickerTipText}>
+            Chạm di chuyển ngón tay trên màn hình xem trước để chỉnh vị trí nhãn dán!
+          </AppText>
+
+          {/* Scale & rotation adjustment control bar */}
+          <View style={styles.stickerControlRow}>
+            <Pressable
+              style={styles.stickerControlBtn}
+              onPress={() => setStickerPlacement((curr) => ({ ...curr, scale: Math.max(0.5, curr.scale - 0.1) }))}
+            >
+              <Ionicons name="remove" size={16} color={colors.ink} />
+              <AppText variant="caption" style={{ fontFamily: fonts.bold }}>Thu nhỏ</AppText>
+            </Pressable>
+            <Pressable
+              style={styles.stickerControlBtn}
+              onPress={() => setStickerPlacement((curr) => ({ ...curr, scale: Math.min(2.5, curr.scale + 0.1) }))}
+            >
+              <Ionicons name="add" size={16} color={colors.ink} />
+              <AppText variant="caption" style={{ fontFamily: fonts.bold }}>Phóng to</AppText>
+            </Pressable>
+            <Pressable
+              style={styles.stickerControlBtn}
+              onPress={() => setStickerPlacement((curr) => ({ ...curr, rotation: (curr.rotation + 15) % 360 }))}
+            >
+              <Ionicons name="refresh" size={16} color={colors.ink} />
+              <AppText variant="caption" style={{ fontFamily: fonts.bold }}>Xoay</AppText>
+            </Pressable>
+          </View>
+
+          {/* Horizontally scrollable list of VIP stickers and custom uploads */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.stickerScroll} contentContainerStyle={styles.stickerRail}>
+            <Pressable style={styles.stickerTileUpload} onPress={handleUploadCustomSticker}>
+              <Ionicons name="cloud-upload" size={24} color={colors.muted} />
+              <AppText variant="caption" style={{ fontSize: 9, textAlign: "center", color: colors.muted, fontFamily: fonts.bold }}>
+                Tự tải
+              </AppText>
+            </Pressable>
+
+            {allStickers.map((sticker) => {
+              const isSelected = selectedSticker === sticker._id || selectedSticker === sticker.key;
+              const source = stickerImageSource(sticker);
+              return (
+                <Pressable
+                  key={sticker._id}
+                  onPress={() => setSelectedSticker(isSelected ? undefined : sticker._id)}
+                  style={[
+                    styles.stickerTileSmall,
+                    isSelected && styles.stickerTileSmallActive
+                  ]}
+                >
+                  {source ? <Image source={source} style={styles.stickerImageSmall} /> : null}
+                  <AppText variant="caption" numberOfLines={1} style={{ fontSize: 9, textAlign: "center", fontFamily: fonts.bold }}>
+                    {sticker.name}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <AppButton label="Hoàn tất" onPress={() => setStep("edit")} />
         </>
       )}
     </AppScreen>
@@ -1066,5 +1251,92 @@ const styles = StyleSheet.create({
     minHeight: 92,
     textAlignVertical: "top",
     paddingTop: 12
+  },
+  addStickerCard: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  addStickerText: {
+    color: colors.black,
+    fontFamily: fonts.semibold,
+    fontSize: 14
+  },
+  stickerTipText: {
+    color: colors.muted,
+    textAlign: "center",
+    fontSize: 12,
+    marginVertical: 4
+  },
+  stickerControlRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    marginVertical: 8
+  },
+  stickerControlBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.canvas,
+    borderWidth: 1,
+    borderColor: colors.line
+  },
+  stickerScroll: {
+    marginHorizontal: -20,
+    paddingHorizontal: 20,
+    marginVertical: 8,
+    minHeight: 90
+  },
+  stickerRail: {
+    flexDirection: "row",
+    gap: 12,
+    paddingBottom: 4
+  },
+  stickerTileUpload: {
+    width: 68,
+    height: 76,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: colors.muted,
+    backgroundColor: colors.canvas,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4
+  },
+  stickerTileSmall: {
+    width: 68,
+    height: 76,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 4,
+    gap: 2
+  },
+  stickerTileSmallActive: {
+    borderColor: colors.black,
+    backgroundColor: colors.yellow
+  },
+  stickerImageSmall: {
+    width: 38,
+    height: 38,
+    resizeMode: "contain"
   }
 });

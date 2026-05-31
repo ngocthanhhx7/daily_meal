@@ -233,7 +233,7 @@ export function HomeScreen({ navigation }: any) {
     <ImageBackground
       source={require("../../assets/backgrounds/background2.png")}
       style={styles.background}
-      resizeMode="cover"
+      resizeMode="stretch"
     >
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <View style={styles.header}>

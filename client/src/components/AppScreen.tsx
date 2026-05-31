@@ -61,7 +61,7 @@ export function AppScreen({
     <ImageBackground
       source={require("../../assets/backgrounds/background2.png")}
       style={styles.background}
-      resizeMode="cover"
+      resizeMode="stretch"
     >
       {inner}
     </ImageBackground>

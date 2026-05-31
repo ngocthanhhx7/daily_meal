@@ -5,7 +5,7 @@ export const colors = {
   surface: "#FFFFFF",
   canvas: "#F4F3EF",
   canvasStrong: "#ECE9DF",
-  green: "#6F925A",
+  green: "#8BA58A",
   greenDark: "#4F6F3D",
   yellow: "#F6DE68",
   red: "#E65B55",

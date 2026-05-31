@@ -26,7 +26,7 @@ import type { Post, PostLayout } from "../types/api";
 import { stickerImageSource } from "../utils/stickers";
 
 const PHONE_MAX_WIDTH = 383;
-const ARTWORK_MAX_WIDTH = 330;
+const ARTWORK_MAX_WIDTH = 380;
 const ARTWORK_ASPECT_RATIO = 1.12;
 
 const DEMO_IMAGES = [
@@ -257,7 +257,7 @@ export function HomeScreen({ navigation }: any) {
               onPress={() => navigation.navigate("Notifications")}
               hitSlop={8}
             >
-              <Ionicons name="notifications" size={23} color={colors.black} />
+              <Ionicons name="notifications" size={28} color={colors.black} />
               {unreadCount > 0 && (
                 <View style={styles.badge}>
                   <AppText style={styles.badgeText}>
@@ -267,7 +267,7 @@ export function HomeScreen({ navigation }: any) {
               )}
             </Pressable>
             <Pressable style={styles.headerIconBtn} onPress={() => navigation.navigate("Profile")} hitSlop={8}>
-              <Ionicons name="person" size={24} color={colors.black} />
+              <Ionicons name="person" size={30} color={colors.black} />
             </Pressable>
           </View>
         </View>
@@ -314,23 +314,23 @@ export function HomeScreen({ navigation }: any) {
 
         <View style={[styles.bottomBar, showDesktopFrame && styles.desktopBottomBar]}>
           <Pressable style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
-            <Ionicons name="grid" size={28} color={colors.black} />
+            <Ionicons name="grid" size={32} color={colors.black} />
           </Pressable>
 
           <View style={styles.actionPill}>
             <Pressable style={styles.pillBtn} onPress={handleComment} hitSlop={4}>
-              <Ionicons name="chatbubble" size={24} color={colors.white} />
+              <Ionicons name="chatbubble" size={28} color={colors.white} />
             </Pressable>
             <Pressable style={styles.pillBtn} onPress={handleLike} hitSlop={4}>
-              <Ionicons name={isLiked ? "heart" : "heart-outline"} size={26} color={isLiked ? colors.red : colors.white} />
+              <Ionicons name={isLiked ? "heart" : "heart-outline"} size={30} color={isLiked ? colors.red : colors.white} />
             </Pressable>
             <Pressable style={styles.pillBtn} onPress={handleSave} hitSlop={4}>
-              <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={25} color={isSaved ? colors.yellow : colors.white} />
+              <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={29} color={isSaved ? colors.yellow : colors.white} />
             </Pressable>
           </View>
 
           <Pressable style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
-            <Ionicons name="camera" size={28} color={colors.black} />
+            <Ionicons name="camera" size={32} color={colors.black} />
           </Pressable>
         </View>
 
@@ -359,8 +359,8 @@ function PostSlide({
   onPress: () => void;
   onRecipePress: () => void;
 }) {
-  const artworkWidth = Math.min(Math.max(slideWidth - 60, 280), ARTWORK_MAX_WIDTH);
-  const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 170, 300));
+  const artworkWidth = Math.min(Math.max(slideWidth - 36, 280), ARTWORK_MAX_WIDTH);
+  const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 130, 320));
 
   return (
     <View style={[styles.slide, { height: slideHeight }]}>
@@ -480,35 +480,35 @@ function FeedArtwork({ post }: { post: Post }) {
 
 function feedImagePosition(layout: PostLayout, count: number, index: number) {
   if (count === 1) {
-    return { width: "86%" as const, height: "82%" as const, left: "7%" as const, top: "10%" as const, baseRotation: 0 };
+    return { width: "92%" as const, height: "88%" as const, left: "4%" as const, top: "6%" as const, baseRotation: 0 };
   }
 
   if (layout === "grid") {
     if (count === 2) {
       return [
-        { width: "52%" as const, height: "66%" as const, left: "3%" as const, top: "18%" as const, baseRotation: -2 },
-        { width: "52%" as const, height: "66%" as const, left: "45%" as const, top: "18%" as const, baseRotation: 2 }
+        { width: "55%" as const, height: "72%" as const, left: "2%" as const, top: "14%" as const, baseRotation: -2 },
+        { width: "55%" as const, height: "72%" as const, left: "43%" as const, top: "14%" as const, baseRotation: 2 }
       ][index];
     }
     return [
-      { width: "78%" as const, height: "78%" as const, left: "4%" as const, top: "10%" as const, baseRotation: -6 },
-      { width: "78%" as const, height: "78%" as const, left: "10%" as const, top: "5%" as const, baseRotation: 3 },
-      { width: "78%" as const, height: "78%" as const, left: "8%" as const, top: "12%" as const, baseRotation: 0 }
+      { width: "82%" as const, height: "82%" as const, left: "2%" as const, top: "9%" as const, baseRotation: -6 },
+      { width: "82%" as const, height: "82%" as const, left: "12%" as const, top: "4%" as const, baseRotation: 3 },
+      { width: "82%" as const, height: "82%" as const, left: "6%" as const, top: "11%" as const, baseRotation: 0 }
     ][index];
   }
 
   if (layout === "cascade") {
     return [
-      { width: "78%" as const, height: "78%" as const, left: "4%" as const, top: "10%" as const, baseRotation: -6 },
-      { width: "78%" as const, height: "78%" as const, left: "10%" as const, top: "5%" as const, baseRotation: 3 },
-      { width: "78%" as const, height: "78%" as const, left: "8%" as const, top: "12%" as const, baseRotation: 0 }
+      { width: "82%" as const, height: "82%" as const, left: "2%" as const, top: "9%" as const, baseRotation: -6 },
+      { width: "82%" as const, height: "82%" as const, left: "12%" as const, top: "4%" as const, baseRotation: 3 },
+      { width: "82%" as const, height: "82%" as const, left: "6%" as const, top: "11%" as const, baseRotation: 0 }
     ][index];
   }
 
   return [
-    { width: "78%" as const, height: "78%" as const, left: "4%" as const, top: "10%" as const, baseRotation: -6 },
-    { width: "78%" as const, height: "78%" as const, left: "10%" as const, top: "5%" as const, baseRotation: 3 },
-    { width: "78%" as const, height: "78%" as const, left: "8%" as const, top: "12%" as const, baseRotation: 0 }
+    { width: "82%" as const, height: "82%" as const, left: "2%" as const, top: "9%" as const, baseRotation: -6 },
+    { width: "82%" as const, height: "82%" as const, left: "12%" as const, top: "4%" as const, baseRotation: 3 },
+    { width: "82%" as const, height: "82%" as const, left: "6%" as const, top: "11%" as const, baseRotation: 0 }
   ][index];
 }
 
@@ -591,9 +591,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontFamily: fonts.bold,
-    fontSize: 29,
-    lineHeight: 38,
-    color: colors.black,
+    fontSize: 34,
+    lineHeight: 42,
+    color: colors.green,
     letterSpacing: 0
   },
   headerRight: {
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-start",
     paddingHorizontal: 18,
-    paddingTop: 70,
+    paddingTop: 30,
     overflow: "hidden"
   },
   artworkPress: {
@@ -809,14 +809,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.black,
-    borderRadius: 32,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    gap: 16
+    borderRadius: 36,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    gap: 18
   },
   pillBtn: {
-    width: 34,
-    height: 34,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center"
   },

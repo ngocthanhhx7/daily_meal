@@ -21,7 +21,7 @@ import { useSocket } from "../context/SocketContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
-import { getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
+import { IOS_MINIMUM_INPUT_FONT_SIZE, getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
 import { getParticipantAccent, getParticipantAvatarLabel, isDoubleTap } from "./messagePresentation";
 
 type Comment = {
@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 9,
     fontFamily: fonts.regular,
-    fontSize: 14,
+    fontSize: IOS_MINIMUM_INPUT_FONT_SIZE,
     color: colors.ink
   },
   sendBtn: {

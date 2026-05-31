@@ -20,7 +20,7 @@ import { useSocket } from "../context/SocketContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { ChatMessage, Conversation } from "../types/api";
-import { getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
+import { IOS_MINIMUM_INPUT_FONT_SIZE, getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
 import { getParticipantAccent, getParticipantAvatarLabel } from "./messagePresentation";
 
 function avatarSource(url?: string) {
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     color: colors.ink,
     fontFamily: fonts.regular,
-    fontSize: 15
+    fontSize: IOS_MINIMUM_INPUT_FONT_SIZE
   },
   sendButton: {
     width: 40,

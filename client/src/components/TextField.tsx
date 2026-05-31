@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, TextInput, type TextInputProps, View } from "react-native";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
+import { IOS_MINIMUM_INPUT_FONT_SIZE } from "../utils/keyboardAvoidance";
 import { AppText } from "./AppText";
 
 type TextFieldProps = TextInputProps & {
@@ -47,7 +48,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontFamily: fonts.regular,
-    fontSize: 15,
+    fontSize: IOS_MINIMUM_INPUT_FONT_SIZE,
     color: colors.ink
   },
   inputMultiline: {

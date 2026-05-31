@@ -22,7 +22,7 @@ import { useAuth } from "../context/AuthContext";
 import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
-import { getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
+import { IOS_MINIMUM_INPUT_FONT_SIZE, getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
 import { getAuthErrorMessage, validateLoginForm } from "./loginValidation";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     paddingHorizontal: 18,
     fontFamily: fonts.medium,
-    fontSize: 13,
+    fontSize: IOS_MINIMUM_INPUT_FONT_SIZE,
     color: colors.ink,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 4 },

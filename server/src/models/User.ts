@@ -5,6 +5,11 @@ const userSchema = new Schema(
     email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
     phone: { type: String, unique: true, sparse: true, trim: true },
     passwordHash: { type: String },
+    phoneOtp: {
+      codeHash: { type: String },
+      expiresAt: { type: Date },
+      attempts: { type: Number, default: 0 }
+    },
     facebookId: { type: String, unique: true, sparse: true },
     authProviders: {
       google: {

@@ -23,6 +23,7 @@ declare global {
             client_id: string;
             callback: (response: GoogleCredentialResponse) => void;
           }) => void;
+          renderButton: (parent: HTMLElement, options: Record<string, unknown>) => void;
           prompt: (callback?: (notification: GooglePromptNotification) => void) => void;
         };
       };
@@ -109,10 +110,34 @@ async function getWebGoogleIdToken() {
       }
     });
 
+    let button = document.getElementById("daily-meal-google-signin-button") as HTMLDivElement | null;
+    if (!button) {
+      button = document.createElement("div");
+      button.id = "daily-meal-google-signin-button";
+      button.style.position = "fixed";
+      button.style.left = "50%";
+      button.style.top = "50%";
+      button.style.transform = "translate(-50%, -50%)";
+      button.style.zIndex = "2147483647";
+      button.style.background = "#fff";
+      button.style.padding = "16px";
+      button.style.borderRadius = "12px";
+      button.style.boxShadow = "0 12px 32px rgba(0,0,0,0.24)";
+      document.body.appendChild(button);
+    }
+    button.innerHTML = "";
+
+    window.google?.accounts?.id?.renderButton(button, {
+      type: "standard",
+      theme: "outline",
+      size: "large",
+      text: "signin_with",
+      shape: "pill"
+    });
+
     window.google?.accounts?.id?.prompt((notification) => {
       if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) {
-        window.clearTimeout(timeout);
-        reject(new Error("Google login was cancelled or unavailable."));
+        // The rendered button remains visible as a fallback because One Tap is often blocked.
       }
     });
   });

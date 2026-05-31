@@ -110,6 +110,16 @@ export const api = {
       method: "POST",
       body
     }),
+  requestPhoneOtp: (body: { phone: string }) =>
+    request<{ message: string; requiresPasswordSetup: boolean; devOtp?: string }>("/api/auth/phone/request-otp", {
+      method: "POST",
+      body
+    }),
+  verifyPhoneOtp: (body: { phone: string; otp: string; password?: string; displayName?: string }) =>
+    request<{ token: string; user: User }>("/api/auth/phone/verify-otp", {
+      method: "POST",
+      body
+    }),
   loginWithFacebook: (accessToken: string) =>
     request<{ token: string; user: User }>("/api/auth/facebook", {
       method: "POST",

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, ImageBackground, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppButton } from "../components/AppButton";
 import { AppText } from "../components/AppText";
@@ -73,7 +73,7 @@ export function OnboardingScreen() {
     <ImageBackground
       source={require("../../assets/backgrounds/background1.png")}
       style={styles.background}
-      resizeMode="cover"
+      resizeMode="stretch"
     >
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
@@ -81,6 +81,15 @@ export function OnboardingScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Logo khủng long dễ thương ở trên cùng chuẩn Figma */}
+          <View style={styles.logoContainer}>
+            <Image
+              source={require("../../assets/logo/logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+
           {/* Header với Typography phóng to chuẩn Figma */}
           <View style={styles.header}>
             <AppText style={styles.titleText}>{step === "interests" ? "Chào bạn!!" : "Phong cách ăn"}</AppText>
@@ -168,6 +177,16 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 120, // Tạo khoảng trống lớn ở dưới để lộ hình vẽ đĩa ăn cực đẹp ở hình nền
     gap: 24
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 4
+  },
+  logo: {
+    width: 64,
+    height: 64,
+    borderRadius: 32
   },
   header: {
     marginTop: 20,

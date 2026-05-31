@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
@@ -93,7 +94,7 @@ export function LoginScreen() {
     <ImageBackground
       source={require("../../assets/backgrounds/background1.png")}
       style={styles.background}
-      resizeMode="cover"
+      resizeMode="stretch"
     >
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
@@ -105,6 +106,15 @@ export function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Logo khủng long dễ thương ở trên cùng chuẩn Figma */}
+            <View style={styles.logoContainer}>
+              <Image
+                source={require("../../assets/logo/logo.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+
             {/* Heading */}
             <View style={styles.heading}>
               <AppText variant="title">
@@ -203,6 +213,16 @@ const styles = StyleSheet.create({
   formContent: {
     padding: 20,
     gap: 16
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 4
+  },
+  logo: {
+    width: 64,
+    height: 64,
+    borderRadius: 32
   },
   heading: {
     gap: 4

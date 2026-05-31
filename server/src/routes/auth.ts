@@ -34,6 +34,17 @@ const phoneAuthBodySchema = z.object({
   displayName: z.string().min(1).max(80).optional()
 });
 
+const phoneOtpRequestSchema = z.object({
+  phone: z.string().min(8).max(20).transform(normalizePhoneNumber)
+});
+
+const phoneOtpVerifySchema = z.object({
+  phone: z.string().min(8).max(20).transform(normalizePhoneNumber),
+  otp: z.string().regex(/^\d{6}$/),
+  password: z.string().min(6).max(128).optional(),
+  displayName: z.string().min(1).max(80).optional()
+});
+
 const GOOGLE_LINK_REQUIRED =
   "Sign in with email and password first, then link Google in Settings.";
 
@@ -118,6 +129,97 @@ authRouter.post("/phone/register", async (req, res, next) => {
     });
 
     res.status(201).json({
+      token: signAccessToken(user._id.toString()),
+      user: userDto(user)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post("/phone/request-otp", async (req, res, next) => {
+  try {
+    const body = phoneOtpRequestSchema.parse(req.body);
+    const otp = process.env.NODE_ENV === "production"
+      ? crypto.randomInt(100000, 1000000).toString()
+      : "123456";
+
+    let user = await User.findOne({ phone: body.phone });
+
+    if (!user) {
+      user = await User.create({
+        phone: body.phone,
+        displayName: body.phone
+      });
+    }
+
+    user.phoneOtp = {
+      codeHash: await hashPassword(otp),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      attempts: 0
+    };
+    await user.save();
+
+    // TODO: replace this with an SMS provider (Twilio, Firebase Auth, eSMS, FPT SMS...) in production.
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[DEV OTP] ${body.phone}: ${otp}`);
+    }
+
+    res.json({
+      message: "Mã OTP đã được gửi",
+      requiresPasswordSetup: !user.passwordHash,
+      devOtp: process.env.NODE_ENV === "production" ? undefined : otp
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post("/phone/verify-otp", async (req, res, next) => {
+  try {
+    const body = phoneOtpVerifySchema.parse(req.body);
+    const user = await User.findOne({ phone: body.phone });
+
+    if (!user?.phoneOtp?.codeHash || !user.phoneOtp.expiresAt) {
+      throw new HttpError(400, "Vui lòng yêu cầu mã OTP mới");
+    }
+
+    if (user.phoneOtp.expiresAt.getTime() < Date.now()) {
+      user.phoneOtp = undefined;
+      await user.save();
+      throw new HttpError(400, "Mã OTP đã hết hạn");
+    }
+
+    if ((user.phoneOtp.attempts ?? 0) >= 5) {
+      user.phoneOtp = undefined;
+      await user.save();
+      throw new HttpError(429, "Bạn đã nhập sai quá nhiều lần. Vui lòng lấy mã mới");
+    }
+
+    const validOtp = await verifyPassword(body.otp, user.phoneOtp.codeHash);
+
+    if (!validOtp) {
+      user.phoneOtp.attempts = (user.phoneOtp.attempts ?? 0) + 1;
+      await user.save();
+      throw new HttpError(401, "Mã OTP không đúng");
+    }
+
+    if (!user.passwordHash && !body.password) {
+      throw new HttpError(400, "Vui lòng tạo mật khẩu cho lần đăng nhập đầu tiên");
+    }
+
+    if (!user.passwordHash && body.password) {
+      user.passwordHash = await hashPassword(body.password);
+    }
+
+    if (body.displayName && user.displayName === user.phone) {
+      user.displayName = body.displayName;
+    }
+
+    user.phoneOtp = undefined;
+    await user.save();
+
+    res.json({
       token: signAccessToken(user._id.toString()),
       user: userDto(user)
     });

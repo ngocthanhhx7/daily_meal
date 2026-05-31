@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Image, ImageBackground, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppButton } from "../components/AppButton";
 import { AppText } from "../components/AppText";
@@ -23,6 +23,22 @@ const eatingOptions = [
   "Khác..."
 ];
 
+const interestOffsetKeys = [
+  "offsetRightWide",
+  "offsetLeft",
+  "offsetCenterRight",
+  "offsetLeftWide",
+  "offsetRight"
+] as const;
+
+const eatingOffsetKeys = [
+  "offsetRightWide",
+  "offsetLeftWide",
+  "offsetCenterRight",
+  "offsetLeft",
+  "offsetRight"
+] as const;
+
 function ToggleChip({
   label,
   selected,
@@ -32,11 +48,11 @@ function ToggleChip({
   label: string;
   selected: boolean;
   onPress: () => void;
-  style?: any;
+  style?: object;
 }) {
   return (
     <Pressable onPress={onPress} style={[styles.chip, selected && styles.chipSelected, style]}>
-      <AppText variant="button" style={[styles.chipText, selected && styles.chipTextSelected]}>
+      <AppText style={[styles.chipText, selected && styles.chipTextSelected]} numberOfLines={1}>
         {label}
       </AppText>
     </Pressable>
@@ -65,9 +81,11 @@ export function OnboardingScreen() {
     }
   }
 
-  const options = step === "interests" ? interestOptions : eatingOptions;
-  const selected = step === "interests" ? interests : eatingStyles;
-  const setter = step === "interests" ? setInterests : setEatingStyles;
+  const isInterestStep = step === "interests";
+  const options = isInterestStep ? interestOptions : eatingOptions;
+  const selected = isInterestStep ? interests : eatingStyles;
+  const setter = isInterestStep ? setInterests : setEatingStyles;
+  const offsets = isInterestStep ? interestOffsetKeys : eatingOffsetKeys;
 
   return (
     <ImageBackground
@@ -76,91 +94,38 @@ export function OnboardingScreen() {
       resizeMode="stretch"
     >
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView
-          contentContainerStyle={styles.formContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Logo khủng long dễ thương ở trên cùng chuẩn Figma */}
-          <View style={styles.logoContainer}>
-            <Image
-              source={require("../../assets/logo/logo.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
+        <View style={styles.content}>
+          <View style={styles.logoBadge}>
+            <Image source={require("../../assets/logo/logo.png")} style={styles.logo} resizeMode="cover" />
           </View>
 
-          {/* Header với Typography phóng to chuẩn Figma */}
           <View style={styles.header}>
-            <AppText style={styles.titleText}>{step === "interests" ? "Chào bạn!!" : "Phong cách ăn"}</AppText>
+            <AppText style={styles.titleText}>{isInterestStep ? "Chào bạn!!" : "Phong cách ăn"}</AppText>
             <AppText style={styles.subtitleText}>
-              {step === "interests"
-                ? "Bạn là người như thế nào?"
-                : "Xu hướng ăn của bạn là gì?"}
+              {isInterestStep ? "Bạn là người như thế nào?" : "Xu hướng ăn của bạn là gì?"}
             </AppText>
           </View>
 
-          {/* Grid Layout so le (staggered) chuẩn thiết kế */}
           <View style={styles.grid}>
-            {options.map((option, index) => {
-              let staggeredStyle = {};
-              
-              if (step === "interests") {
-                if (index === 0) {
-                  // "Thích chụp ảnh": lệch phải
-                  staggeredStyle = { alignSelf: "flex-end", marginRight: 24 };
-                } else if (index === 1) {
-                  // "Thích ăn uống": lệch trái
-                  staggeredStyle = { alignSelf: "flex-start", marginLeft: 16 };
-                } else if (index === 2) {
-                  // "Thích note lại công thức nấu ăn": lệch phải/giữa
-                  staggeredStyle = { alignSelf: "center", marginRight: -24 };
-                } else if (index === 3) {
-                  // "Muốn tìm những công thức mới": lệch trái
-                  staggeredStyle = { alignSelf: "flex-start", marginLeft: 24 };
-                } else if (index === 4) {
-                  // "Khác....": lệch phải sâu
-                  staggeredStyle = { alignSelf: "flex-end", marginRight: 48 };
-                }
-              } else {
-                if (index === 0) {
-                  // "Ăn chay niệm phật": lệch phải
-                  staggeredStyle = { alignSelf: "flex-end", marginRight: 32 };
-                } else if (index === 1) {
-                  // "Thâm hụt calo": lệch trái
-                  staggeredStyle = { alignSelf: "flex-start", marginLeft: 24 };
-                } else if (index === 2) {
-                  // "Chế độ keto": lệch phải nhẹ/giữa
-                  staggeredStyle = { alignSelf: "center", marginRight: -16 };
-                } else if (index === 3) {
-                  // "Không theo phong cách nào": lệch trái
-                  staggeredStyle = { alignSelf: "flex-start", marginLeft: 12 };
-                } else if (index === 4) {
-                  // "Khác...": lệch phải sâu
-                  staggeredStyle = { alignSelf: "flex-end", marginRight: 40 };
-                }
-              }
-
-              return (
-                <ToggleChip
-                  key={option}
-                  label={option}
-                  selected={selected.includes(option)}
-                  onPress={() => toggle(option, selected, setter)}
-                  style={staggeredStyle}
-                />
-              );
-            })}
+            {options.map((option, index) => (
+              <ToggleChip
+                key={option}
+                label={option}
+                selected={selected.includes(option)}
+                onPress={() => toggle(option, selected, setter)}
+                style={styles[offsets[index]]}
+              />
+            ))}
           </View>
 
-          <View style={styles.buttonContainer}>
-            <AppButton
-              label={step === "interests" ? "Tiếp tục" : "Vào Daily Meal"}
-              onPress={step === "interests" ? () => setStep("eating") : finish}
-              loading={loading}
-            />
+          <View style={styles.footer}>
+            {isInterestStep ? (
+              <AppButton label="Tiếp tục" onPress={() => setStep("eating")} style={styles.cta} />
+            ) : (
+              <AppButton label="Vào Daily Meal" onPress={finish} loading={loading} style={styles.cta} />
+            )}
           </View>
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -173,78 +138,112 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1
   },
-  formContent: {
-    padding: 24,
-    paddingBottom: 120, // Tạo khoảng trống lớn ở dưới để lộ hình vẽ đĩa ăn cực đẹp ở hình nền
-    gap: 24
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 260
   },
-  logoContainer: {
+  logoBadge: {
+    position: "absolute",
+    top: 0,
+    alignSelf: "center",
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: colors.white,
     alignItems: "center",
-    marginTop: 10,
-    marginBottom: 4
+    justifyContent: "center",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 5
   },
   logo: {
-    width: 64,
-    height: 64,
-    borderRadius: 32
+    width: 46,
+    height: 46,
+    borderRadius: 23
   },
   header: {
-    marginTop: 20,
-    marginBottom: 8,
-    gap: 6
+    marginTop: 48,
+    marginBottom: 30,
+    gap: 4
   },
   titleText: {
-    fontSize: 36,
-    lineHeight: 44,
     fontFamily: fonts.bold,
-    color: colors.ink
+    fontSize: 30,
+    lineHeight: 38,
+    color: colors.black,
+    letterSpacing: 0
   },
   subtitleText: {
-    fontSize: 16,
-    lineHeight: 22,
-    fontFamily: fonts.medium,
-    color: colors.muted
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.ink
   },
   grid: {
-    gap: 16,
-    width: "100%"
+    gap: 18
   },
   chip: {
-    minHeight: 48,
-    minWidth: 200,
-    borderRadius: 24,
+    minHeight: 31,
+    minWidth: 136,
+    maxWidth: "92%",
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 0,
     backgroundColor: colors.white,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderWidth: 0, // Không viền chuẩn Figma
-    
-    // Hiệu ứng đổ bóng sticker nổi 3D cực kỳ xịn sò
+    paddingHorizontal: 24,
+    paddingVertical: 8,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 4
   },
   chipSelected: {
-    backgroundColor: colors.black,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 5
+    backgroundColor: colors.green
   },
   chipText: {
     textAlign: "center",
-    color: colors.ink,
-    fontSize: 15,
+    color: colors.black,
+    fontSize: 12,
+    lineHeight: 15,
     fontFamily: fonts.semibold
   },
   chipTextSelected: {
     color: colors.white
   },
-  buttonContainer: {
-    marginTop: 16
+  offsetRightWide: {
+    alignSelf: "flex-end",
+    marginRight: 6
+  },
+  offsetLeft: {
+    alignSelf: "flex-start",
+    marginLeft: 8
+  },
+  offsetCenterRight: {
+    alignSelf: "center",
+    marginRight: -22
+  },
+  offsetLeftWide: {
+    alignSelf: "flex-start",
+    marginLeft: 0
+  },
+  offsetRight: {
+    alignSelf: "flex-end",
+    marginRight: 0
+  },
+  footer: {
+    marginTop: 30
+  },
+  cta: {
+    minHeight: 46,
+    borderRadius: 14
   }
 });

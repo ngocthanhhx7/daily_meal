@@ -4,8 +4,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Image,
-  ImageBackground,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -14,6 +14,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "../api/client";
 import { AppText } from "../components/AppText";
+import { FigmaLineBackground } from "../components/AppScreen";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { demoPosts } from "../data/sample";
@@ -22,14 +23,18 @@ import { fonts } from "../theme/typography";
 import type { Post, PostLayout } from "../types/api";
 import { stickerImageSource } from "../utils/stickers";
 
-const ARTWORK_MAX_WIDTH = 390;
-const ARTWORK_ASPECT_RATIO = 1.08;
+const PHONE_MAX_WIDTH = 383;
+const ARTWORK_MAX_WIDTH = 330;
+const ARTWORK_ASPECT_RATIO = 1.12;
 
 const DEMO_IMAGES = [
-  require("../../assets/figma-snapshots/image1.png"),
-  require("../../assets/figma-snapshots/image3.png"),
-  require("../../assets/figma-snapshots/image10.png")
+  require("../../assets/feed/home-food-back.png"),
+  require("../../assets/feed/home-food-mid.png"),
+  require("../../assets/feed/home-food-main.png")
 ];
+
+const DEMO_STICKER = require("../../assets/feed/home-sticker.png");
+const DEMO_AUTHOR_AVATAR = require("../../assets/feed/home-author.png");
 
 const CATEGORY_ITEMS = [
   { icon: "search-outline" as const, label: "Tìm kiếm", screen: "Search" },
@@ -229,12 +234,8 @@ export function HomeScreen({ navigation }: any) {
   }
 
   return (
-    <ImageBackground
-      source={require("../../assets/backgrounds/background2.png")}
-      style={styles.background}
-      resizeMode="stretch"
-    >
-      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+    <FigmaLineBackground>
+      <SafeAreaView style={[styles.safe, styles.phoneFrame]} edges={["top", "bottom"]}>
         <View style={styles.header}>
           <AppText style={styles.headerTitle}>Bảng tin</AppText>
           <View style={styles.headerRight}>
@@ -315,7 +316,7 @@ export function HomeScreen({ navigation }: any) {
           onNavigate={(screen) => navigation.navigate(screen)}
         />
       </SafeAreaView>
-    </ImageBackground>
+    </FigmaLineBackground>
   );
 }
 
@@ -334,8 +335,8 @@ function PostSlide({
   onPress: () => void;
   onRecipePress: () => void;
 }) {
-  const artworkWidth = Math.min(Math.max(slideWidth - 56, 250), ARTWORK_MAX_WIDTH);
-  const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 128, 260));
+  const artworkWidth = Math.min(Math.max(slideWidth - 60, 280), ARTWORK_MAX_WIDTH);
+  const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 170, 300));
 
   return (
     <View style={[styles.slide, { height: slideHeight }]}>
@@ -373,9 +374,13 @@ function PostSlide({
 
       <View style={styles.authorChip}>
         <View style={styles.authorAvatar}>
-          <AppText style={styles.authorAvatarText}>
-            {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
-          </AppText>
+          {post._id.startsWith("demo") ? (
+            <Image source={DEMO_AUTHOR_AVATAR} style={styles.authorAvatarImage} resizeMode="cover" />
+          ) : (
+            <AppText style={styles.authorAvatarText}>
+              {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
+            </AppText>
+          )}
         </View>
         <AppText style={styles.authorName} numberOfLines={1}>
           {post.author?.displayName ?? "Daily Meal"}
@@ -392,7 +397,7 @@ function PostSlide({
 function FeedArtwork({ post }: { post: Post }) {
   const imageCount = Math.max(post.images.length, 1);
   const layout = post.layout ?? "stack";
-  const stickerSource = stickerImageSource(post.stickerId);
+  const stickerSource = stickerImageSource(post.stickerId) ?? (post._id.startsWith("demo") ? DEMO_STICKER : null);
   const placement = post.stickerPlacement ?? { x: 0.78, y: 0.78, scale: 1, rotation: 0 };
 
   return (
@@ -451,35 +456,35 @@ function FeedArtwork({ post }: { post: Post }) {
 
 function feedImagePosition(layout: PostLayout, count: number, index: number) {
   if (count === 1) {
-    return { width: "78%" as const, height: "78%" as const, left: "11%" as const, top: "10%" as const, baseRotation: 0 };
+    return { width: "86%" as const, height: "82%" as const, left: "7%" as const, top: "10%" as const, baseRotation: 0 };
   }
 
   if (layout === "grid") {
     if (count === 2) {
       return [
-        { width: "48%" as const, height: "62%" as const, left: "4%" as const, top: "20%" as const, baseRotation: -1 },
-        { width: "48%" as const, height: "62%" as const, left: "48%" as const, top: "20%" as const, baseRotation: 2 }
+        { width: "52%" as const, height: "66%" as const, left: "3%" as const, top: "18%" as const, baseRotation: -2 },
+        { width: "52%" as const, height: "66%" as const, left: "45%" as const, top: "18%" as const, baseRotation: 2 }
       ][index];
     }
     return [
-      { width: "55%" as const, height: "55%" as const, left: "7%" as const, top: "14%" as const, baseRotation: -2 },
-      { width: "44%" as const, height: "44%" as const, left: "50%" as const, top: "28%" as const, baseRotation: 2 },
-      { width: "36%" as const, height: "36%" as const, left: "28%" as const, top: "61%" as const, baseRotation: -4 }
+      { width: "78%" as const, height: "78%" as const, left: "4%" as const, top: "10%" as const, baseRotation: -6 },
+      { width: "78%" as const, height: "78%" as const, left: "10%" as const, top: "5%" as const, baseRotation: 3 },
+      { width: "78%" as const, height: "78%" as const, left: "8%" as const, top: "12%" as const, baseRotation: 0 }
     ][index];
   }
 
   if (layout === "cascade") {
     return [
-      { width: "68%" as const, height: "68%" as const, left: "10%" as const, top: "11%" as const, baseRotation: -6 },
-      { width: "68%" as const, height: "68%" as const, left: "22%" as const, top: "18%" as const, baseRotation: 5 },
-      { width: "56%" as const, height: "56%" as const, left: "36%" as const, top: "35%" as const, baseRotation: 8 }
+      { width: "78%" as const, height: "78%" as const, left: "4%" as const, top: "10%" as const, baseRotation: -6 },
+      { width: "78%" as const, height: "78%" as const, left: "10%" as const, top: "5%" as const, baseRotation: 3 },
+      { width: "78%" as const, height: "78%" as const, left: "8%" as const, top: "12%" as const, baseRotation: 0 }
     ][index];
   }
 
   return [
-    { width: "74%" as const, height: "74%" as const, left: "10%" as const, top: "12%" as const, baseRotation: -4 },
-    { width: "74%" as const, height: "74%" as const, left: "17%" as const, top: "8%" as const, baseRotation: 6 },
-    { width: "74%" as const, height: "74%" as const, left: "13%" as const, top: "15%" as const, baseRotation: 0 }
+    { width: "78%" as const, height: "78%" as const, left: "4%" as const, top: "10%" as const, baseRotation: -6 },
+    { width: "78%" as const, height: "78%" as const, left: "10%" as const, top: "5%" as const, baseRotation: 3 },
+    { width: "78%" as const, height: "78%" as const, left: "8%" as const, top: "12%" as const, baseRotation: 0 }
   ][index];
 }
 
@@ -538,13 +543,26 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: "hidden"
   },
+  phoneFrame: {
+    width: "100%",
+    maxWidth: PHONE_MAX_WIDTH,
+    alignSelf: "center",
+    backgroundColor: "transparent",
+    borderWidth: Platform.OS === "web" ? 1 : 0,
+    borderColor: Platform.OS === "web" ? colors.black : "transparent",
+    borderRadius: Platform.OS === "web" ? 40 : 0,
+    shadowColor: colors.black,
+    shadowOpacity: Platform.OS === "web" ? 0.14 : 0,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 }
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 6,
+    paddingBottom: 8,
     overflow: "hidden"
   },
   headerTitle: {
@@ -567,12 +585,14 @@ const styles = StyleSheet.create({
   },
   feedWrap: {
     flex: 1,
-    overflow: "hidden"
+    overflow: "hidden",
+    paddingTop: 6
   },
   slide: {
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     paddingHorizontal: 18,
+    paddingTop: 70,
     overflow: "hidden"
   },
   artworkPress: {
@@ -584,12 +604,14 @@ const styles = StyleSheet.create({
     height: "100%"
   },
   feedArtworkCanvas: {
-    flex: 1
+    flex: 1,
+    overflow: "visible"
   },
   feedImageWrap: {
     position: "absolute",
     borderRadius: 22,
     backgroundColor: colors.canvasStrong,
+    overflow: "hidden",
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
@@ -604,7 +626,7 @@ const styles = StyleSheet.create({
   recipeChip: {
     position: "absolute",
     top: 24,
-    left: 2,
+    left: 0,
     zIndex: 90,
     borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.95)",
@@ -624,7 +646,7 @@ const styles = StyleSheet.create({
   statsChip: {
     position: "absolute",
     top: 22,
-    right: 2,
+    right: 0,
     zIndex: 90,
     flexDirection: "row",
     alignItems: "center",
@@ -646,8 +668,8 @@ const styles = StyleSheet.create({
   },
   caloBadge: {
     position: "absolute",
-    top: 65,
-    right: 4,
+    top: 62,
+    right: 0,
     zIndex: 90,
     borderRadius: 15,
     backgroundColor: "rgba(255,255,255,0.95)",
@@ -666,7 +688,7 @@ const styles = StyleSheet.create({
   },
   captionChip: {
     position: "absolute",
-    left: 4,
+    left: 0,
     bottom: 22,
     zIndex: 90,
     maxWidth: "86%",
@@ -690,8 +712,8 @@ const styles = StyleSheet.create({
   },
   feedSticker: {
     position: "absolute",
-    width: 74,
-    height: 74,
+    width: 78,
+    height: 78,
     zIndex: 80
   },
   authorChip: {
@@ -719,6 +741,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
+  authorAvatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 15
+  },
   authorAvatarText: {
     fontFamily: fonts.bold,
     fontSize: 13,
@@ -741,7 +768,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 34,
     paddingTop: 8,
-    paddingBottom: 8
+    paddingBottom: 8,
+    maxWidth: PHONE_MAX_WIDTH,
+    width: "100%",
+    alignSelf: "center"
   },
   squareBtn: {
     width: 52,

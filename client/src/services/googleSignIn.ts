@@ -95,6 +95,8 @@ async function getWebGoogleIdToken() {
 
   return new Promise<string>((resolve, reject) => {
     const timeout = window.setTimeout(() => {
+      const button = document.getElementById("daily-meal-google-signin-button");
+      if (button) button.remove();
       reject(new Error("Google login timed out."));
     }, 60000);
 
@@ -102,6 +104,9 @@ async function getWebGoogleIdToken() {
       client_id: clientId,
       callback: (response) => {
         window.clearTimeout(timeout);
+        const button = document.getElementById("daily-meal-google-signin-button");
+        if (button) button.remove();
+
         if (!response.credential) {
           reject(new Error("Google did not return an ID token."));
           return;

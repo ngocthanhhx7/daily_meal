@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,7 +14,7 @@ import { colors } from "../theme/colors";
 type AppScreenProps = ViewProps & {
   scroll?: boolean;
   keyboard?: boolean;
-  /** Set true to skip the background image (e.g. login/onboarding manage their own) */
+  /** Set true to skip the Figma line background (e.g. login/onboarding manage their own) */
   noBackground?: boolean;
   scrollProps?: Omit<ScrollViewProps, "showsVerticalScrollIndicator">;
 };
@@ -57,20 +56,38 @@ export function AppScreen({
     return inner;
   }
 
+  return <FigmaLineBackground>{inner}</FigmaLineBackground>;
+}
+
+export function FigmaLineBackground({ children }: { children: React.ReactNode }) {
   return (
-    <ImageBackground
-      source={require("../../assets/backgrounds/background2.png")}
-      style={styles.background}
-      resizeMode="stretch"
-    >
-      {inner}
-    </ImageBackground>
+    <View style={styles.background}>
+      <View pointerEvents="none" style={styles.linePattern}>
+        {Array.from({ length: 72 }).map((_, index) => (
+          <View key={index} style={styles.patternLine} />
+        ))}
+      </View>
+      {children}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   background: {
-    flex: 1
+    flex: 1,
+    backgroundColor: "#F5F5F5",
+    overflow: "hidden"
+  },
+  linePattern: {
+    ...StyleSheet.absoluteFillObject,
+    top: 0,
+    left: -20,
+    width: "116%"
+  },
+  patternLine: {
+    height: 12,
+    borderBottomWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)"
   },
   safeArea: {
     flex: 1

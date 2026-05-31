@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import {
   Alert,
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,7 +15,7 @@ import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import { AppButton } from "../components/AppButton";
 import { AppText } from "../components/AppText";
-import { TextField } from "../components/TextField";
+import { FigmaLineBackground } from "../components/AppScreen";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
@@ -90,11 +90,7 @@ export function LoginScreen() {
   }
 
   return (
-    <ImageBackground
-      source={require("../../assets/backgrounds/background1.png")}
-      style={styles.background}
-      resizeMode="stretch"
-    >
+    <FigmaLineBackground>
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.select({ ios: "padding", android: undefined })}
@@ -105,14 +101,20 @@ export function LoginScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            <View style={styles.foodCluster} pointerEvents="none">
+              <View style={[styles.foodImage, styles.foodLeft]} />
+              <View style={[styles.foodImage, styles.foodCenter]} />
+              <View style={[styles.foodImage, styles.foodRight]} />
+            </View>
+
             <View style={styles.formCard}>
 
             {/* Heading */}
             <View style={styles.heading}>
-              <AppText variant="title">
+              <AppText style={styles.titleText}>
                 {mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
               </AppText>
-              <AppText muted>
+              <AppText style={styles.subtitleText}>
                 {mode === "login"
                   ? "Chọn phương thức đăng nhập"
                   : "Bắt đầu hành trình ẩm thực của bạn."}
@@ -121,22 +123,16 @@ export function LoginScreen() {
 
             {/* Section header */}
             {mode === "login" ? (
-              <AppText variant="label" style={styles.sectionHeader}>
+              <AppText style={styles.sectionHeader}>
                 Đăng nhập vào tk hiện có
               </AppText>
             ) : null}
 
             {/* Form */}
             {mode === "register" ? (
-              <TextField
-                label="Tên hiển thị"
-                value={displayName}
-                onChangeText={setDisplayName}
-                placeholder="Nguyễn Văn A"
-                autoCapitalize="words"
-              />
+              <FigmaField label="Tên hiển thị" value={displayName} onChangeText={setDisplayName} placeholder="Nguyễn Văn A" autoCapitalize="words" />
             ) : null}
-            <TextField
+            <FigmaField
               label={mode === "login" ? "Tên đăng nhập" : "Email"}
               value={email}
               onChangeText={setEmail}
@@ -144,7 +140,7 @@ export function LoginScreen() {
               autoCapitalize="none"
               placeholder={mode === "login" ? "Nhập tên đăng nhập" : "email@example.com"}
             />
-            <TextField
+            <FigmaField
               label="Mật khẩu"
               value={password}
               onChangeText={setPassword}
@@ -152,11 +148,13 @@ export function LoginScreen() {
               placeholder="Nhập mật khẩu"
             />
 
-            <AppButton
-              label={mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
-              onPress={submit}
-              loading={loading}
-            />
+            <View style={styles.primaryAction}>
+              <AppButton
+                label={mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
+                onPress={submit}
+                loading={loading}
+              />
+            </View>
 
             <Pressable onPress={() => setMode(mode === "login" ? "register" : "login")}>
               <AppText style={styles.switchText}>
@@ -168,7 +166,7 @@ export function LoginScreen() {
             </Pressable>
 
             {/* Divider label */}
-            <AppText variant="caption" muted>
+            <AppText style={styles.otherLoginText}>
               Phương thức đăng nhập khác
             </AppText>
 
@@ -189,7 +187,22 @@ export function LoginScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </ImageBackground>
+    </FigmaLineBackground>
+  );
+}
+
+type FigmaFieldProps = React.ComponentProps<typeof TextInput> & { label: string };
+
+function FigmaField({ label, style, ...props }: FigmaFieldProps) {
+  return (
+    <View style={styles.fieldWrap}>
+      <AppText style={styles.fieldLabel}>{label}</AppText>
+      <TextInput
+        placeholderTextColor="rgba(0, 0, 0, 0.41)"
+        {...props}
+        style={[styles.figmaInput, style]}
+      />
+    </View>
   );
 }
 
@@ -204,19 +217,71 @@ const styles = StyleSheet.create({
     flex: 1
   },
   formContent: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 26,
+    paddingBottom: 170,
     flexGrow: 1,
-    justifyContent: "center"
+    minHeight: 812
   },
   formCard: {
-    gap: 16
+    gap: 0,
+    zIndex: 2
   },
 
   heading: {
-    gap: 4
+    gap: 8,
+    marginTop: 22,
+    marginBottom: 25
+  },
+  titleText: {
+    fontFamily: fonts.bold,
+    fontSize: 32,
+    lineHeight: 40,
+    color: colors.ink
+  },
+  subtitleText: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 15,
+    color: colors.ink
   },
   sectionHeader: {
-    marginTop: 4
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 15,
+    color: colors.ink,
+    marginBottom: 5
+  },
+  fieldWrap: {
+    gap: 9,
+    marginBottom: 17
+  },
+  fieldLabel: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 15,
+    color: "rgba(68, 68, 68, 0.68)"
+  },
+  figmaInput: {
+    height: 40,
+    borderRadius: 12,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderBottomRightRadius: 0,
+    backgroundColor: colors.white,
+    paddingHorizontal: 18,
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.ink,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 15.5,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5
+  },
+  primaryAction: {
+    marginTop: 1,
+    marginBottom: 11
   },
   switchText: {
     textAlign: "center",
@@ -228,15 +293,62 @@ const styles = StyleSheet.create({
   },
   socialRow: {
     flexDirection: "row",
-    justifyContent: "flex-start",
-    gap: 16
+    justifyContent: "center",
+    gap: 32,
+    marginTop: 11
   },
   socialButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.green,
     alignItems: "center",
     justifyContent: "center"
+  },
+  otherLoginText: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 15,
+    color: colors.ink,
+    marginTop: 11
+  },
+  foodCluster: {
+    position: "absolute",
+    left: -175,
+    right: -145,
+    bottom: -195,
+    height: 438,
+    zIndex: 0
+  },
+  foodImage: {
+    position: "absolute",
+    backgroundColor: "#C9C2AB",
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.16,
+    shadowRadius: 12.5,
+    shadowOffset: { width: -1, height: 5 },
+    elevation: 4,
+    transform: [{ rotate: "-15deg" }]
+  },
+  foodLeft: {
+    left: 0,
+    top: 4,
+    width: 416,
+    height: 436
+  },
+  foodCenter: {
+    left: 190,
+    top: 0,
+    width: 296,
+    height: 353,
+    backgroundColor: "#D7D0B6"
+  },
+  foodRight: {
+    right: 0,
+    top: 40,
+    width: 425,
+    height: 439,
+    backgroundColor: "#B7C0BC"
   }
 });

@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   },
   statItem: {
     flex: 1,
-    alignItems: "flex-start",
+    alignItems: "center",
     minWidth: 0,
     gap: 1
   },
@@ -450,13 +450,14 @@ const styles = StyleSheet.create({
     color: colors.black,
     fontFamily: fonts.bold,
     fontSize: 15,
-    lineHeight: 19
+    lineHeight: 19,
+    textAlign: "center"
   },
   statLabel: {
     color: colors.muted,
     fontSize: 10,
     lineHeight: 13,
-    textAlign: "left"
+    textAlign: "center"
   },
   bioBlock: {
     gap: 3,

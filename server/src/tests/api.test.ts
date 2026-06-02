@@ -141,7 +141,7 @@ describe("Daily Meal API", () => {
     process.env.TWILIO_AUTH_TOKEN = "twilio-token";
     process.env.TWILIO_FROM_PHONE = "+15551234567";
 
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
       new Response(JSON.stringify({ sid: "SM123" }), {
         status: 201,
         headers: { "Content-Type": "application/json" }

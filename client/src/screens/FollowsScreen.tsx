@@ -133,6 +133,19 @@ export function FollowsScreen({ route, navigation }: any) {
             {titleText}
           </AppText>
         </View>
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryIcon}>
+            <Ionicons name={activeTab === "followers" ? "people-outline" : "person-add-outline"} size={22} color={colors.greenDark} />
+          </View>
+          <View style={styles.summaryCopy}>
+            <AppText variant="button">
+              {activeTab === "followers" ? "Cộng đồng đang theo dõi bạn" : "Những người bạn đang đồng hành"}
+            </AppText>
+            <AppText variant="caption" muted>
+              {users.length} {activeTab === "followers" ? "người theo dõi" : "đang theo dõi"}
+            </AppText>
+          </View>
+        </View>
       </View>
 
       {/* Segment control tabs */}
@@ -226,7 +239,7 @@ export function FollowsScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   headerBlock: {
-    gap: 4
+    gap: 12
   },
   headerRow: {
     flexDirection: "row",
@@ -245,11 +258,33 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: colors.black
   },
+  summaryCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: "#F8F5E8",
+    borderWidth: 1,
+    borderColor: colors.line
+  },
+  summaryIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#E8F0DE",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  summaryCopy: {
+    flex: 1,
+    gap: 2
+  },
   segment: {
     flexDirection: "row",
-    gap: 8,
-    backgroundColor: colors.surface,
-    borderRadius: 10,
+    gap: 6,
+    backgroundColor: "#EEEAE0",
+    borderRadius: 18,
     padding: 4,
     borderWidth: 1,
     borderColor: colors.line,
@@ -260,10 +295,15 @@ const styles = StyleSheet.create({
     minHeight: 38,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8
+    borderRadius: 14
   },
   segmentItemActive: {
-    backgroundColor: colors.black
+    backgroundColor: colors.black,
+    shadowColor: colors.black,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2
   },
   segmentLabel: {
     color: colors.muted
@@ -286,11 +326,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    padding: 12,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: colors.surface
+    backgroundColor: colors.surface,
+    shadowColor: colors.black,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2
   },
   userInfo: {
     flex: 1,
@@ -300,9 +345,9 @@ const styles = StyleSheet.create({
     minWidth: 0
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",

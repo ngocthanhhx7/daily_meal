@@ -10,7 +10,6 @@ import { PostCard } from "../components/PostCard";
 import { StaggerItem, BouncePress } from "../components/Animations";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
-import { demoPosts } from "../data/sample";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post, User } from "../types/api";
@@ -34,7 +33,7 @@ export function SearchScreen({ navigation, route }: any) {
   const { token, refreshUser } = useAuth();
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<SearchMode>("posts");
-  const [posts, setPosts] = useState<Post[]>(demoPosts);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -106,7 +105,15 @@ export function SearchScreen({ navigation, route }: any) {
             <Ionicons name="home-outline" size={24} color={colors.black} />
           </BouncePress>
         </View>
-        <AppText muted>Tìm món ăn, nguyên liệu, người dùng hoặc thẻ.</AppText>
+        <View style={styles.heroCard}>
+          <View style={styles.heroIcon}>
+            <Ionicons name="sparkles-outline" size={20} color={colors.greenDark} />
+          </View>
+          <View style={styles.heroCopy}>
+            <AppText variant="button">Khám phá bữa ăn phù hợp</AppText>
+            <AppText variant="caption" muted>Tìm món ăn, nguyên liệu, người dùng hoặc thẻ yêu thích.</AppText>
+          </View>
+        </View>
       </View>
 
       {/* Search bar */}
@@ -229,7 +236,7 @@ export function SearchScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   headerBlock: {
-    gap: 4
+    gap: 12
   },
   headerRow: {
     flexDirection: "row",
@@ -245,6 +252,28 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1
   },
+  heroCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: "#F8F5E8",
+    borderWidth: 1,
+    borderColor: colors.line
+  },
+  heroIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#E8F0DE",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  heroCopy: {
+    flex: 1,
+    gap: 2
+  },
   searchRow: {
     flexDirection: "row",
     gap: 10,
@@ -257,9 +286,9 @@ const styles = StyleSheet.create({
     marginTop: 0
   },
   searchButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     backgroundColor: colors.black,
     alignItems: "center",
     justifyContent: "center",
@@ -272,8 +301,8 @@ const styles = StyleSheet.create({
     gap: 8
   },
   filter: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 20,
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -281,9 +310,9 @@ const styles = StyleSheet.create({
   },
   segment: {
     flexDirection: "row",
-    gap: 8,
-    backgroundColor: colors.surface,
-    borderRadius: 10,
+    gap: 6,
+    backgroundColor: "#EEEAE0",
+    borderRadius: 18,
     padding: 4,
     borderWidth: 1,
     borderColor: colors.line
@@ -293,10 +322,15 @@ const styles = StyleSheet.create({
     minHeight: 38,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8
+    borderRadius: 14
   },
   segmentItemActive: {
-    backgroundColor: colors.black
+    backgroundColor: colors.black,
+    shadowColor: colors.black,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2
   },
   segmentLabel: {
     color: colors.muted
@@ -308,11 +342,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    padding: 12,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: colors.surface
+    backgroundColor: colors.surface,
+    shadowColor: colors.black,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2
   },
   userInfo: {
     flex: 1,
@@ -322,9 +361,9 @@ const styles = StyleSheet.create({
     minWidth: 0
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",

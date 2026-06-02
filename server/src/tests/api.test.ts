@@ -76,6 +76,10 @@ describe("Daily Meal API", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    delete process.env.SMS_PROVIDER;
+    delete process.env.TWILIO_ACCOUNT_SID;
+    delete process.env.TWILIO_AUTH_TOKEN;
+    delete process.env.TWILIO_FROM_PHONE;
   });
 
   afterAll(async () => {
@@ -122,6 +126,57 @@ describe("Daily Meal API", () => {
 
     const legacyUser = await User.findOne({ phone: "0900000000" }).lean();
     expect(legacyUser?.email).toBeUndefined();
+  });
+
+  it("sends phone OTP through Twilio in production", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    process.env.SMS_PROVIDER = "twilio";
+    process.env.TWILIO_ACCOUNT_SID = "AC123456789";
+    process.env.TWILIO_AUTH_TOKEN = "twilio-token";
+    process.env.TWILIO_FROM_PHONE = "+15551234567";
+
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ sid: "SM123" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await request(app)
+      .post("/api/auth/phone/request-otp")
+      .send({ phone: "0772211666" })
+      .expect(200);
+
+    expect(response.body.devOtp).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe("https://api.twilio.com/2010-04-01/Accounts/AC123456789/Messages.json");
+    expect(init?.method).toBe("POST");
+    expect(init?.headers).toMatchObject({
+      Authorization: `Basic ${Buffer.from("AC123456789:twilio-token").toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    });
+    const body = new URLSearchParams(String(init?.body));
+    expect(body.get("From")).toBe("+15551234567");
+    expect(body.get("To")).toBe("+84772211666");
+    expect(body.get("Body")).toMatch(/Daily Meal.*\d{6}/);
+
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it("does not claim phone OTP was sent in production without an SMS provider", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+
+    const response = await request(app)
+      .post("/api/auth/phone/request-otp")
+      .send({ phone: "0772211667" })
+      .expect(503);
+
+    expect(response.body.message).toContain("Chưa cấu hình dịch vụ gửi OTP");
+    process.env.NODE_ENV = originalNodeEnv;
   });
 
   it("saves onboarding preferences", async () => {

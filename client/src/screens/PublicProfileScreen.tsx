@@ -249,8 +249,28 @@ export function PublicProfileScreen({ route, navigation }: any) {
           </AppText>
           <View style={styles.stats}>
             <StatItem label="Bài viết" value={profile.counts?.posts ?? posts.length} />
-            <StatItem label="Theo dõi" value={profile.counts?.followers ?? 0} />
-            <StatItem label="Đang TD" value={profile.counts?.following ?? 0} />
+            <StatItem
+              label="Theo dõi"
+              value={profile.counts?.followers ?? 0}
+              onPress={() =>
+                navigation.navigate("Follows", {
+                  userId: profile.id,
+                  initialTab: "followers",
+                  displayName: profile.displayName
+                })
+              }
+            />
+            <StatItem
+              label="Đang TD"
+              value={profile.counts?.following ?? 0}
+              onPress={() =>
+                navigation.navigate("Follows", {
+                  userId: profile.id,
+                  initialTab: "following",
+                  displayName: profile.displayName
+                })
+              }
+            />
           </View>
         </View>
       </View>
@@ -375,14 +395,15 @@ function ProfileActionButton({
   );
 }
 
-function StatItem({ label, value }: { label: string; value: number }) {
+function StatItem({ label, value, onPress }: { label: string; value: number; onPress?: () => void }) {
+  const Container = onPress ? Pressable : View;
   return (
-    <View style={styles.statItem}>
+    <Container style={styles.statItem} onPress={onPress}>
       <AppText style={styles.statValue}>{formatCount(value)}</AppText>
       <AppText style={styles.statLabel} numberOfLines={1}>
         {label}
       </AppText>
-    </View>
+    </Container>
   );
 }
 

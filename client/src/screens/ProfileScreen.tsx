@@ -84,11 +84,6 @@ export function ProfileScreen({ navigation }: any) {
       .catch(() => undefined);
   }, [token, user?.id]);
 
-  const stats = [
-    { label: "Bài viết", value: user?.counts?.posts ?? posts.length },
-    { label: "Theo dõi", value: user?.counts?.followers ?? 0 },
-    { label: "Đang TD", value: user?.counts?.following ?? 0 }
-  ];
   const currentPosts = tab === "posts" ? posts : savedPosts;
 
   function shareProfile() {
@@ -145,9 +140,29 @@ export function ProfileScreen({ navigation }: any) {
             {user?.displayName ?? "Daily Meal"}
           </AppText>
           <View style={styles.stats}>
-            {stats.map((stat) => (
-              <StatItem key={stat.label} label={stat.label} value={stat.value} />
-            ))}
+            <StatItem label="Bài viết" value={user?.counts?.posts ?? posts.length} />
+            <StatItem
+              label="Theo dõi"
+              value={user?.counts?.followers ?? 0}
+              onPress={() =>
+                navigation.navigate("Follows", {
+                  userId: user?.id,
+                  initialTab: "followers",
+                  displayName: user?.displayName
+                })
+              }
+            />
+            <StatItem
+              label="Đang TD"
+              value={user?.counts?.following ?? 0}
+              onPress={() =>
+                navigation.navigate("Follows", {
+                  userId: user?.id,
+                  initialTab: "following",
+                  displayName: user?.displayName
+                })
+              }
+            />
           </View>
         </View>
       </View>
@@ -236,14 +251,15 @@ function ProfileActionButton({ label, onPress }: { label: string; onPress: () =>
   );
 }
 
-function StatItem({ label, value }: { label: string; value: number }) {
+function StatItem({ label, value, onPress }: { label: string; value: number; onPress?: () => void }) {
+  const Container = onPress ? Pressable : View;
   return (
-    <View style={styles.statItem}>
+    <Container style={styles.statItem} onPress={onPress}>
       <AppText style={styles.statValue}>{formatCount(value)}</AppText>
       <AppText style={styles.statLabel} numberOfLines={1}>
         {label}
       </AppText>
-    </View>
+    </Container>
   );
 }
 

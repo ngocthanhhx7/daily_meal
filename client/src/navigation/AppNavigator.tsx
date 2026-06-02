@@ -29,6 +29,7 @@ import { BlockedScreen } from "../screens/BlockedScreen";
 import { SupportScreen } from "../screens/SupportScreen";
 import { ShareAccountScreen } from "../screens/ShareAccountScreen";
 import { PremiumBenefitsScreen } from "../screens/PremiumBenefitsScreen";
+import { FollowsScreen } from "../screens/FollowsScreen";
 
 // NOTE: MealsScreen removed – calo analysis is now in CreatePostScreen
 
@@ -87,6 +88,7 @@ export function AppNavigator() {
             <Stack.Screen name="Create" component={CreatePostScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="PublicProfile" component={PublicProfileScreen} />
+            <Stack.Screen name="Follows" component={FollowsScreen} />
             <Stack.Screen name="Inbox" component={InboxScreen} />
             <Stack.Screen name="Chat" component={ChatScreen} />
 

@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+port React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { api } from "../api/client";
 import { useAuth } from "./AuthContext";
@@ -45,6 +45,19 @@ type NotificationRoute = {
 type WebNotificationOptions = NotificationOptions & {
   vibrate?: number[];
 };
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; i += 1) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+
+  return outputArray;
+}
 
 function notificationRoute(notification: Notification): NotificationRoute {
   const route: NotificationRoute = {
@@ -202,6 +215,60 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }
     }
   }, []);
+
+  // Register Web Push subscription for iOS/Android PWA lock screen notifications.
+  useEffect(() => {
+    if (!token || Platform.OS !== "web") return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return;
+
+    const authToken = token;
+    let isMounted = true;
+    let endpoint: string | undefined;
+
+    async function registerWebPush() {
+      try {
+        let permission = window.Notification.permission;
+        if (permission === "default") {
+          permission = await window.Notification.requestPermission();
+        }
+        if (permission !== "granted") return;
+
+        const { publicKey } = await api.webPushVapidPublicKey();
+        if (!publicKey) {
+          console.warn("⚠️ Missing WEB_PUSH_VAPID_PUBLIC_KEY on API server; Web Push subscription skipped.");
+          return;
+        }
+
+        const registration = await navigator.serviceWorker.ready;
+        const existingSubscription = await registration.pushManager.getSubscription();
+        const subscription =
+          existingSubscription ??
+          (await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey)
+          }));
+
+        endpoint = subscription.endpoint;
+        if (isMounted) {
+          await api.registerWebPushSubscription(authToken, subscription.toJSON());
+          console.log("📲 Registered Web Push subscription on server.");
+        }
+      } catch (error) {
+        console.error("❌ Failed to register Web Push subscription:", error);
+      }
+    }
+
+    registerWebPush();
+
+    return () => {
+      isMounted = false;
+      if (endpoint) {
+        api.unregisterWebPushSubscription(authToken, endpoint).catch((error) => {
+          console.error("❌ Failed to unregister Web Push subscription:", error);
+        });
+      }
+    };
+  }, [token]);
 
   // Register Native Push Notification Token
   useEffect(() => {

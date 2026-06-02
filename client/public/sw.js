@@ -61,6 +61,35 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+self.addEventListener("push", (event) => {
+  const fallbackPayload = {
+    title: "Daily Meal 🍽️",
+    body: "Bạn có thông báo mới.",
+    data: { url: "/?screen=Notifications" },
+    icon: "/icons/daily-meal-icon-v2.png",
+    badge: "/favicon.png"
+  };
+
+  let payload = fallbackPayload;
+  if (event.data) {
+    try {
+      payload = { ...fallbackPayload, ...event.data.json() };
+    } catch (_error) {
+      payload = { ...fallbackPayload, body: event.data.text() };
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: payload.icon,
+      badge: payload.badge,
+      data: payload.data,
+      vibrate: [200, 100, 200]
+    })
+  );
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 

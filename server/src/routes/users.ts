@@ -201,6 +201,15 @@ const pushTokenSchema = z.object({
   pushToken: z.string().min(1)
 });
 
+const webPushSubscriptionSchema = z.object({
+  endpoint: z.string().url(),
+  expirationTime: z.number().nullable().optional(),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1)
+  })
+});
+
 usersRouter.post("/push-token", requireAuth, async (req, res, next) => {
   try {
     const { pushToken } = pushTokenSchema.parse(req.body);
@@ -218,6 +227,49 @@ usersRouter.delete("/push-token", requireAuth, async (req, res, next) => {
     const { pushToken } = pushTokenSchema.parse(req.body);
     await User.findByIdAndUpdate(req.user?.id, {
       $pull: { pushTokens: pushToken }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.get("/web-push/vapid-public-key", async (_req, res) => {
+  res.json({ publicKey: process.env.WEB_PUSH_VAPID_PUBLIC_KEY || "" });
+});
+
+usersRouter.post("/web-push-subscription", requireAuth, async (req, res, next) => {
+  try {
+    const subscription = webPushSubscriptionSchema.parse(req.body);
+    const userAgent = req.get("user-agent") ?? "";
+
+    await User.findByIdAndUpdate(req.user?.id, {
+      $pull: { webPushSubscriptions: { endpoint: subscription.endpoint } }
+    });
+
+    await User.findByIdAndUpdate(req.user?.id, {
+      $push: {
+        webPushSubscriptions: {
+          ...subscription,
+          expirationTime: subscription.expirationTime ?? null,
+          userAgent,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.delete("/web-push-subscription", requireAuth, async (req, res, next) => {
+  try {
+    const { endpoint } = z.object({ endpoint: z.string().url() }).parse(req.body);
+    await User.findByIdAndUpdate(req.user?.id, {
+      $pull: { webPushSubscriptions: { endpoint } }
     });
     res.json({ success: true });
   } catch (error) {
@@ -272,6 +324,28 @@ usersRouter.get("/:id", requireAuth, async (req, res, next) => {
     }
 
     res.json({ user: await publicUserDto(user, req.user?.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.get("/:id/followers", requireAuth, async (req, res, next) => {
+  try {
+    const targetId = req.params.id;
+    const follows = await Follow.find({ following: targetId }).populate("follower").lean();
+    const users = follows.map(f => f.follower).filter(Boolean);
+    res.json({ users: await userListDto(users, req.user?.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.get("/:id/following", requireAuth, async (req, res, next) => {
+  try {
+    const targetId = req.params.id;
+    const follows = await Follow.find({ follower: targetId }).populate("following").lean();
+    const users = follows.map(f => f.following).filter(Boolean);
+    res.json({ users: await userListDto(users, req.user?.id) });
   } catch (error) {
     next(error);
   }

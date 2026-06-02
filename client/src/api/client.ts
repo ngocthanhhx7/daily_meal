@@ -172,6 +172,10 @@ export const api = {
   getBlockedUsers: (token: string) =>
     request<{ users: User[] }>("/api/users/me/interactions/blocked", { token }),
   getUser: (token: string, id: string) => request<{ user: User }>(`/api/users/${id}`, { token }),
+  getUserFollowers: (token: string, id: string) =>
+    request<{ users: User[] }>(`/api/users/${id}/followers`, { token }),
+  getUserFollowing: (token: string, id: string) =>
+    request<{ users: User[] }>(`/api/users/${id}/following`, { token }),
   getUserPosts: (token: string, id: string) =>
     request<{ posts: Post[] }>(`/api/users/${id}/posts`, { token }),
   getUserSavedPosts: (token: string, id: string) =>
@@ -306,5 +310,19 @@ export const api = {
       method: "DELETE",
       token,
       body: { pushToken }
+    }),
+  webPushVapidPublicKey: () =>
+    request<{ publicKey: string }>("/api/users/web-push/vapid-public-key"),
+  registerWebPushSubscription: (token: string, subscription: PushSubscriptionJSON) =>
+    request<{ success: boolean }>("/api/users/web-push-subscription", {
+      method: "POST",
+      token,
+      body: subscription
+    }),
+  unregisterWebPushSubscription: (token: string, endpoint: string) =>
+    request<{ success: boolean }>("/api/users/web-push-subscription", {
+      method: "DELETE",
+      token,
+      body: { endpoint }
     })
 };

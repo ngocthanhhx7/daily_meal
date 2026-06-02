@@ -34,6 +34,22 @@ const userSchema = new Schema(
     isPremium: { type: Boolean, default: false },
     themeColor: { type: String, default: "#8BA58A" },
     pushTokens: { type: [String], default: [] },
+    webPushSubscriptions: {
+      type: [
+        {
+          endpoint: { type: String, required: true },
+          expirationTime: { type: Number, default: null },
+          keys: {
+            p256dh: { type: String, required: true },
+            auth: { type: String, required: true }
+          },
+          userAgent: { type: String },
+          createdAt: { type: Date, default: Date.now },
+          updatedAt: { type: Date, default: Date.now }
+        }
+      ],
+      default: []
+    },
     counts: {
       posts: { type: Number, default: 0 },
       followers: { type: Number, default: 0 },

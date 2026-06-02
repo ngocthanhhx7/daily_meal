@@ -6,6 +6,7 @@ import { createApp } from "../app.js";
 import { env } from "../config/env.js";
 import { seedDefaultStickers } from "../services/stickers.js";
 import { createPayosSignature } from "../services/payos.js";
+import { broadcastToRoom, emitToUser } from "../services/socket.js";
 import { Payment } from "../models/Payment.js";
 import { Sticker } from "../models/Sticker.js";
 import { User } from "../models/User.js";
@@ -15,9 +16,18 @@ vi.mock("../services/googleAuth.js", () => ({
   verifyGoogleIdToken: vi.fn()
 }));
 
+vi.mock("../services/socket.js", () => ({
+  initSocket: vi.fn(),
+  emitToUser: vi.fn(),
+  broadcastToRoom: vi.fn(),
+  broadcastGlobal: vi.fn()
+}));
+
 let mongo: MongoMemoryServer;
 const app = createApp();
 const mockedVerifyGoogleIdToken = vi.mocked(verifyGoogleIdToken);
+const mockedEmitToUser = vi.mocked(emitToUser);
+const mockedBroadcastToRoom = vi.mocked(broadcastToRoom);
 
 async function register(email: string) {
   const response = await request(app)
@@ -55,6 +65,8 @@ describe("Daily Meal API", () => {
 
   beforeEach(() => {
     mockedVerifyGoogleIdToken.mockReset();
+    mockedEmitToUser.mockClear();
+    mockedBroadcastToRoom.mockClear();
   });
 
   afterEach(() => {

@@ -373,6 +373,7 @@ postsRouter.post("/:id/like", requireAuth, async (req, res, next) => {
 
       const populatedNotification = await Notification.findById(notification._id)
         .populate("sender", "displayName avatarUrl")
+        .populate("post", "caption images")
         .lean();
 
       emitToUser(post.author.toString(), "notification:created", populatedNotification);
@@ -493,6 +494,7 @@ postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
 
       const populatedNotification = await Notification.findById(notification._id)
         .populate("sender", "displayName avatarUrl")
+        .populate("post", "caption images")
         .lean();
 
       emitToUser(post.author.toString(), "notification:created", populatedNotification);

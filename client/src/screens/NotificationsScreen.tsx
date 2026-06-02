@@ -7,6 +7,20 @@ import { useNotifications } from "../context/NotificationContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 
+type NotificationItem = {
+  _id: string;
+  type: "like" | "comment" | "follow" | "message";
+  sender?: {
+    _id?: string;
+    id?: string;
+    displayName?: string;
+  };
+  post?: any;
+  body: string;
+  read: boolean;
+  createdAt: string;
+};
+
 function relativeTime(iso?: string) {
   if (!iso) return "";
   const diff = Date.now() - new Date(iso).getTime();
@@ -23,15 +37,18 @@ function relativeTime(iso?: string) {
 export function NotificationsScreen({ navigation }: any) {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
-  function handleNotificationPress(notification: any) {
+  function handleNotificationPress(notification: NotificationItem) {
     markAsRead(notification._id);
-    
+
     if (notification.type === "follow") {
-      navigation.navigate("PublicProfile", { userId: notification.sender._id });
+      const userId = notification.sender?._id ?? notification.sender?.id;
+      if (userId) {
+        navigation.navigate("PublicProfile", { userId });
+      }
     } else if (notification.type === "message") {
       navigation.navigate("Inbox");
     } else if (notification.post) {
-      navigation.navigate("Comments", { post: notification.post });
+      navigation.navigate(notification.type === "like" ? "Recipe" : "Comments", { post: notification.post });
     }
   }
 
@@ -95,9 +112,9 @@ export function NotificationsScreen({ navigation }: any) {
 
               <View style={styles.contentWrap}>
                 <AppText style={styles.bodyText}>
-                  <AppText style={styles.senderName}>{item.sender.displayName}</AppText>
+                  <AppText style={styles.senderName}>{item.sender?.displayName ?? "Daily Meal"}</AppText>
                   {` ${
-                    item.body.startsWith(item.sender.displayName)
+                    item.sender?.displayName && item.body.startsWith(item.sender.displayName)
                       ? item.body.slice(item.sender.displayName.length).trim()
                       : item.body
                   }`}

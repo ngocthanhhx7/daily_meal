@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { api } from "../api/client";
 import { useAuth } from "./AuthContext";
@@ -35,6 +35,24 @@ type Notification = {
   createdAt: string;
 };
 
+function notificationUrl(notification: Notification) {
+  const params = new URLSearchParams({ notificationId: notification._id });
+
+  if (notification.type === "follow" && notification.sender?._id) {
+    params.set("screen", "PublicProfile");
+    params.set("userId", notification.sender._id);
+  } else if (notification.type === "message") {
+    params.set("screen", "Inbox");
+  } else if (notification.post?._id) {
+    params.set("screen", notification.type === "like" ? "Recipe" : "Comments");
+    params.set("postId", notification.post._id);
+  } else {
+    params.set("screen", "Notifications");
+  }
+
+  return `/?${params.toString()}`;
+}
+
 type NotificationContextValue = {
   notifications: Notification[];
   unreadCount: number;
@@ -49,6 +67,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { socket } = useSocket();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const applyNotifications = useCallback((nextNotifications: Notification[]) => {
+    setNotifications(nextNotifications);
+    setUnreadCount(nextNotifications.filter((n) => !n.read).length);
+  }, []);
+
+  const refreshNotifications = useCallback(async () => {
+    if (!token) {
+      applyNotifications([]);
+      return;
+    }
+
+    try {
+      const result = await api.notifications(token);
+      applyNotifications(result.notifications);
+    } catch (err) {
+      console.error("❌ Failed to refresh notifications:", err);
+    }
+  }, [applyNotifications, token]);
 
   // Request browser desktop notification permissions on web load
   useEffect(() => {
@@ -129,19 +166,35 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   // Fetch initial notifications when authenticated
   useEffect(() => {
     if (!token) {
-      setNotifications([]);
-      setUnreadCount(0);
+      applyNotifications([]);
       return;
     }
 
-    api
-      .notifications(token)
-      .then((result) => {
-        setNotifications(result.notifications);
-        setUnreadCount(result.notifications.filter((n: Notification) => !n.read).length);
-      })
-      .catch((err) => console.error("❌ Failed to fetch notifications:", err));
-  }, [token]);
+    refreshNotifications();
+  }, [applyNotifications, refreshNotifications, token]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    if (Platform.OS === "web") {
+      const onFocus = () => refreshNotifications();
+      const onVisibilityChange = () => {
+        if (document.visibilityState === "visible") {
+          refreshNotifications();
+        }
+      };
+
+      window.addEventListener("focus", onFocus);
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      return () => {
+        window.removeEventListener("focus", onFocus);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      };
+    }
+
+    const interval = setInterval(refreshNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [refreshNotifications, token]);
 
   // Listen for real-time notification socket events
   useEffect(() => {
@@ -149,8 +202,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     socket.on("notification:created", (newNotification: Notification) => {
       console.log("🔔 Real-time notification received via socket:", newNotification);
-      setNotifications((current) => [newNotification, ...current]);
-      setUnreadCount((current) => current + 1);
+      setNotifications((current) => {
+        if (current.some((item) => item._id === newNotification._id)) {
+          return current.map((item) => (item._id === newNotification._id ? newNotification : item));
+        }
+
+        return [newNotification, ...current];
+      });
+      setUnreadCount((current) => current + (newNotification.read ? 0 : 1));
 
       // Trigger browser notification if supported and allowed
       if (Platform.OS === "web" && "Notification" in window && window.Notification.permission === "granted") {
@@ -162,20 +221,23 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                   body: newNotification.body,
                   icon: newNotification.sender.avatarUrl || "/favicon.png",
                   badge: "/favicon.png",
-                  vibrate: [200, 100, 200]
+                  vibrate: [200, 100, 200],
+                  data: { url: notificationUrl(newNotification) }
                 } as any);
               })
               .catch((err) => {
                 console.error("SW ready failed, falling back to legacy Notification", err);
                 new window.Notification("Daily Meal 🍽️", {
                   body: newNotification.body,
-                  icon: newNotification.sender.avatarUrl || "/favicon.png"
+                  icon: newNotification.sender.avatarUrl || "/favicon.png",
+                  data: { url: notificationUrl(newNotification) } as any
                 });
               });
           } else {
             new window.Notification("Daily Meal 🍽️", {
               body: newNotification.body,
-              icon: newNotification.sender.avatarUrl || "/favicon.png"
+              icon: newNotification.sender.avatarUrl || "/favicon.png",
+              data: { url: notificationUrl(newNotification) } as any
             });
           }
         } catch (e) {

@@ -10,6 +10,7 @@ import { User } from "../models/User.js";
 import { UserInteraction } from "../models/UserInteraction.js";
 import { Notification } from "../models/Notification.js";
 import { emitToUser } from "../services/socket.js";
+import { sendPushNotification } from "../services/pushNotification.js";
 
 export const usersRouter = Router();
 
@@ -196,6 +197,34 @@ usersRouter.patch("/me", requireAuth, async (req, res, next) => {
   }
 });
 
+const pushTokenSchema = z.object({
+  pushToken: z.string().min(1)
+});
+
+usersRouter.post("/push-token", requireAuth, async (req, res, next) => {
+  try {
+    const { pushToken } = pushTokenSchema.parse(req.body);
+    await User.findByIdAndUpdate(req.user?.id, {
+      $addToSet: { pushTokens: pushToken }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.delete("/push-token", requireAuth, async (req, res, next) => {
+  try {
+    const { pushToken } = pushTokenSchema.parse(req.body);
+    await User.findByIdAndUpdate(req.user?.id, {
+      $pull: { pushTokens: pushToken }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 usersRouter.get("/me/interactions/blocked", requireAuth, async (req, res, next) => {
   try {
     const blocks = await UserInteraction.find({ actor: req.user?.id, type: "block" }).select("target").lean();
@@ -295,6 +324,14 @@ usersRouter.post("/:id/follow", requireAuth, async (req, res, next) => {
         .lean();
 
       emitToUser(targetId || "", "notification:created", populatedNotification);
+      
+      // Trigger Push Notification
+      sendPushNotification(
+        targetId || "",
+        "Người theo dõi mới 👤",
+        `${senderName} đã bắt đầu theo dõi bạn.`,
+        { type: "follow", senderId: req.user?.id }
+      );
     }
 
     const updatedTarget = await User.findById(targetId).lean();

@@ -294,5 +294,17 @@ export const api = {
     request<void>("/api/notifications/read-all", {
       method: "PATCH",
       token
+    }),
+  registerPushToken: (token: string, pushToken: string) =>
+    request<{ success: boolean }>("/api/users/push-token", {
+      method: "POST",
+      token,
+      body: { pushToken }
+    }),
+  unregisterPushToken: (token: string, pushToken: string) =>
+    request<{ success: boolean }>("/api/users/push-token", {
+      method: "DELETE",
+      token,
+      body: { pushToken }
     })
 };

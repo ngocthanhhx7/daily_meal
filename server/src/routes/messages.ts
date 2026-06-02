@@ -7,6 +7,7 @@ import { Message } from "../models/Message.js";
 import { User } from "../models/User.js";
 import { Notification } from "../models/Notification.js";
 import { emitToUser, broadcastToRoom } from "../services/socket.js";
+import { sendPushNotification } from "../services/pushNotification.js";
 
 export const messagesRouter = Router();
 
@@ -192,6 +193,14 @@ messagesRouter.post("/conversations/:id/messages", requireAuth, async (req, res,
         .lean();
 
       emitToUser(recipientId, "notification:created", populatedNotification);
+      
+      // Trigger Push Notification
+      sendPushNotification(
+        recipientId,
+        `Tin nhắn mới từ ${senderName} 💬`,
+        snippet,
+        { type: "message", conversationId }
+      );
     }
 
     res.status(201).json({ message: formattedMessage });

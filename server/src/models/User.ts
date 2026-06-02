@@ -33,6 +33,7 @@ const userSchema = new Schema(
     },
     isPremium: { type: Boolean, default: false },
     themeColor: { type: String, default: "#8BA58A" },
+    pushTokens: { type: [String], default: [] },
     counts: {
       posts: { type: Number, default: 0 },
       followers: { type: Number, default: 0 },

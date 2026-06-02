@@ -3,6 +3,21 @@ import { Platform } from "react-native";
 import { api } from "../api/client";
 import { useAuth } from "./AuthContext";
 import { useSocket } from "./SocketContext";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
+
+// Configure notification handler for native apps (foreground notifications)
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true
+    })
+  });
+}
 
 type Notification = {
   _id: string;
@@ -44,6 +59,73 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
+  // Register Native Push Notification Token
+  useEffect(() => {
+    if (!token || Platform.OS === "web") return;
+
+    const currentToken = token;
+    let isMounted = true;
+    let registeredToken: string | null = null;
+
+    async function registerPush() {
+      try {
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+        if (existingStatus !== "granted") {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+        }
+        if (finalStatus !== "granted") {
+          console.log("⚠️ Push notification permission not granted.");
+          return;
+        }
+
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+        const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
+        const expoToken = tokenResponse.data;
+
+        if (isMounted && expoToken) {
+          console.log("📲 Registering Expo Push Token on server:", expoToken);
+          registeredToken = expoToken;
+          await api.registerPushToken(currentToken, expoToken);
+        }
+      } catch (error) {
+        console.error("❌ Failed to register push token on server:", error);
+      }
+    }
+
+    registerPush();
+
+    return () => {
+      isMounted = false;
+      const tok = token;
+      const regTok = registeredToken;
+      if (tok && regTok) {
+        api.unregisterPushToken(tok, regTok).catch((err) => {
+          console.error("❌ Failed to unregister push token:", err);
+        });
+      }
+    };
+  }, [token]);
+
+  // Listen for native notification interactions (click/response)
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      console.log("🔔 Native Foreground Notification Received:", notification);
+    });
+
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log("👉 Native Notification Clicked:", response);
+    });
+
+    return () => {
+      foregroundSubscription.remove();
+      responseSubscription.remove();
+    };
+  }, []);
+
   // Fetch initial notifications when authenticated
   useEffect(() => {
     if (!token) {
@@ -70,13 +152,32 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       setNotifications((current) => [newNotification, ...current]);
       setUnreadCount((current) => current + 1);
 
-      // Trigger desktop notification if supported and allowed
+      // Trigger browser notification if supported and allowed
       if (Platform.OS === "web" && "Notification" in window && window.Notification.permission === "granted") {
         try {
-          new window.Notification("Daily Meal 🍽️", {
-            body: newNotification.body,
-            icon: newNotification.sender.avatarUrl || "/favicon.png"
-          });
+          if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.ready
+              .then((registration) => {
+                registration.showNotification("Daily Meal 🍽️", {
+                  body: newNotification.body,
+                  icon: newNotification.sender.avatarUrl || "/favicon.png",
+                  badge: "/favicon.png",
+                  vibrate: [200, 100, 200]
+                } as any);
+              })
+              .catch((err) => {
+                console.error("SW ready failed, falling back to legacy Notification", err);
+                new window.Notification("Daily Meal 🍽️", {
+                  body: newNotification.body,
+                  icon: newNotification.sender.avatarUrl || "/favicon.png"
+                });
+              });
+          } else {
+            new window.Notification("Daily Meal 🍽️", {
+              body: newNotification.body,
+              icon: newNotification.sender.avatarUrl || "/favicon.png"
+            });
+          }
         } catch (e) {
           console.error("Failed to show HTML5 notification", e);
         }

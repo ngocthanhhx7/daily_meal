@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAuthErrorMessage, validateLoginForm } from "./loginValidation";
+import { createAuthErrorState, getAuthErrorMessage, validateLoginForm } from "./loginValidation";
 
 describe("validateLoginForm", () => {
   it("requires a valid email and password for email login", () => {
@@ -110,5 +110,21 @@ describe("getAuthErrorMessage", () => {
     expect(getAuthErrorMessage(new Error("Validation failed"))).toBe(
       "Thông tin đăng nhập chưa hợp lệ. Vui lòng kiểm tra lại."
     );
+  });
+});
+
+describe("createAuthErrorState", () => {
+  it("builds a persistent login error from an API failure", () => {
+    expect(createAuthErrorState("login", new Error("Invalid email or password"))).toEqual({
+      title: "Không thể đăng nhập",
+      message: "Email hoặc mật khẩu không đúng."
+    });
+  });
+
+  it("builds a persistent register error from an API failure", () => {
+    expect(createAuthErrorState("register", new Error("Email is already registered"))).toEqual({
+      title: "Không thể tạo tài khoản",
+      message: "Email này đã được đăng ký."
+    });
   });
 });

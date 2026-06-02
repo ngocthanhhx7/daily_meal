@@ -11,6 +11,7 @@ import { Sticker } from "../models/Sticker.js";
 import { User } from "../models/User.js";
 import { Notification } from "../models/Notification.js";
 import { emitToUser, broadcastToRoom, broadcastGlobal } from "../services/socket.js";
+import { sendPushNotification } from "../services/pushNotification.js";
 
 export const postsRouter = Router();
 
@@ -375,6 +376,14 @@ postsRouter.post("/:id/like", requireAuth, async (req, res, next) => {
         .lean();
 
       emitToUser(post.author.toString(), "notification:created", populatedNotification);
+      
+      // Trigger Push Notification
+      sendPushNotification(
+        post.author.toString(),
+        "Lượt thích mới ❤️",
+        `${senderName} đã thích bài viết của bạn.`,
+        { type: "like", postId: post._id?.toString() }
+      );
     }
 
     // Broadcast updated stats globally in real-time
@@ -487,6 +496,14 @@ postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
         .lean();
 
       emitToUser(post.author.toString(), "notification:created", populatedNotification);
+      
+      // Trigger Push Notification
+      sendPushNotification(
+        post.author.toString(),
+        "Bình luận mới 💬",
+        `${senderName} đã bình luận về bài viết của bạn: "${snippet}"`,
+        { type: "comment", postId: post._id?.toString(), commentId: comment._id?.toString() }
+      );
     }
 
     res.status(201).json({ comment: populated });

@@ -13,6 +13,8 @@ export type LoginValidationError = {
   message: string;
 };
 
+export type LoginMode = "login" | "register";
+
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function validateLoginForm(input: LoginValidationInput): LoginValidationError | null {
@@ -104,5 +106,20 @@ export function getAuthErrorMessage(error: unknown, fallback = "Thử lại sau"
     return "Thông tin đăng nhập chưa hợp lệ. Vui lòng kiểm tra lại.";
   }
 
+  if (message.includes("Invalid email or password")) {
+    return "Email hoặc mật khẩu không đúng.";
+  }
+
+  if (message.includes("Email is already registered")) {
+    return "Email này đã được đăng ký.";
+  }
+
   return message;
+}
+
+export function createAuthErrorState(mode: LoginMode, error: unknown): LoginValidationError {
+  return {
+    title: mode === "login" ? "Không thể đăng nhập" : "Không thể tạo tài khoản",
+    message: getAuthErrorMessage(error)
+  };
 }

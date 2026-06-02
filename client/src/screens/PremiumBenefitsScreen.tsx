@@ -337,6 +337,10 @@ const styles = StyleSheet.create({
     textTransform: "none",
     fontSize: 13
   },
+  checkingText: {
+    fontSize: 12,
+    color: colors.muted
+  },
   planCard: {
     backgroundColor: colors.surface,
     borderWidth: 1.5,

@@ -21,6 +21,7 @@ import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { ChatMessage, Conversation } from "../types/api";
 import { IOS_MINIMUM_INPUT_FONT_SIZE, getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
+import { appendUniqueMessage } from "./chatRealtime";
 import { getParticipantAccent, getParticipantAvatarLabel } from "./messagePresentation";
 
 function avatarSource(url?: string) {
@@ -55,13 +56,7 @@ export function ChatScreen({ route, navigation }: any) {
 
     socket.on("message:created", (newMessage: ChatMessage) => {
       console.log("💬 Live chat message received via socket:", newMessage);
-      setMessages((current) => {
-        // Prevent local duplicates
-        if (current.some((m) => m.id === newMessage.id)) {
-          return current;
-        }
-        return [...current, newMessage];
-      });
+      setMessages((current) => appendUniqueMessage(current, newMessage));
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     });
 
@@ -97,7 +92,7 @@ export function ChatScreen({ route, navigation }: any) {
     setBody("");
     try {
       const result = await api.sendMessage(token, conversationId, text);
-      setMessages((current) => [...current, result.message]);
+      setMessages((current) => appendUniqueMessage(current, result.message));
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       setBody(text);

@@ -6,8 +6,10 @@ import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { EmptyState } from "../components/EmptyState";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import { colors } from "../theme/colors";
 import type { Conversation } from "../types/api";
+import { upsertRealtimeConversation } from "./inboxRealtime";
 
 function avatarSource(url?: string) {
   if (!url) {
@@ -23,6 +25,7 @@ function avatarSource(url?: string) {
 
 export function InboxScreen({ navigation }: any) {
   const { token } = useAuth();
+  const { socket } = useSocket();
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
   useEffect(() => {
@@ -35,6 +38,22 @@ export function InboxScreen({ navigation }: any) {
       .then((result) => setConversations(result.conversations))
       .catch(() => undefined);
   }, [token]);
+
+  useEffect(() => {
+    if (!socket) {
+      return;
+    }
+
+    const handleConversationUpdated = (conversation: Conversation) => {
+      setConversations((current) => upsertRealtimeConversation(current, conversation));
+    };
+
+    socket.on("conversation:updated", handleConversationUpdated);
+
+    return () => {
+      socket.off("conversation:updated", handleConversationUpdated);
+    };
+  }, [socket]);
 
   return (
     <AppScreen>

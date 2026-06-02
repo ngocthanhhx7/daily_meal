@@ -23,6 +23,10 @@ vi.mock("../services/socket.js", () => ({
   broadcastGlobal: vi.fn()
 }));
 
+vi.mock("../services/pushNotification.js", () => ({
+  sendPushNotification: vi.fn()
+}));
+
 let mongo: MongoMemoryServer;
 const app = createApp();
 const mockedVerifyGoogleIdToken = vi.mocked(verifyGoogleIdToken);
@@ -579,6 +583,38 @@ describe("Daily Meal API", () => {
       .set("Authorization", `Bearer ${alice.token}`)
       .send({ body: "Bạn cho mình xin công thức món này nhé?" })
       .expect(201);
+
+    expect(mockedBroadcastToRoom).toHaveBeenCalledWith(
+      `conversation:${conversationId}`,
+      "message:created",
+      expect.objectContaining({
+        conversationId,
+        body: "Bạn cho mình xin công thức món này nhé?"
+      })
+    );
+    expect(mockedEmitToUser).toHaveBeenCalledWith(
+      alice.user.id,
+      "conversation:updated",
+      expect.objectContaining({
+        id: conversationId,
+        otherUser: expect.objectContaining({ id: bob.user.id }),
+        lastMessage: expect.objectContaining({ body: "Bạn cho mình xin công thức món này nhé?" })
+      })
+    );
+    expect(mockedEmitToUser).toHaveBeenCalledWith(
+      bob.user.id,
+      "conversation:updated",
+      expect.objectContaining({
+        id: conversationId,
+        otherUser: expect.objectContaining({ id: alice.user.id }),
+        lastMessage: expect.objectContaining({ body: "Bạn cho mình xin công thức món này nhé?" })
+      })
+    );
+    expect(mockedEmitToUser).toHaveBeenCalledWith(
+      bob.user.id,
+      "notification:created",
+      expect.objectContaining({ type: "message" })
+    );
 
     const messages = await request(app)
       .get(`/api/messages/conversations/${conversationId}/messages`)

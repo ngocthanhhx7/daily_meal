@@ -175,6 +175,17 @@ messagesRouter.post("/conversations/:id/messages", requireAuth, async (req, res,
     // 1. Broadcast new message in real-time to the specific conversation room
     broadcastToRoom(`conversation:${conversationId}`, "message:created", formattedMessage);
 
+    const updatedConversation = await Conversation.findById(conversation._id)
+      .populate("participants", "displayName avatarUrl isPremium")
+      .lean();
+
+    if (updatedConversation) {
+      for (const participant of updatedConversation.participants) {
+        const participantId = userDto(participant).id;
+        emitToUser(participantId, "conversation:updated", conversationDto(updatedConversation, participantId));
+      }
+    }
+
     // 2. Trigger notification for the recipient participant
     const recipientId = conversation.participants.find(p => p.toString() !== req.user?.id)?.toString();
     if (recipientId) {

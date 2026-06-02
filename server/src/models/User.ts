@@ -2,18 +2,18 @@ import { Schema, model, type InferSchemaType } from "mongoose";
 
 const userSchema = new Schema(
   {
-    email: { type: String, unique: true, sparse: true, lowercase: true, trim: true },
-    phone: { type: String, unique: true, sparse: true, trim: true },
+    email: { type: String, lowercase: true, trim: true },
+    phone: { type: String, trim: true },
     passwordHash: { type: String },
     phoneOtp: {
       codeHash: { type: String },
       expiresAt: { type: Date },
       attempts: { type: Number, default: 0 }
     },
-    facebookId: { type: String, unique: true, sparse: true },
+    facebookId: { type: String },
     authProviders: {
       google: {
-        sub: { type: String, unique: true, sparse: true },
+        sub: { type: String },
         email: { type: String, lowercase: true, trim: true },
         linkedAt: { type: Date }
       }
@@ -58,6 +58,27 @@ const userSchema = new Schema(
     }
   },
   { timestamps: true }
+);
+
+userSchema.index(
+  { email: 1 },
+  { unique: true, partialFilterExpression: { email: { $type: "string" } }, name: "email_1" }
+);
+userSchema.index(
+  { phone: 1 },
+  { unique: true, partialFilterExpression: { phone: { $type: "string" } }, name: "phone_1" }
+);
+userSchema.index(
+  { facebookId: 1 },
+  { unique: true, partialFilterExpression: { facebookId: { $type: "string" } }, name: "facebookId_1" }
+);
+userSchema.index(
+  { "authProviders.google.sub": 1 },
+  {
+    unique: true,
+    partialFilterExpression: { "authProviders.google.sub": { $type: "string" } },
+    name: "authProviders.google.sub_1"
+  }
 );
 
 export type UserDocument = InferSchemaType<typeof userSchema>;

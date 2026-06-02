@@ -39,18 +39,7 @@ const DEFAULT_STICKER: StickerPlacement = {
   rotation: 0
 };
 
-const RECENT_PHOTOS = [
-  require("../../assets/figma-snapshots/image1.png"),
-  require("../../assets/figma-snapshots/image2.png"),
-  require("../../assets/figma-snapshots/image3.png"),
-  require("../../assets/figma-snapshots/image4.png"),
-  require("../../assets/figma-snapshots/image5.png"),
-  require("../../assets/figma-snapshots/image6.png"),
-  require("../../assets/figma-snapshots/image7.png"),
-  require("../../assets/figma-snapshots/image8.png"),
-  require("../../assets/figma-snapshots/image9.png"),
-  require("../../assets/figma-snapshots/image10.png")
-];
+const RECENT_PHOTOS: any[] = [];
 
 const DEFAULT_VIP_STICKERS: Sticker[] = [
   { _id: "v1", key: "apple", name: "Táo đỏ", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f34e/512.webp", premiumOnly: true },
@@ -518,54 +507,58 @@ export function CreatePostScreen({ navigation, route }: any) {
             onCameraPress={captureImage}
           />
 
-          <View style={styles.captureMetaRow}>
-            <AppText variant="caption" style={styles.recentLabel}>Mới đây</AppText>
-            {isPremium ? (
-              <Pressable onPress={chooseFromLibrary} hitSlop={8}>
-                <AppText variant="caption" style={styles.libraryLink}>Chọn từ album</AppText>
-              </Pressable>
-            ) : (
-              <AppText variant="caption" muted>Free: chỉ chụp camera</AppText>
-            )}
-          </View>
+          {(isPremium || localGalleryImages.length > 0) ? (
+            <>
+              <View style={styles.captureMetaRow}>
+                <AppText variant="caption" style={styles.recentLabel}>Mới đây</AppText>
+                {isPremium ? (
+                  <Pressable onPress={chooseFromLibrary} hitSlop={8}>
+                    <AppText variant="caption" style={styles.libraryLink}>Chọn từ album</AppText>
+                  </Pressable>
+                ) : (
+                  <AppText variant="caption" muted>Free: chỉ chụp camera</AppText>
+                )}
+              </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.recentScroll}
-            contentContainerStyle={styles.recentRail}
-          >
-            {localGalleryImages.map((uri) => {
-              const isSelected = images.includes(uri);
-              const selectedIdx = images.indexOf(uri);
-              const isActive = images[selectedIndex] === uri;
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.recentScroll}
+                contentContainerStyle={styles.recentRail}
+              >
+                {localGalleryImages.map((uri) => {
+                  const isSelected = images.includes(uri);
+                  const selectedIdx = images.indexOf(uri);
+                  const isActive = images[selectedIndex] === uri;
 
-              return (
-                <Pressable
-                  key={uri}
-                  style={[
-                    styles.recentThumb,
-                    isActive && styles.recentThumbActive
-                  ]}
-                  onPress={() => handleSelectRecentPhoto(uri)}
-                >
-                  <Image source={{ uri }} style={styles.recentThumbImage} />
-                  {isSelected && (
-                    <>
-                      <View style={styles.thumbnailOverlay} />
-                      <View style={styles.thumbnailCenterBadge}>
-                        <View style={styles.thumbnailCenterBadgeCircle}>
-                          <AppText variant="caption" style={styles.thumbnailCenterBadgeText}>
-                            {selectedIdx + 1}
-                          </AppText>
-                        </View>
-                      </View>
-                    </>
-                  )}
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                  return (
+                    <Pressable
+                      key={uri}
+                      style={[
+                        styles.recentThumb,
+                        isActive && styles.recentThumbActive
+                      ]}
+                      onPress={() => handleSelectRecentPhoto(uri)}
+                    >
+                      <Image source={{ uri }} style={styles.recentThumbImage} />
+                      {isSelected && (
+                        <>
+                          <View style={styles.thumbnailOverlay} />
+                          <View style={styles.thumbnailCenterBadge}>
+                            <View style={styles.thumbnailCenterBadgeCircle}>
+                              <AppText variant="caption" style={styles.thumbnailCenterBadgeText}>
+                                {selectedIdx + 1}
+                              </AppText>
+                            </View>
+                          </View>
+                        </>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </>
+          ) : null}
 
           <View style={styles.captureControlBar}>
             <Pressable style={styles.shutterButton} onPress={captureImage}>
@@ -606,11 +599,13 @@ export function CreatePostScreen({ navigation, route }: any) {
           </View>
 
           {/* Touch-drag sticker customization entry card */}
-          <Pressable style={styles.addStickerCard} onPress={() => setStep("sticker")}>
-            <AppText style={styles.addStickerText}>
-              {selectedSticker ? `Nhãn dán: ${selectedStickerData?.name || "Đã chọn"}` : "Thêm nhãn dán"}
-            </AppText>
-          </Pressable>
+          {isPremium ? (
+            <Pressable style={styles.addStickerCard} onPress={() => setStep("sticker")}>
+              <AppText style={styles.addStickerText}>
+                {selectedSticker ? `Nhãn dán: ${selectedStickerData?.name || "Đã chọn"}` : "Thêm nhãn dán"}
+              </AppText>
+            </Pressable>
+          ) : null}
 
           <AppButton label="Tính calo từng ảnh bằng AI" onPress={analyzeImages} loading={loading} variant="ghost" />
           <NutritionCard nutrition={nutritionTotal} />

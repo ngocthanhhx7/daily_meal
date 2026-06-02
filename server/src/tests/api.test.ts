@@ -3,6 +3,7 @@ import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
 import { beforeAll, afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
+import { repairUserUniqueIndexes } from "../config/db.js";
 import { env } from "../config/env.js";
 import { seedDefaultStickers } from "../services/stickers.js";
 import { createPayosSignature } from "../services/payos.js";
@@ -100,6 +101,27 @@ describe("Daily Meal API", () => {
       .expect(400);
 
     expect(response.body.message).toBe("Email không hợp lệ. Mật khẩu cần ít nhất 6 ký tự.");
+  });
+
+  it("repairs legacy email indexes before creating phone-only OTP users", async () => {
+    await User.collection.dropIndex("email_1").catch(() => undefined);
+    await User.collection.createIndex({ email: 1 }, { unique: true, name: "email_1" });
+    await User.create({ email: null, phone: "0900000000", displayName: "Legacy Phone" });
+
+    await repairUserUniqueIndexes();
+
+    const emailIndex = (await User.collection.indexes()).find((index) => index.name === "email_1");
+    expect(emailIndex?.partialFilterExpression).toEqual({ email: { $type: "string" } });
+
+    const response = await request(app)
+      .post("/api/auth/phone/request-otp")
+      .send({ phone: "0900000001" })
+      .expect(200);
+
+    expect(response.body.requiresPasswordSetup).toBe(true);
+
+    const legacyUser = await User.findOne({ phone: "0900000000" }).lean();
+    expect(legacyUser?.email).toBeUndefined();
   });
 
   it("saves onboarding preferences", async () => {

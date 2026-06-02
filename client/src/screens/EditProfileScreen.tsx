@@ -53,7 +53,7 @@ function mediaSource(uri?: string) {
     return undefined;
   }
 
-  if (uri.startsWith("http") || uri.startsWith("file:") || uri.startsWith("data:")) {
+  if (uri.startsWith("http") || uri.startsWith("file:") || uri.startsWith("data:") || uri.startsWith("blob:")) {
     return { uri };
   }
 

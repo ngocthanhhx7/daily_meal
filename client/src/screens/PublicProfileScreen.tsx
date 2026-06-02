@@ -18,7 +18,7 @@ function mediaSource(url?: string) {
     return undefined;
   }
 
-  if (url.startsWith("http") || url.startsWith("file:") || url.startsWith("data:")) {
+  if (url.startsWith("http") || url.startsWith("file:") || url.startsWith("data:") || url.startsWith("blob:")) {
     return { uri: url };
   }
 

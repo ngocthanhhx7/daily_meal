@@ -23,7 +23,7 @@ import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import { IOS_MINIMUM_INPUT_FONT_SIZE, getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
-import { getAuthErrorMessage, validateLoginForm } from "./loginValidation";
+import { createAuthErrorState, getAuthErrorMessage, validateLoginForm, type LoginValidationError } from "./loginValidation";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -38,6 +38,7 @@ export function LoginScreen() {
   const [phoneOtpSent, setPhoneOtpSent] = useState(false);
   const [phoneNeedsPassword, setPhoneNeedsPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<LoginValidationError | null>(null);
   const { width: viewportWidth } = useWindowDimensions();
   const showDesktopFrame = Platform.OS === "web" && viewportWidth >= 520;
 
@@ -65,9 +66,18 @@ export function LoginScreen() {
     try {
       await signInWithFacebook(accessToken);
     } catch (error) {
-      Alert.alert("Không thể đăng nhập bằng Facebook", getAuthErrorMessage(error));
+      setAuthError({
+        title: "Không thể đăng nhập bằng Facebook",
+        message: getAuthErrorMessage(error)
+      });
     } finally {
       setLoading(false);
+    }
+  }
+
+  function clearAuthError() {
+    if (authError) {
+      setAuthError(null);
     }
   }
 
@@ -83,10 +93,11 @@ export function LoginScreen() {
     });
 
     if (validation) {
-      Alert.alert(validation.title, validation.message);
+      setAuthError(validation);
       return;
     }
 
+    setAuthError(null);
     setLoading(true);
     try {
       if (authMethod === "phone") {
@@ -101,7 +112,7 @@ export function LoginScreen() {
         await register(identifier, password, displayName);
       }
     } catch (error) {
-      Alert.alert(mode === "login" ? "Không thể đăng nhập" : "Không thể tạo tài khoản", getAuthErrorMessage(error));
+      setAuthError(createAuthErrorState(mode, error));
     } finally {
       setLoading(false);
     }
@@ -109,9 +120,13 @@ export function LoginScreen() {
 
   async function requestPhoneCode() {
     if (!identifier.trim()) {
-      Alert.alert("Nhập số điện thoại", "Vui lòng nhập số điện thoại trước khi lấy mã OTP.");
+      setAuthError({
+        title: "Nhập số điện thoại",
+        message: "Vui lòng nhập số điện thoại trước khi lấy mã OTP."
+      });
       return;
     }
+    setAuthError(null);
     const result = await requestPhoneOtp(identifier);
     setPhoneOtpSent(true);
     setPhoneNeedsPassword(result.requiresPasswordSetup);
@@ -128,7 +143,10 @@ export function LoginScreen() {
       const idToken = await getGoogleIdToken();
       await signInWithGoogle(idToken);
     } catch (error) {
-      Alert.alert("Không thể đăng nhập bằng Google", getAuthErrorMessage(error));
+      setAuthError({
+        title: "Không thể đăng nhập bằng Google",
+        message: getAuthErrorMessage(error)
+      });
     } finally {
       setLoading(false);
     }
@@ -137,6 +155,7 @@ export function LoginScreen() {
   async function handlePhoneLoginPress() {
     if (authMethod !== "phone") {
       setAuthMethod("phone");
+      setAuthError(null);
       setPhoneOtpSent(false);
       setPhoneNeedsPassword(false);
       setOtp("");
@@ -147,7 +166,10 @@ export function LoginScreen() {
     try {
       await requestPhoneCode();
     } catch (error) {
-      Alert.alert("Không thể gửi OTP", getAuthErrorMessage(error));
+      setAuthError({
+        title: "Không thể gửi OTP",
+        message: getAuthErrorMessage(error)
+      });
     } finally {
       setLoading(false);
     }
@@ -210,6 +232,16 @@ export function LoginScreen() {
                 </AppText>
               </View>
 
+              {authError ? (
+                <View style={styles.errorBanner}>
+                  <Ionicons name="alert-circle" size={18} color={colors.red} />
+                  <View style={styles.errorCopy}>
+                    <AppText style={styles.errorTitle}>{authError.title}</AppText>
+                    <AppText style={styles.errorMessage}>{authError.message}</AppText>
+                  </View>
+                </View>
+              ) : null}
+
               {mode === "login" ? (
                 <AppText style={styles.sectionHeader}>Đăng nhập vào tk hiện có</AppText>
               ) : null}
@@ -218,7 +250,10 @@ export function LoginScreen() {
                 <FigmaField
                   label="Tên hiển thị"
                   value={displayName}
-                  onChangeText={setDisplayName}
+                  onChangeText={(value) => {
+                    setDisplayName(value);
+                    clearAuthError();
+                  }}
                   placeholder="Nguyễn Văn A"
                   autoCapitalize="words"
                 />
@@ -229,6 +264,7 @@ export function LoginScreen() {
                 value={identifier}
                 onChangeText={(value) => {
                   setIdentifier(value);
+                  clearAuthError();
                   if (authMethod === "phone") {
                     setPhoneOtpSent(false);
                     setPhoneNeedsPassword(false);
@@ -250,7 +286,10 @@ export function LoginScreen() {
                 <FigmaField
                   label="Mã OTP"
                   value={otp}
-                  onChangeText={setOtp}
+                  onChangeText={(value) => {
+                    setOtp(value);
+                    clearAuthError();
+                  }}
                   keyboardType="number-pad"
                   maxLength={6}
                   placeholder="Nhập mã OTP"
@@ -261,7 +300,10 @@ export function LoginScreen() {
                 <FigmaField
                   label={authMethod === "phone" ? "Tạo mật khẩu" : "Mật khẩu"}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    clearAuthError();
+                  }}
                   secureTextEntry
                   returnKeyType="done"
                   onSubmitEditing={submit}
@@ -280,6 +322,7 @@ export function LoginScreen() {
                   <Pressable
                     onPress={() => {
                       setAuthMethod("email");
+                      setAuthError(null);
                       setPhoneOtpSent(false);
                       setPhoneNeedsPassword(false);
                       setOtp("");
@@ -296,7 +339,12 @@ export function LoginScreen() {
                     loading={loading}
                     style={styles.primaryAction}
                   />
-                  <Pressable onPress={() => setMode("register")}>
+                  <Pressable
+                    onPress={() => {
+                      setMode("register");
+                      setAuthError(null);
+                    }}
+                  >
                     <AppText style={styles.switchText}>
                       Chưa có tài khoản? <AppText style={styles.switchLink}>Đăng ký ngay</AppText>
                     </AppText>
@@ -311,7 +359,12 @@ export function LoginScreen() {
                     style={styles.primaryAction}
                   />
 
-                  <Pressable onPress={() => setMode("login")}>
+                  <Pressable
+                    onPress={() => {
+                      setMode("login");
+                      setAuthError(null);
+                    }}
+                  >
                     <AppText style={styles.switchText}>
                       Đã có tài khoản? <AppText style={styles.switchLink}>Đăng nhập</AppText>
                     </AppText>
@@ -462,6 +515,34 @@ const styles = StyleSheet.create({
     letterSpacing: 0
   },
   subtitleText: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.ink
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: `${colors.red}55`,
+    backgroundColor: `${colors.red}12`
+  },
+  errorCopy: {
+    flex: 1,
+    gap: 2
+  },
+  errorTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    lineHeight: 17,
+    color: colors.red
+  },
+  errorMessage: {
     fontFamily: fonts.regular,
     fontSize: 12,
     lineHeight: 16,

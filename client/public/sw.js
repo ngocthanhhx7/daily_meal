@@ -5,7 +5,6 @@ const SHELL_PATHS = [
   "/icons/daily-meal-icon-v2.png",
   "/favicon.png?v=2026-05-31-logo-v2"
 ];
-
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches

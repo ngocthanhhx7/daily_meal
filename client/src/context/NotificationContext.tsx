@@ -35,22 +35,74 @@ type Notification = {
   createdAt: string;
 };
 
-function notificationUrl(notification: Notification) {
-  const params = new URLSearchParams({ notificationId: notification._id });
+type NotificationRoute = {
+  screen: "PublicProfile" | "Inbox" | "Recipe" | "Comments" | "Notifications";
+  userId?: string;
+  postId?: string;
+  notificationId: string;
+};
+
+type WebNotificationOptions = NotificationOptions & {
+  vibrate?: number[];
+};
+
+function notificationRoute(notification: Notification): NotificationRoute {
+  const route: NotificationRoute = {
+    screen: "Notifications",
+    notificationId: notification._id
+  };
 
   if (notification.type === "follow" && notification.sender?._id) {
-    params.set("screen", "PublicProfile");
-    params.set("userId", notification.sender._id);
-  } else if (notification.type === "message") {
-    params.set("screen", "Inbox");
-  } else if (notification.post?._id) {
-    params.set("screen", notification.type === "like" ? "Recipe" : "Comments");
-    params.set("postId", notification.post._id);
-  } else {
-    params.set("screen", "Notifications");
+    return { ...route, screen: "PublicProfile", userId: notification.sender._id };
+  }
+
+  if (notification.type === "message") {
+    return { ...route, screen: "Inbox" };
+  }
+
+  if (notification.post?._id) {
+    return {
+      ...route,
+      screen: notification.type === "like" ? "Recipe" : "Comments",
+      postId: notification.post._id
+    };
+  }
+
+  return route;
+}
+
+function notificationUrl(notification: Notification) {
+  const route = notificationRoute(notification);
+  const params = new URLSearchParams({ notificationId: route.notificationId, screen: route.screen });
+
+  if (route.userId) {
+    params.set("userId", route.userId);
+  }
+
+  if (route.postId) {
+    params.set("postId", route.postId);
   }
 
   return `/?${params.toString()}`;
+}
+
+function notificationTitle(notification: Notification) {
+  const senderName = notification.sender?.displayName || "Daily Meal";
+
+  if (notification.type === "like") return `Lượt thích mới từ ${senderName} ❤️`;
+  if (notification.type === "comment") return `Bình luận mới từ ${senderName} 💬`;
+  if (notification.type === "follow") return `${senderName} đã theo dõi bạn 👋`;
+  if (notification.type === "message") return `Tin nhắn mới từ ${senderName} 💬`;
+
+  return "Daily Meal 🍽️";
+}
+
+function notificationData(notification: Notification) {
+  return {
+    ...notificationRoute(notification),
+    url: notificationUrl(notification),
+    type: notification.type
+  };
 }
 
 type NotificationContextValue = {
@@ -86,6 +138,61 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       console.error("❌ Failed to refresh notifications:", err);
     }
   }, [applyNotifications, token]);
+
+  const showDeviceNotification = useCallback(async (newNotification: Notification) => {
+    const title = notificationTitle(newNotification);
+    const data = notificationData(newNotification);
+
+    if (Platform.OS === "web") {
+      if (!("Notification" in window)) return;
+
+      let permission = window.Notification.permission;
+      if (permission === "default") {
+        permission = await window.Notification.requestPermission().catch(() => "denied" as NotificationPermission);
+      }
+      if (permission !== "granted") return;
+
+      const options: WebNotificationOptions = {
+        body: newNotification.body,
+        icon: newNotification.sender?.avatarUrl || "/favicon.png",
+        badge: "/favicon.png",
+        vibrate: [200, 100, 200],
+        data
+      };
+
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.showNotification(title, options);
+      } else {
+        const browserNotification = new window.Notification(title, options);
+        browserNotification.onclick = () => {
+          window.focus();
+          window.location.href = data.url;
+          browserNotification.close();
+        };
+      }
+
+      return;
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== "granted") return;
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body: newNotification.body,
+        data,
+        sound: "default"
+      },
+      trigger: null
+    });
+  }, []);
 
   // Request browser desktop notification permissions on web load
   useEffect(() => {
@@ -155,6 +262,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
       console.log("👉 Native Notification Clicked:", response);
+      const data = response.notification.request.content.data as { url?: string } | undefined;
+      if (data?.url && typeof window !== "undefined") {
+        window.location.href = data.url;
+      }
     });
 
     return () => {
@@ -211,45 +322,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       });
       setUnreadCount((current) => current + (newNotification.read ? 0 : 1));
 
-      // Trigger browser notification if supported and allowed
-      if (Platform.OS === "web" && "Notification" in window && window.Notification.permission === "granted") {
-        try {
-          if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.ready
-              .then((registration) => {
-                registration.showNotification("Daily Meal 🍽️", {
-                  body: newNotification.body,
-                  icon: newNotification.sender.avatarUrl || "/favicon.png",
-                  badge: "/favicon.png",
-                  vibrate: [200, 100, 200],
-                  data: { url: notificationUrl(newNotification) }
-                } as any);
-              })
-              .catch((err) => {
-                console.error("SW ready failed, falling back to legacy Notification", err);
-                new window.Notification("Daily Meal 🍽️", {
-                  body: newNotification.body,
-                  icon: newNotification.sender.avatarUrl || "/favicon.png",
-                  data: { url: notificationUrl(newNotification) } as any
-                });
-              });
-          } else {
-            new window.Notification("Daily Meal 🍽️", {
-              body: newNotification.body,
-              icon: newNotification.sender.avatarUrl || "/favicon.png",
-              data: { url: notificationUrl(newNotification) } as any
-            });
-          }
-        } catch (e) {
-          console.error("Failed to show HTML5 notification", e);
-        }
-      }
+      showDeviceNotification(newNotification).catch((error) => {
+        console.error("Failed to show device notification from socket event", error);
+      });
     });
 
     return () => {
       socket.off("notification:created");
     };
-  }, [socket]);
+  }, [showDeviceNotification, socket]);
 
   const markAsRead = async (id: string) => {
     if (!token) return;

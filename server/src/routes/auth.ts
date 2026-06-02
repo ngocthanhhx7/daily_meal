@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { User } from "../models/User.js";
 import { hashPassword, normalizePhoneNumber, signAccessToken, verifyPassword } from "../services/auth.js";
 import { verifyGoogleIdToken } from "../services/googleAuth.js";
+import { sendPhoneOtpSms } from "../services/sms.js";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 
@@ -144,26 +145,20 @@ authRouter.post("/phone/request-otp", async (req, res, next) => {
       ? crypto.randomInt(100000, 1000000).toString()
       : "123456";
 
-    let user = await User.findOne({ phone: body.phone });
-
-    if (!user) {
-      user = await User.create({
-        phone: body.phone,
-        displayName: body.phone
-      });
-    }
+    const existingUser = await User.findOne({ phone: body.phone });
+    const user = existingUser ?? new User({
+      phone: body.phone,
+      displayName: body.phone
+    });
 
     user.phoneOtp = {
       codeHash: await hashPassword(otp),
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       attempts: 0
     };
-    await user.save();
 
-    // TODO: replace this with an SMS provider (Twilio, Firebase Auth, eSMS, FPT SMS...) in production.
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`[DEV OTP] ${body.phone}: ${otp}`);
-    }
+    await sendPhoneOtpSms(body.phone, otp);
+    await user.save();
 
     res.json({
       message: "Mã OTP đã được gửi",

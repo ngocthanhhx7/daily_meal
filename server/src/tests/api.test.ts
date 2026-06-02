@@ -33,6 +33,7 @@ const app = createApp();
 const mockedVerifyGoogleIdToken = vi.mocked(verifyGoogleIdToken);
 const mockedEmitToUser = vi.mocked(emitToUser);
 const mockedBroadcastToRoom = vi.mocked(broadcastToRoom);
+const originalNodeEnv = process.env.NODE_ENV;
 
 async function register(email: string) {
   const response = await request(app)
@@ -76,6 +77,11 @@ describe("Daily Meal API", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
     delete process.env.SMS_PROVIDER;
     delete process.env.TWILIO_ACCOUNT_SID;
     delete process.env.TWILIO_AUTH_TOKEN;
@@ -129,7 +135,6 @@ describe("Daily Meal API", () => {
   });
 
   it("sends phone OTP through Twilio in production", async () => {
-    const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     process.env.SMS_PROVIDER = "twilio";
     process.env.TWILIO_ACCOUNT_SID = "AC123456789";
@@ -151,7 +156,9 @@ describe("Daily Meal API", () => {
 
     expect(response.body.devOtp).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    const firstCall = fetchMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    const [url, init] = firstCall!;
     expect(String(url)).toBe("https://api.twilio.com/2010-04-01/Accounts/AC123456789/Messages.json");
     expect(init?.method).toBe("POST");
     expect(init?.headers).toMatchObject({
@@ -162,12 +169,9 @@ describe("Daily Meal API", () => {
     expect(body.get("From")).toBe("+15551234567");
     expect(body.get("To")).toBe("+84772211666");
     expect(body.get("Body")).toMatch(/Daily Meal.*\d{6}/);
-
-    process.env.NODE_ENV = originalNodeEnv;
   });
 
   it("does not claim phone OTP was sent in production without an SMS provider", async () => {
-    const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
 
     const response = await request(app)
@@ -176,7 +180,6 @@ describe("Daily Meal API", () => {
       .expect(503);
 
     expect(response.body.message).toContain("Chưa cấu hình dịch vụ gửi OTP");
-    process.env.NODE_ENV = originalNodeEnv;
   });
 
   it("saves onboarding preferences", async () => {

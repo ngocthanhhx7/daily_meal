@@ -7,7 +7,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.ngocthanhhx7.site"
+        "EXPO_PUBLIC_API_URL": "https://api.dailymeal.site"
       }
     },
     "preview": {
@@ -16,7 +16,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.ngocthanhhx7.site"
+        "EXPO_PUBLIC_API_URL": "https://api.dailymeal.site"
       }
     },
     "production": {
@@ -24,7 +24,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.ngocthanhhx7.site"
+        "EXPO_PUBLIC_API_URL": "https://api.dailymeal.site"
       }
     }
   },

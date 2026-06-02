@@ -40,7 +40,13 @@ const envSchema = z.object({
   GEMINI_FALLBACK_MODEL: z.string().default("gemini-2.5-flash-lite"),
   GOOGLE_WEB_CLIENT_ID: optionalString,
   GOOGLE_ANDROID_CLIENT_ID: optionalString,
-  GOOGLE_IOS_CLIENT_ID: optionalString
+  GOOGLE_IOS_CLIENT_ID: optionalString,
+  PAYOS_CLIENT_ID: optionalString,
+  PAYOS_API_KEY: optionalString,
+  PAYOS_CHECKSUM_KEY: optionalString,
+  PAYOS_RETURN_URL: optionalString,
+  PAYOS_CANCEL_URL: optionalString,
+  PAYOS_API_BASE_URL: z.string().url().default("https://api-merchant.payos.vn")
 });
 
 const parsed = envSchema.parse(process.env);

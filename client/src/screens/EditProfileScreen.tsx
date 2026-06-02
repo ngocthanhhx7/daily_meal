@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { api } from "../api/client";
 import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
@@ -93,7 +93,6 @@ export function EditProfileScreen({ navigation }: any) {
   );
   const [avatarUri, setAvatarUri] = useState(user?.avatarUrl ?? "");
   const [themeColor, setThemeColor] = useState(user?.themeColor ?? "#8BA58A");
-  const [premium, setPremium] = useState(Boolean(user?.isPremium));
   const [loading, setLoading] = useState(false);
 
   async function pickAvatar() {
@@ -144,7 +143,6 @@ export function EditProfileScreen({ navigation }: any) {
         displayName: displayName.trim(),
         bio: bio.trim(),
         avatarUrl: nextAvatarUrl,
-        isPremium: premium,
         themeColor: themeColor,
         birthday: {
           date: birthday,
@@ -253,15 +251,6 @@ export function EditProfileScreen({ navigation }: any) {
           ))}
         </View>
       </View>
-      <View style={styles.premiumRow}>
-        <View style={styles.premiumCopy}>
-          <AppText variant="button">Daily premium</AppText>
-          <AppText variant="caption" muted>
-            Cờ phát triển để test sticker VIP và giới hạn upload.
-          </AppText>
-        </View>
-        <Switch value={premium} onValueChange={setPremium} />
-      </View>
       <AppButton label="Lưu hồ sơ" onPress={save} loading={loading} />
       <AppButton label="Hủy" variant="ghost" onPress={() => navigation.goBack()} />
     </AppScreen>
@@ -323,20 +312,6 @@ const styles = StyleSheet.create({
   },
   segmentLabelActive: {
     color: colors.white
-  },
-  premiumRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface
-  },
-  premiumCopy: {
-    flex: 1,
-    paddingRight: 12
   },
   cuteAvatarScroll: {
     paddingVertical: 4,

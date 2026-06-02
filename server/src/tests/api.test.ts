@@ -1,9 +1,12 @@
 import mongoose from "mongoose";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import request from "supertest";
-import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
+import { env } from "../config/env.js";
 import { seedDefaultStickers } from "../services/stickers.js";
+import { createPayosSignature } from "../services/payos.js";
+import { Payment } from "../models/Payment.js";
 import { Sticker } from "../models/Sticker.js";
 import { User } from "../models/User.js";
 import { verifyGoogleIdToken } from "../services/googleAuth.js";
@@ -54,6 +57,10 @@ describe("Daily Meal API", () => {
     mockedVerifyGoogleIdToken.mockReset();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   afterAll(async () => {
     await mongoose.disconnect();
     await mongo.stop();
@@ -89,6 +96,206 @@ describe("Daily Meal API", () => {
       .expect(200);
 
     expect(response.body.preferences.completedOnboarding).toBe(true);
+  });
+
+  it("does not let profile updates grant Premium", async () => {
+    const session = await register("profile-premium@example.com");
+
+    const response = await request(app)
+      .patch("/api/users/me")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({ displayName: "Profile Premium", isPremium: true })
+      .expect(200);
+
+    expect(response.body.user.displayName).toBe("Profile Premium");
+    expect(response.body.user.isPremium).toBe(false);
+
+    const user = await User.findById(session.user.id).lean();
+    expect(user?.isPremium).toBe(false);
+  });
+
+  it("creates a PayOS checkout link for a selected Premium plan", async () => {
+    Object.assign(env, {
+      PAYOS_CLIENT_ID: "client-id",
+      PAYOS_API_KEY: "api-key",
+      PAYOS_CHECKSUM_KEY: "checksum-key",
+      PAYOS_RETURN_URL: "https://daily.test/payos/return",
+      PAYOS_CANCEL_URL: "https://daily.test/payos/cancel",
+      PAYOS_API_BASE_URL: "https://api-merchant.payos.vn"
+    });
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+
+      expect(String(_url)).toBe("https://api-merchant.payos.vn/v2/payment-requests");
+      expect(init?.method).toBe("POST");
+      expect(init?.headers).toMatchObject({
+        "Content-Type": "application/json",
+        "x-client-id": "client-id",
+        "x-api-key": "api-key"
+      });
+      expect(body).toMatchObject({
+        amount: 99000,
+        returnUrl: "https://daily.test/payos/return",
+        cancelUrl: "https://daily.test/payos/cancel"
+      });
+      expect(body.description).toMatch(/^DM\d{7}$/);
+      expect(body.orderCode).toEqual(expect.any(Number));
+      expect(body.signature).toEqual(expect.any(String));
+
+      return new Response(
+        JSON.stringify({
+          code: "00",
+          desc: "success",
+          data: {
+            orderCode: body.orderCode,
+            amount: body.amount,
+            paymentLinkId: "payos-link-id",
+            status: "PENDING",
+            checkoutUrl: "https://pay.payos.vn/web/payos-link-id",
+            qrCode: "vietqr-data"
+          }
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const session = await register("payos-checkout@example.com");
+
+    const response = await request(app)
+      .post("/api/payments/payos/create")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({ planId: "premium_quarter" })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      planId: "premium_quarter",
+      amount: 99000,
+      status: "PENDING",
+      checkoutUrl: "https://pay.payos.vn/web/payos-link-id"
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("activates Premium from a valid PayOS webhook idempotently", async () => {
+    Object.assign(env, { PAYOS_CHECKSUM_KEY: "checksum-key" });
+    const session = await register("payos-webhook@example.com");
+    const orderCode = 1234567890;
+    await Payment.create({
+      provider: "payos",
+      user: session.user.id,
+      planId: "premium_half",
+      orderCode,
+      amount: 199000,
+      currency: "VND",
+      description: "DM4567890",
+      status: "PENDING",
+      paymentLinkId: "link-webhook",
+      checkoutUrl: "https://pay.payos.vn/web/link-webhook"
+    });
+    const data = {
+      orderCode,
+      amount: 199000,
+      description: "DM4567890",
+      paymentLinkId: "link-webhook",
+      reference: "TF230204212323",
+      transactionDateTime: "2026-06-02 23:00:00",
+      currency: "VND",
+      code: "00",
+      desc: "success"
+    };
+    const webhookBody = {
+      code: "00",
+      desc: "success",
+      success: true,
+      data,
+      signature: createPayosSignature(data, "checksum-key")
+    };
+
+    await request(app).post("/api/payments/payos/webhook").send(webhookBody).expect(200);
+    await request(app).post("/api/payments/payos/webhook").send(webhookBody).expect(200);
+
+    const [payment, user] = await Promise.all([
+      Payment.findOne({ orderCode }).lean(),
+      User.findById(session.user.id).lean()
+    ]);
+    expect(payment?.status).toBe("PAID");
+    expect(payment?.webhookReference).toBe("TF230204212323");
+    expect(payment?.paidAt).toBeInstanceOf(Date);
+    expect(user?.isPremium).toBe(true);
+  });
+
+  it("rejects PayOS webhooks with invalid signatures", async () => {
+    Object.assign(env, { PAYOS_CHECKSUM_KEY: "checksum-key" });
+    const session = await register("payos-invalid-signature@example.com");
+    const orderCode = 2234567890;
+    await Payment.create({
+      provider: "payos",
+      user: session.user.id,
+      planId: "premium_month",
+      orderCode,
+      amount: 39000,
+      currency: "VND",
+      description: "DM4567890",
+      status: "PENDING",
+      paymentLinkId: "link-invalid-signature"
+    });
+
+    await request(app)
+      .post("/api/payments/payos/webhook")
+      .send({
+        code: "00",
+        desc: "success",
+        success: true,
+        data: {
+          orderCode,
+          amount: 39000,
+          description: "DM4567890",
+          paymentLinkId: "link-invalid-signature",
+          code: "00",
+          desc: "success"
+        },
+        signature: "bad-signature"
+      })
+      .expect(400);
+
+    const [payment, user] = await Promise.all([
+      Payment.findOne({ orderCode }).lean(),
+      User.findById(session.user.id).lean()
+    ]);
+    expect(payment?.status).toBe("PENDING");
+    expect(user?.isPremium).toBe(false);
+  });
+
+  it("returns the current user's PayOS payment status", async () => {
+    const session = await register("payos-status@example.com");
+    const orderCode = 3234567890;
+    await Payment.create({
+      provider: "payos",
+      user: session.user.id,
+      planId: "premium_month",
+      orderCode,
+      amount: 39000,
+      currency: "VND",
+      description: "DM4567890",
+      status: "PENDING",
+      paymentLinkId: "link-status",
+      checkoutUrl: "https://pay.payos.vn/web/link-status"
+    });
+
+    const response = await request(app)
+      .get(`/api/payments/payos/${orderCode}`)
+      .set("Authorization", `Bearer ${session.token}`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      planId: "premium_month",
+      orderCode,
+      amount: 39000,
+      status: "PENDING",
+      checkoutUrl: "https://pay.payos.vn/web/link-status"
+    });
   });
 
   it("creates posts with up to three images and rejects overflow", async () => {

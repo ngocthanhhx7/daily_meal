@@ -19,7 +19,7 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
   linkGoogle: (idToken: string) => Promise<void>;
   savePreferences: (interests: string[], eatingStyles: string[]) => Promise<void>;
-  updateUser: (patch: Partial<User>) => Promise<void>;
+  updateUser: (patch: Partial<Omit<User, "isPremium">>) => Promise<void>;
   refreshUser: () => Promise<void>;
 };
 

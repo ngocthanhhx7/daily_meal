@@ -14,6 +14,7 @@ import { stickersRouter } from "./routes/stickers.js";
 import { uploadsRouter } from "./routes/uploads.js";
 import { usersRouter } from "./routes/users.js";
 import { notificationsRouter } from "./routes/notifications.js";
+import { paymentsRouter } from "./routes/payments.js";
 
 export function createApp() {
   const app = express();
@@ -43,6 +44,7 @@ export function createApp() {
   app.use("/api/stickers", stickersRouter);
   app.use("/api/meals", mealsRouter);
   app.use("/api/notifications", notificationsRouter);
+  app.use("/api/payments", paymentsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -37,6 +37,26 @@ export type User = {
   };
 };
 
+export type PremiumPlan = {
+  id: "premium_month" | "premium_quarter" | "premium_half";
+  name: string;
+  displayPrice: string;
+  amount: number;
+  durationMonths: number;
+};
+
+export type PayosPayment = {
+  id: string;
+  planId: PremiumPlan["id"];
+  orderCode: number;
+  amount: number;
+  currency: "VND";
+  status: "PENDING" | "PAID" | "PROCESSING" | "CANCELLED" | "EXPIRED";
+  paymentLinkId?: string;
+  checkoutUrl?: string;
+  qrCode?: string;
+};
+
 export type Sticker = {
   _id: string;
   key: string;

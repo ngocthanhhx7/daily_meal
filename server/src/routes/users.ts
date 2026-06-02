@@ -164,7 +164,6 @@ const updateMeSchema = z.object({
       visibility: z.enum(["hidden", "dayMonth", "full"]).optional()
     })
     .optional(),
-  isPremium: z.boolean().optional(),
   themeColor: z.string().max(30).optional()
 });
 

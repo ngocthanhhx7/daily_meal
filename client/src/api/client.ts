@@ -1,5 +1,5 @@
 import { NativeModules, Platform } from "react-native";
-import type { ChatMessage, Conversation, Meal, Post, Sticker, Upload, User } from "../types/api";
+import type { ChatMessage, Conversation, Meal, PayosPayment, Post, PremiumPlan, Sticker, Upload, User } from "../types/api";
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -146,12 +146,21 @@ export const api = {
       token,
       body
     }),
-  updateMe: (token: string, body: Partial<User>) =>
+  updateMe: (token: string, body: Partial<Omit<User, "isPremium">>) =>
     request<{ user: User }>("/api/users/me", {
       method: "PATCH",
       token,
       body
     }),
+  premiumPlans: () => request<{ plans: PremiumPlan[] }>("/api/payments/premium/plans"),
+  createPayosPremiumPayment: (token: string, body: { planId: PremiumPlan["id"] }) =>
+    request<PayosPayment>("/api/payments/payos/create", {
+      method: "POST",
+      token,
+      body
+    }),
+  payosPayment: (token: string, orderCode: number) =>
+    request<PayosPayment>(`/api/payments/payos/${orderCode}`, { token }),
   changePassword: (token: string, body: { currentPassword: string; newPassword: string }) =>
     request<void>("/api/auth/password", {
       method: "PATCH",

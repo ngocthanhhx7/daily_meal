@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import { FlatList, Pressable, StyleSheet, View } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
@@ -35,7 +35,24 @@ function relativeTime(iso?: string) {
 }
 
 export function NotificationsScreen({ navigation }: any) {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const {
+    notifications,
+    unreadCount,
+    webPushStatus,
+    enableWebPushNotifications,
+    markAsRead,
+    markAllAsRead
+  } = useNotifications();
+  const [enablingWebPush, setEnablingWebPush] = useState(false);
+
+  async function handleEnableWebPush() {
+    setEnablingWebPush(true);
+    try {
+      await enableWebPushNotifications();
+    } finally {
+      setEnablingWebPush(false);
+    }
+  }
 
   function handleNotificationPress(notification: NotificationItem) {
     markAsRead(notification._id);
@@ -67,6 +84,33 @@ export function NotificationsScreen({ navigation }: any) {
           </Pressable>
         )}
       </View>
+
+      {webPushStatus !== "unsupported" && webPushStatus !== "ready" ? (
+        <View style={styles.webPushBanner}>
+          <Ionicons name="notifications" size={20} color={colors.greenDark} />
+          <View style={styles.webPushCopy}>
+            <AppText style={styles.webPushTitle}>Thông báo màn hình khóa</AppText>
+            <AppText style={styles.webPushText}>
+              {webPushStatus === "install-required"
+                ? "Trên iPhone, hãy mở Daily Meal từ icon đã thêm vào Màn hình chính để nhận thông báo."
+                : webPushStatus === "permission-denied"
+                  ? "Bạn đã tắt quyền thông báo. Hãy bật lại trong cài đặt thông báo của iOS."
+                  : webPushStatus === "missing-public-key"
+                    ? "Server chưa cấu hình WEB_PUSH_VAPID_PUBLIC_KEY."
+                    : "Bật thông báo để nhận tin nhắn mới trên màn hình khóa khi dùng web app."}
+            </AppText>
+          </View>
+          {webPushStatus === "needs-permission" ? (
+            <Pressable
+              style={[styles.webPushButton, enablingWebPush && styles.webPushButtonDisabled]}
+              onPress={handleEnableWebPush}
+              disabled={enablingWebPush}
+            >
+              <AppText style={styles.webPushButtonText}>{enablingWebPush ? "Đang bật" : "Bật"}</AppText>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {/* Notification List */}
       <FlatList
@@ -156,6 +200,47 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center"
+  },
+  webPushBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    padding: 12,
+    marginBottom: 12
+  },
+  webPushCopy: {
+    flex: 1,
+    gap: 2
+  },
+  webPushTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.ink
+  },
+  webPushText: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.muted
+  },
+  webPushButton: {
+    minWidth: 56,
+    minHeight: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.green
+  },
+  webPushButtonDisabled: {
+    opacity: 0.6
+  },
+  webPushButtonText: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.white
   },
   listContainer: {
     flexGrow: 1,

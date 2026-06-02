@@ -106,13 +106,7 @@ export async function sendPushNotification(
         return;
       }
 
-      const payload = JSON.stringify({
-        title,
-        body,
-        data,
-        icon: "/icons/daily-meal-icon-v2.png",
-        badge: "/favicon.png"
-      });
+      const payload = createWebPushPayload(title, body, data);
 
       const staleEndpoints: string[] = [];
       await Promise.all(
@@ -154,4 +148,18 @@ export async function sendPushNotification(
   } catch (error) {
     console.error("❌ Error in sendPushNotification service:", error);
   }
+}
+
+export function createWebPushPayload(title: string, body: string, data?: Record<string, any>) {
+  const mergedData = { ...data };
+  if (mergedData.type === "message" && !mergedData.url) {
+    mergedData.url = "/?screen=Inbox";
+  }
+  return JSON.stringify({
+    title,
+    body,
+    data: mergedData,
+    icon: "/icons/daily-meal-icon-v2.png",
+    badge: "/favicon.png"
+  });
 }

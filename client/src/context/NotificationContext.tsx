@@ -1,10 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { api } from "../api/client";
 import { useAuth } from "./AuthContext";
 import { useSocket } from "./SocketContext";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
+import { getPwaEnvironment } from "../pwa/platform";
+import { getWebPushReadiness, urlBase64ToUint8Array, type WebPushReadiness } from "../pwa/webPush";
 
 // Configure notification handler for native apps (foreground notifications)
 if (Platform.OS !== "web") {
@@ -45,19 +47,6 @@ type NotificationRoute = {
 type WebNotificationOptions = NotificationOptions & {
   vibrate?: number[];
 };
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; i += 1) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-
-  return outputArray;
-}
 
 function notificationRoute(notification: Notification): NotificationRoute {
   const route: NotificationRoute = {
@@ -121,6 +110,8 @@ function notificationData(notification: Notification) {
 type NotificationContextValue = {
   notifications: Notification[];
   unreadCount: number;
+  webPushStatus: WebPushReadiness;
+  enableWebPushNotifications: () => Promise<WebPushReadiness>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
 };
@@ -132,6 +123,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { socket } = useSocket();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [webPushStatus, setWebPushStatus] = useState<WebPushReadiness>("unsupported");
+  const webPushEndpointRef = useRef<string | undefined>(undefined);
 
   const applyNotifications = useCallback((nextNotifications: Notification[]) => {
     setNotifications(nextNotifications);
@@ -207,38 +200,53 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     });
   }, []);
 
-  // Request browser desktop notification permissions on web load
-  useEffect(() => {
-    if (Platform.OS === "web" && "Notification" in window) {
-      if (window.Notification.permission === "default") {
-        window.Notification.requestPermission().catch(() => undefined);
+  const registerWebPush = useCallback(
+    async ({ requestPermission }: { requestPermission: boolean }): Promise<WebPushReadiness> => {
+      if (!token || Platform.OS !== "web" || typeof window === "undefined") {
+        setWebPushStatus("unsupported");
+        return "unsupported";
       }
-    }
-  }, []);
 
-  // Register Web Push subscription for iOS/Android PWA lock screen notifications.
-  useEffect(() => {
-    if (!token || Platform.OS !== "web") return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return;
+      const hasNotification = "Notification" in window;
+      const hasServiceWorker = "serviceWorker" in navigator;
+      const hasPushManager = "PushManager" in window;
+      const environment = getPwaEnvironment();
+      let publicKey = "";
 
-    const authToken = token;
-    let isMounted = true;
-    let endpoint: string | undefined;
-
-    async function registerWebPush() {
       try {
-        let permission = window.Notification.permission;
-        if (permission === "default") {
-          permission = await window.Notification.requestPermission();
-        }
-        if (permission !== "granted") return;
+        publicKey = (await api.webPushVapidPublicKey()).publicKey;
+      } catch (error) {
+        console.error("Failed to read Web Push VAPID public key", error);
+      }
 
-        const { publicKey } = await api.webPushVapidPublicKey();
-        if (!publicKey) {
-          console.warn("⚠️ Missing WEB_PUSH_VAPID_PUBLIC_KEY on API server; Web Push subscription skipped.");
-          return;
-        }
+      let permission: NotificationPermission = hasNotification ? window.Notification.permission : "denied";
+      let readiness = getWebPushReadiness({
+        environment,
+        hasNotification,
+        hasServiceWorker,
+        hasPushManager,
+        permission,
+        publicKey
+      });
 
+      if (readiness === "needs-permission" && requestPermission) {
+        permission = await window.Notification.requestPermission();
+        readiness = getWebPushReadiness({
+          environment,
+          hasNotification,
+          hasServiceWorker,
+          hasPushManager,
+          permission,
+          publicKey
+        });
+      }
+
+      if (readiness !== "ready") {
+        setWebPushStatus(readiness);
+        return readiness;
+      }
+
+      try {
         const registration = await navigator.serviceWorker.ready;
         const existingSubscription = await registration.pushManager.getSubscription();
         const subscription =
@@ -248,24 +256,46 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             applicationServerKey: urlBase64ToUint8Array(publicKey)
           }));
 
-        endpoint = subscription.endpoint;
-        if (isMounted) {
-          await api.registerWebPushSubscription(authToken, subscription.toJSON());
-          console.log("📲 Registered Web Push subscription on server.");
-        }
+        webPushEndpointRef.current = subscription.endpoint;
+        await api.registerWebPushSubscription(token, subscription.toJSON());
+        setWebPushStatus("ready");
+        console.log("Registered Web Push subscription on server.");
+        return "ready";
       } catch (error) {
-        console.error("❌ Failed to register Web Push subscription:", error);
+        console.error("Failed to register Web Push subscription:", error);
+        setWebPushStatus("unsupported");
+        return "unsupported";
       }
+    },
+    [token]
+  );
+
+  const enableWebPushNotifications = useCallback(
+    () => registerWebPush({ requestPermission: true }),
+    [registerWebPush]
+  );
+
+  // Auto-register only when permission is already granted. iOS requires permission prompts to come from a user tap.
+  useEffect(() => {
+    if (!token || Platform.OS !== "web") {
+      setWebPushStatus("unsupported");
+      return;
     }
 
-    registerWebPush();
+    registerWebPush({ requestPermission: false });
+  }, [registerWebPush, token]);
 
+  useEffect(() => {
+    if (!token || Platform.OS !== "web") return;
+
+    const authToken = token;
     return () => {
-      isMounted = false;
+      const endpoint = webPushEndpointRef.current;
       if (endpoint) {
         api.unregisterWebPushSubscription(authToken, endpoint).catch((error) => {
-          console.error("❌ Failed to unregister Web Push subscription:", error);
+          console.error("Failed to unregister Web Push subscription:", error);
         });
+        webPushEndpointRef.current = undefined;
       }
     };
   }, [token]);
@@ -424,7 +454,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead }}>
+    <NotificationContext.Provider
+      value={{
+        notifications,
+        unreadCount,
+        webPushStatus,
+        enableWebPushNotifications,
+        markAsRead,
+        markAllAsRead
+      }}
+    >
       {children}
     </NotificationContext.Provider>
   );

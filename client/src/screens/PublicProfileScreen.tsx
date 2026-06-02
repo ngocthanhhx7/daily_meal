@@ -318,14 +318,14 @@ export function PublicProfileScreen({ route, navigation }: any) {
 
       {currentPosts.length ? (
         <View style={styles.grid}>
-          {currentPosts.map((post) => (
+          {currentPosts.map((post, index) => (
             <Pressable
               key={post._id}
               style={styles.gridItem}
               onPress={() => navigation.navigate("Recipe", { post })}
             >
               <Image source={postImageSource(post)} style={styles.gridImage} />
-              <View style={styles.gridCaption}>
+              <View style={[styles.gridCaption, index % 2 === 0 ? { left: 8 } : { right: 8 }]}>
                 <AppText variant="caption" numberOfLines={1}>
                   {post.caption || post.recipe?.title || "Bữa ăn"}
                 </AppText>
@@ -705,7 +705,6 @@ const styles = StyleSheet.create({
   gridCaption: {
     position: "absolute",
     top: 10,
-    left: 8,
     maxWidth: "86%",
     borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.92)",

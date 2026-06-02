@@ -98,7 +98,7 @@ export function SavedScreen({ navigation }: any) {
             <Image source={imageSource(item)} style={styles.cardImage} resizeMode="cover" />
             
             {/* Top Tag chip */}
-            <View style={styles.tagChip}>
+            <View style={[styles.tagChip, index % 2 === 0 ? { left: 10 } : { right: 10 }]}>
               <AppText numberOfLines={1} style={styles.tagChipText}>
                 {item.caption || "Nó ngon..."}
               </AppText>
@@ -189,7 +189,6 @@ const styles = StyleSheet.create({
   tagChip: {
     position: "absolute",
     top: 10,
-    left: 10,
     maxWidth: "80%",
     backgroundColor: "rgba(255,255,255,0.95)",
     borderRadius: 12,

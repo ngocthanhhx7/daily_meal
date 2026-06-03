@@ -29,6 +29,7 @@
       "package": "com.dailymeal.app",
       "versionCode": 1,
       "usesCleartextTraffic": true,
+      "googleServicesFile": "./android/app/google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo/logo.png",
         "backgroundColor": "#F4F3EF"
@@ -42,7 +43,12 @@
     "plugins": [
       "expo-font",
       "expo-secure-store",
-      "@react-native-google-signin/google-signin",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.20654020356-nsqam5ladrg7j5v6agefq8pucnrcqtn8"
+        }
+      ],
       [
         "expo-image-picker",
         {

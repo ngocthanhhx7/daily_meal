@@ -7,7 +7,10 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.dailymeal.site"
+        "EXPO_PUBLIC_API_URL": "https://api.dailymeal.site",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "20654020356-nsqam5ladrg7j5v6agefq8pucnrcqtn8.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "20654020356-nsqam5ladrg7j5v6agefq8pucnrcqtn8.apps.googleusercontent.com",
+        "EXPO_PUBLIC_FACEBOOK_APP_ID": "3483710358450589"
       }
     },
     "preview": {
@@ -16,7 +19,10 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.dailymeal.site"
+        "EXPO_PUBLIC_API_URL": "https://api.dailymeal.site",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "20654020356-nsqam5ladrg7j5v6agefq8pucnrcqtn8.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "20654020356-nsqam5ladrg7j5v6agefq8pucnrcqtn8.apps.googleusercontent.com",
+        "EXPO_PUBLIC_FACEBOOK_APP_ID": "3483710358450589"
       }
     },
     "production": {
@@ -24,7 +30,10 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.dailymeal.site"
+        "EXPO_PUBLIC_API_URL": "https://api.dailymeal.site",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "20654020356-nsqam5ladrg7j5v6agefq8pucnrcqtn8.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "20654020356-nsqam5ladrg7j5v6agefq8pucnrcqtn8.apps.googleusercontent.com",
+        "EXPO_PUBLIC_FACEBOOK_APP_ID": "3483710358450589"
       }
     }
   },

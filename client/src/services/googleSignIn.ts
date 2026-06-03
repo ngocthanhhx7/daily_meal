@@ -1,9 +1,10 @@
 import { Platform } from "react-native";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 
-declare const process: {
-  env: Record<string, string | undefined>;
-};
+// Expo Metro bundler injector: các biến EXPO_PUBLIC_ phải được dùng TRỰC TIẾP
+// (không thể dùng qua biến trung gian hay spread)
+const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
 type GoogleCredentialResponse = {
   credential?: string;
@@ -38,16 +39,15 @@ function configureNativeGoogle() {
     return;
   }
 
-  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-
-  if (!webClientId) {
-    throw new Error("Google login is missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.");
+  if (!WEB_CLIENT_ID) {
+    throw new Error(
+      "Google chưa được cấu hình. Vui lòng kiểm tra Google Client ID."
+    );
   }
 
   GoogleSignin.configure({
-    webClientId,
-    iosClientId
+    webClientId: WEB_CLIENT_ID,
+    iosClientId: IOS_CLIENT_ID
   });
   configured = true;
 }
@@ -85,10 +85,10 @@ function loadGoogleScript() {
 }
 
 async function getWebGoogleIdToken() {
-  const clientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-
-  if (!clientId) {
-    throw new Error("Google login is missing EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.");
+  if (!WEB_CLIENT_ID) {
+    throw new Error(
+      "Google chưa được cấu hình. Vui lòng kiểm tra Google Client ID."
+    );
   }
 
   await loadGoogleScript();
@@ -101,7 +101,7 @@ async function getWebGoogleIdToken() {
     }, 60000);
 
     window.google?.accounts?.id?.initialize({
-      client_id: clientId,
+      client_id: WEB_CLIENT_ID,
       callback: (response) => {
         window.clearTimeout(timeout);
         const button = document.getElementById("daily-meal-google-signin-button");
@@ -174,4 +174,10 @@ export async function getGoogleIdToken() {
     }
     throw error;
   }
+}
+
+// Debug helper — gọi trong dev để xác nhận biến env đã được inject
+export function debugGoogleConfig() {
+  console.log("[Google Sign-In] WEB_CLIENT_ID:", WEB_CLIENT_ID ? `...${WEB_CLIENT_ID.slice(-20)}` : "MISSING");
+  console.log("[Google Sign-In] IOS_CLIENT_ID:", IOS_CLIENT_ID ? `...${IOS_CLIENT_ID.slice(-20)}` : "MISSING");
 }

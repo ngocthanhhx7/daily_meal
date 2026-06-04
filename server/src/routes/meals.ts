@@ -4,7 +4,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 import { Meal } from "../models/Meal.js";
 import { Upload } from "../models/Upload.js";
-import { analyzeFoodImage } from "../services/gemini.js";
+import { analyzeFoodImage } from "../services/shineshop.js";
 import { readStoredUpload } from "../services/storage.js";
 
 export const mealsRouter = Router();

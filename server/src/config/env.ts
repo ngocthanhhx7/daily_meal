@@ -35,9 +35,16 @@ const envSchema = z.object({
   S3_ENDPOINT: optionalString,
   S3_FORCE_PATH_STYLE: boolFromEnv.default(false),
   S3_OBJECT_ACL: optionalString,
-  GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default("gemini-2.0-flash-lite"),
-  GEMINI_FALLBACK_MODEL: z.string().default("gemini-2.5-flash-lite"),
+  SHINESHOP_API_KEY: optionalString,
+  SHINESHOP_BASE_URL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().url().default("https://api.shineshop.dev/v1")
+  ),
+  SHINESHOP_MODEL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().default("gpt-4o-mini")
+  ),
+  SHINESHOP_FALLBACK_MODEL: optionalString,
   GOOGLE_WEB_CLIENT_ID: optionalString,
   GOOGLE_ANDROID_CLIENT_ID: optionalString,
   GOOGLE_IOS_CLIENT_ID: optionalString,

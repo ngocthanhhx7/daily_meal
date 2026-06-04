@@ -46,6 +46,13 @@ export function getWebPushReadiness(input: WebPushReadinessInput): WebPushReadin
   return "needs-permission";
 }
 
+export function shouldAutoRequestWebPushPermission(input: {
+  readiness: WebPushReadiness;
+  hasAutoRequested: boolean;
+}) {
+  return input.readiness === "needs-permission" && !input.hasAutoRequested;
+}
+
 export function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");

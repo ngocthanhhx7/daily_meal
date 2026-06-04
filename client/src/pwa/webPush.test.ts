@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PwaEnvironment } from "./platform";
-import { getWebPushReadiness } from "./webPush";
+import { getWebPushReadiness, shouldAutoRequestWebPushPermission } from "./webPush";
 
 const baseEnvironment: PwaEnvironment = {
   isWeb: true,
@@ -42,5 +42,32 @@ describe("getWebPushReadiness", () => {
 
   it("detects missing VAPID public key", () => {
     expect(readiness({ publicKey: "" })).toBe("missing-public-key");
+  });
+});
+
+describe("shouldAutoRequestWebPushPermission", () => {
+  it("auto-prompts only once when permission is still undecided", () => {
+    expect(
+      shouldAutoRequestWebPushPermission({
+        readiness: "needs-permission",
+        hasAutoRequested: false
+      })
+    ).toBe(true);
+
+    expect(
+      shouldAutoRequestWebPushPermission({
+        readiness: "needs-permission",
+        hasAutoRequested: true
+      })
+    ).toBe(false);
+  });
+
+  it("does not auto-prompt when the browser permission was denied", () => {
+    expect(
+      shouldAutoRequestWebPushPermission({
+        readiness: "permission-denied",
+        hasAutoRequested: false
+      })
+    ).toBe(false);
   });
 });

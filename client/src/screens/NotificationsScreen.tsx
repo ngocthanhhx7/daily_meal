@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { FlatList, Pressable, StyleSheet, View } from "react-native";
+import { Alert, Animated, FlatList, PanResponder, Pressable, StyleSheet, View } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { useNotifications } from "../context/NotificationContext";
@@ -14,7 +14,7 @@ type NotificationItem = {
     _id?: string;
     id?: string;
     displayName?: string;
-  };
+  } | null;
   post?: any;
   body: string;
   read: boolean;
@@ -41,9 +41,19 @@ export function NotificationsScreen({ navigation }: any) {
     webPushStatus,
     enableWebPushNotifications,
     markAsRead,
-    markAllAsRead
+    markAllAsRead,
+    deleteNotification,
+    deleteAllNotifications
   } = useNotifications();
   const [enablingWebPush, setEnablingWebPush] = useState(false);
+
+  function confirmDeleteAll() {
+    if (notifications.length === 0) return;
+    Alert.alert("Xóa tất cả thông báo?", "Thao tác này sẽ dọn sạch toàn bộ thông báo của bạn.", [
+      { text: "Hủy", style: "cancel" },
+      { text: "Xóa tất cả", style: "destructive", onPress: deleteAllNotifications }
+    ]);
+  }
 
   async function handleEnableWebPush() {
     setEnablingWebPush(true);
@@ -79,8 +89,13 @@ export function NotificationsScreen({ navigation }: any) {
         <AppText variant="title" style={styles.headerTitle}>Thông báo</AppText>
         
         {unreadCount > 0 && (
-          <Pressable style={styles.markAllBtn} onPress={markAllAsRead}>
+          <Pressable style={styles.headerIconBtn} onPress={markAllAsRead} hitSlop={8}>
             <Ionicons name="checkmark-done" size={20} color={colors.greenDark} />
+          </Pressable>
+        )}
+        {notifications.length > 0 && (
+          <Pressable style={styles.headerIconBtn} onPress={confirmDeleteAll} hitSlop={8}>
+            <Ionicons name="trash-outline" size={20} color={colors.greenDark} />
           </Pressable>
         )}
       </View>
@@ -146,10 +161,11 @@ export function NotificationsScreen({ navigation }: any) {
           }
 
           return (
-            <Pressable
-              style={[styles.item, !item.read && styles.unreadItem]}
-              onPress={() => handleNotificationPress(item)}
-            >
+            <SwipeDeleteItem onDelete={() => deleteNotification(item._id)}>
+              <Pressable
+                style={[styles.item, !item.read && styles.unreadItem]}
+                onPress={() => handleNotificationPress(item)}
+              >
               <View style={[styles.iconWrap, { backgroundColor: `${iconColor}15` }]}>
                 <Ionicons name={iconName} size={18} color={iconColor} />
               </View>
@@ -168,12 +184,58 @@ export function NotificationsScreen({ navigation }: any) {
                 </AppText>
               </View>
 
-              {!item.read && <View style={styles.dot} />}
-            </Pressable>
+                {!item.read && <View style={styles.dot} />}
+              </Pressable>
+            </SwipeDeleteItem>
           );
         }}
       />
     </AppScreen>
+  );
+}
+
+function SwipeDeleteItem({ children, onDelete }: { children: React.ReactNode; onDelete: () => void }) {
+  const translateX = React.useRef(new Animated.Value(0)).current;
+  const [opened, setOpened] = useState(false);
+
+  const close = React.useCallback(() => {
+    Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start(() => setOpened(false));
+  }, [translateX]);
+
+  const open = React.useCallback(() => {
+    Animated.spring(translateX, { toValue: -92, useNativeDriver: true }).start(() => setOpened(true));
+  }, [translateX]);
+
+  const panResponder = React.useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 12 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderMove: (_event, gesture) => {
+        const nextX = Math.max(-104, Math.min(0, (opened ? -92 : 0) + gesture.dx));
+        translateX.setValue(nextX);
+      },
+      onPanResponderRelease: (_event, gesture) => {
+        if (gesture.dx < -42 || (opened && gesture.dx < 30)) {
+          open();
+        } else {
+          close();
+        }
+      }
+    }),
+    [close, open, opened, translateX]
+  );
+
+  return (
+    <View style={styles.swipeContainer}>
+      <View style={styles.deleteBehind}>
+        <Pressable style={styles.deleteAction} onPress={onDelete}>
+          <Ionicons name="trash" size={20} color={colors.white} />
+          <AppText style={styles.deleteText}>Xóa</AppText>
+        </Pressable>
+      </View>
+      <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
+        {children}
+      </Animated.View>
+    </View>
   );
 }
 
@@ -194,7 +256,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1
   },
-  markAllBtn: {
+  headerIconBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -246,6 +308,35 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: 10,
     paddingBottom: 24
+  },
+  swipeContainer: {
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 14
+  },
+  deleteBehind: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    backgroundColor: `${colors.red}14`,
+    borderWidth: 1,
+    borderColor: `${colors.red}55`,
+    borderRadius: 14
+  },
+  deleteAction: {
+    width: 88,
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    backgroundColor: colors.red,
+    borderTopRightRadius: 14,
+    borderBottomRightRadius: 14
+  },
+  deleteText: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.white
   },
   item: {
     flexDirection: "row",

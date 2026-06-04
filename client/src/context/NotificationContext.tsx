@@ -6,7 +6,12 @@ import { useSocket } from "./SocketContext";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { getPwaEnvironment } from "../pwa/platform";
-import { getWebPushReadiness, urlBase64ToUint8Array, type WebPushReadiness } from "../pwa/webPush";
+import {
+  getWebPushReadiness,
+  shouldAutoRequestWebPushPermission,
+  urlBase64ToUint8Array,
+  type WebPushReadiness
+} from "../pwa/webPush";
 
 // Configure notification handler for native apps (foreground notifications)
 if (Platform.OS !== "web") {
@@ -127,6 +132,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [unreadCount, setUnreadCount] = useState(0);
   const [webPushStatus, setWebPushStatus] = useState<WebPushReadiness>("unsupported");
   const webPushEndpointRef = useRef<string | undefined>(undefined);
+  const autoWebPushRequestRef = useRef(false);
 
   const applyNotifications = useCallback((nextNotifications: Notification[]) => {
     setNotifications(nextNotifications);
@@ -277,14 +283,37 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     [registerWebPush]
   );
 
-  // Auto-register only when permission is already granted. iOS requires permission prompts to come from a user tap.
+  // Auto-register web push on first web app entry. If the user denies permission, the banner stays available.
   useEffect(() => {
     if (!token || Platform.OS !== "web") {
       setWebPushStatus("unsupported");
       return;
     }
 
-    registerWebPush({ requestPermission: false });
+    let cancelled = false;
+
+    async function autoRegisterWebPush() {
+      const readiness = await registerWebPush({ requestPermission: false });
+
+      if (
+        cancelled ||
+        !shouldAutoRequestWebPushPermission({
+          readiness,
+          hasAutoRequested: autoWebPushRequestRef.current
+        })
+      ) {
+        return;
+      }
+
+      autoWebPushRequestRef.current = true;
+      await registerWebPush({ requestPermission: true });
+    }
+
+    autoRegisterWebPush();
+
+    return () => {
+      cancelled = true;
+    };
   }, [registerWebPush, token]);
 
   useEffect(() => {

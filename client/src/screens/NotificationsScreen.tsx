@@ -87,17 +87,6 @@ export function NotificationsScreen({ navigation }: any) {
           <Ionicons name="chevron-back" size={22} color={colors.black} />
         </Pressable>
         <AppText variant="title" style={styles.headerTitle}>Thông báo</AppText>
-        
-        {unreadCount > 0 && (
-          <Pressable style={styles.headerIconBtn} onPress={markAllAsRead} hitSlop={8}>
-            <Ionicons name="checkmark-done" size={20} color={colors.greenDark} />
-          </Pressable>
-        )}
-        {notifications.length > 0 && (
-          <Pressable style={styles.headerIconBtn} onPress={confirmDeleteAll} hitSlop={8}>
-            <Ionicons name="trash-outline" size={20} color={colors.greenDark} />
-          </Pressable>
-        )}
       </View>
 
       {webPushStatus !== "unsupported" && webPushStatus !== "ready" ? (
@@ -126,6 +115,32 @@ export function NotificationsScreen({ navigation }: any) {
           ) : null}
         </View>
       ) : null}
+
+      {/* Bulk Actions Bar */}
+      {notifications.length > 0 && (
+        <View style={styles.toolbarContainer}>
+          <AppText style={styles.notificationCountText}>
+            Bạn có <AppText style={styles.countHighlight}>{notifications.length}</AppText> thông báo
+          </AppText>
+          <View style={styles.toolbarActions}>
+            {unreadCount > 0 ? (
+              <Pressable style={styles.toolbarBtn} onPress={markAllAsRead} hitSlop={8}>
+                <Ionicons name="checkmark-done-circle-outline" size={16} color={colors.greenDark} />
+                <AppText style={styles.toolbarBtnText}>Đọc tất cả</AppText>
+              </Pressable>
+            ) : (
+              <View style={styles.toolbarBtnDisabled}>
+                <Ionicons name="checkmark-done-circle" size={16} color={colors.muted} />
+                <AppText style={styles.toolbarBtnTextDisabled}>Đã đọc hết</AppText>
+              </View>
+            )}
+            <Pressable style={styles.toolbarBtn} onPress={confirmDeleteAll} hitSlop={8}>
+              <Ionicons name="trash-outline" size={16} color={colors.red} />
+              <AppText style={[styles.toolbarBtnText, { color: colors.red }]}>Xóa tất cả</AppText>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {/* Notification List */}
       <FlatList
@@ -166,25 +181,34 @@ export function NotificationsScreen({ navigation }: any) {
                 style={[styles.item, !item.read && styles.unreadItem]}
                 onPress={() => handleNotificationPress(item)}
               >
-              <View style={[styles.iconWrap, { backgroundColor: `${iconColor}15` }]}>
-                <Ionicons name={iconName} size={18} color={iconColor} />
-              </View>
+                <View style={[styles.iconWrap, { backgroundColor: `${iconColor}15` }]}>
+                  <Ionicons name={iconName} size={18} color={iconColor} />
+                </View>
 
-              <View style={styles.contentWrap}>
-                <AppText style={styles.bodyText}>
-                  <AppText style={styles.senderName}>{item.sender?.displayName ?? "Daily Meal"}</AppText>
-                  {` ${
-                    item.sender?.displayName && item.body.startsWith(item.sender.displayName)
-                      ? item.body.slice(item.sender.displayName.length).trim()
-                      : item.body
-                  }`}
-                </AppText>
-                <AppText variant="caption" muted style={styles.timeText}>
-                  {relativeTime(item.createdAt)}
-                </AppText>
-              </View>
+                <View style={styles.contentWrap}>
+                  <AppText style={styles.bodyText}>
+                    <AppText style={styles.senderName}>{item.sender?.displayName ?? "Daily Meal"}</AppText>
+                    {` ${
+                      item.sender?.displayName && item.body.startsWith(item.sender.displayName)
+                        ? item.body.slice(item.sender.displayName.length).trim()
+                        : item.body
+                    }`}
+                  </AppText>
+                  <AppText variant="caption" muted style={styles.timeText}>
+                    {relativeTime(item.createdAt)}
+                  </AppText>
+                </View>
 
-                {!item.read && <View style={styles.dot} />}
+                <View style={styles.rightActions}>
+                  {!item.read && <View style={styles.dot} />}
+                  <Pressable
+                    style={styles.cardDeleteBtn}
+                    onPress={() => deleteNotification(item._id)}
+                    hitSlop={12}
+                  >
+                    <Ionicons name="close" size={16} color={colors.muted} />
+                  </Pressable>
+                </View>
               </Pressable>
             </SwipeDeleteItem>
           );
@@ -203,18 +227,18 @@ function SwipeDeleteItem({ children, onDelete }: { children: React.ReactNode; on
   }, [translateX]);
 
   const open = React.useCallback(() => {
-    Animated.spring(translateX, { toValue: -92, useNativeDriver: true }).start(() => setOpened(true));
+    Animated.spring(translateX, { toValue: -84, useNativeDriver: true }).start(() => setOpened(true));
   }, [translateX]);
 
   const panResponder = React.useMemo(
     () => PanResponder.create({
       onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 12 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
       onPanResponderMove: (_event, gesture) => {
-        const nextX = Math.max(-104, Math.min(0, (opened ? -92 : 0) + gesture.dx));
+        const nextX = Math.max(-96, Math.min(0, (opened ? -84 : 0) + gesture.dx));
         translateX.setValue(nextX);
       },
       onPanResponderRelease: (_event, gesture) => {
-        if (gesture.dx < -42 || (opened && gesture.dx < 30)) {
+        if (gesture.dx < -36 || (opened && gesture.dx < 24)) {
           open();
         } else {
           close();
@@ -315,28 +339,78 @@ const styles = StyleSheet.create({
     borderRadius: 14
   },
   deleteBehind: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "flex-end",
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 84,
     justifyContent: "center",
-    backgroundColor: `${colors.red}14`,
-    borderWidth: 1,
-    borderColor: `${colors.red}55`,
-    borderRadius: 14
+    alignItems: "center",
+    backgroundColor: "transparent"
   },
   deleteAction: {
-    width: 88,
-    height: "100%",
+    width: 72,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
+    gap: 2,
     backgroundColor: colors.red,
-    borderTopRightRadius: 14,
-    borderBottomRightRadius: 14
+    borderRadius: 12,
+    shadowColor: colors.red,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3
   },
   deleteText: {
     fontFamily: fonts.semibold,
     fontSize: 12,
     color: colors.white
+  },
+  toolbarContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line
+  },
+  notificationCountText: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.muted
+  },
+  countHighlight: {
+    fontFamily: fonts.bold,
+    color: colors.ink
+  },
+  toolbarActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16
+  },
+  toolbarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4
+  },
+  toolbarBtnText: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.greenDark
+  },
+  toolbarBtnDisabled: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    opacity: 0.5
+  },
+  toolbarBtnTextDisabled: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.muted
   },
   item: {
     flexDirection: "row",
@@ -379,6 +453,20 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 12
+  },
+  rightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingLeft: 4
+  },
+  cardDeleteBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: `${colors.line}50`,
+    alignItems: "center",
+    justifyContent: "center"
   },
   dot: {
     width: 8,

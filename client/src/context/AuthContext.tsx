@@ -12,6 +12,8 @@ type AuthContextValue = {
   signInWithPhone: (phone: string, password: string) => Promise<void>;
   requestPhoneOtp: (phone: string) => Promise<{ requiresPasswordSetup: boolean; devOtp?: string }>;
   verifyPhoneOtp: (phone: string, otp: string, password?: string, displayName?: string) => Promise<void>;
+  requestPasswordResetOtp: (email: string) => Promise<{ devOtp?: string }>;
+  verifyPasswordResetOtp: (email: string, otp: string) => Promise<{ devNewPassword?: string }>;
   signInWithFacebook: (facebookToken: string) => Promise<void>;
   signInWithGoogle: (idToken: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
@@ -140,6 +142,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       verifyPhoneOtp: async (phone, otp, password, displayName) => {
         const result = await api.verifyPhoneOtp({ phone, otp, password, displayName });
         await persistSession(result.token, result.user);
+      },
+      requestPasswordResetOtp: async (email) => {
+        const result = await api.requestPasswordResetOtp({ email });
+        return { devOtp: result.devOtp };
+      },
+      verifyPasswordResetOtp: async (email, otp) => {
+        const result = await api.verifyPasswordResetOtp({ email, otp });
+        return { devNewPassword: result.devNewPassword };
       },
       signInWithFacebook: async (facebookToken) => {
         const result = await api.loginWithFacebook(facebookToken);

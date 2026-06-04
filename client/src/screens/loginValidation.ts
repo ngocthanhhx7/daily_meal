@@ -15,6 +15,12 @@ export type LoginValidationError = {
 
 export type LoginMode = "login" | "register";
 
+export type ForgotPasswordValidationInput = {
+  email: string;
+  otp: string;
+  otpSent: boolean;
+};
+
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function validateLoginForm(input: LoginValidationInput): LoginValidationError | null {
@@ -69,6 +75,34 @@ export function validateLoginForm(input: LoginValidationInput): LoginValidationE
     return {
       title: "Mật khẩu quá ngắn",
       message: "Mật khẩu cần ít nhất 6 ký tự."
+    };
+  }
+
+  return null;
+}
+
+export function validateForgotPasswordForm(input: ForgotPasswordValidationInput): LoginValidationError | null {
+  const email = input.email.trim();
+  const otp = input.otp.trim();
+
+  if (!email) {
+    return {
+      title: "Thiáº¿u email",
+      message: "Vui lÃ²ng nháº­p email Ä‘á»ƒ nháº­n mÃ£ OTP."
+    };
+  }
+
+  if (!emailPattern.test(email)) {
+    return {
+      title: "Email khÃ´ng há»£p lá»‡",
+      message: "Vui lÃ²ng nháº­p Ä‘Ãºng Ä‘á»‹nh dáº¡ng email."
+    };
+  }
+
+  if (input.otpSent && !/^\d{6}$/.test(otp)) {
+    return {
+      title: "MÃ£ OTP khÃ´ng há»£p lá»‡",
+      message: "Vui lÃ²ng nháº­p mÃ£ OTP gá»“m 6 chá»¯ sá»‘."
     };
   }
 

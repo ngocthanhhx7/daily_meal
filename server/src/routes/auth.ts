@@ -5,6 +5,7 @@ import { User } from "../models/User.js";
 import { hashPassword, normalizePhoneNumber, signAccessToken, verifyPassword } from "../services/auth.js";
 import { verifyGoogleIdToken } from "../services/googleAuth.js";
 import { sendPhoneOtpSms } from "../services/sms.js";
+import { sendNewPasswordEmail, sendPasswordResetOtpEmail } from "../services/email.js";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 
@@ -19,6 +20,15 @@ const authBodySchema = z.object({
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(6),
   newPassword: z.string().min(8).max(128)
+});
+
+const forgotPasswordRequestSchema = z.object({
+  email: z.string().email().transform((value) => value.toLowerCase())
+});
+
+const forgotPasswordVerifySchema = z.object({
+  email: z.string().email().transform((value) => value.toLowerCase()),
+  otp: z.string().regex(/^\d{6}$/)
 });
 
 const facebookAuthSchema = z.object({
@@ -72,6 +82,23 @@ function userDto(user: any) {
   };
 }
 
+function createNumericOtp() {
+  return process.env.NODE_ENV === "production"
+    ? crypto.randomInt(100000, 1000000).toString()
+    : "123456";
+}
+
+function createGeneratedPassword(length = 12) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  let password = "";
+
+  for (let index = 0; index < length; index += 1) {
+    password += alphabet[crypto.randomInt(0, alphabet.length)];
+  }
+
+  return password;
+}
+
 authRouter.post("/register", async (req, res, next) => {
   try {
     const body = authBodySchema.parse(req.body);
@@ -108,6 +135,79 @@ authRouter.post("/login", async (req, res, next) => {
     res.json({
       token: signAccessToken(user._id.toString()),
       user: userDto(user)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post("/password/forgot/request-otp", async (req, res, next) => {
+  try {
+    const body = forgotPasswordRequestSchema.parse(req.body);
+    const user = await User.findOne({ email: body.email });
+
+    if (!user?.email) {
+      res.json({ message: "Nếu email tồn tại, mã OTP đã được gửi." });
+      return;
+    }
+
+    const otp = createNumericOtp();
+    user.passwordResetOtp = {
+      codeHash: await hashPassword(otp),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      attempts: 0
+    };
+
+    await user.save();
+    await sendPasswordResetOtpEmail(user.email, otp);
+
+    res.json({
+      message: "Mã OTP đã được gửi đến email.",
+      devOtp: process.env.NODE_ENV === "production" ? undefined : otp
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+authRouter.post("/password/forgot/verify-otp", async (req, res, next) => {
+  try {
+    const body = forgotPasswordVerifySchema.parse(req.body);
+    const user = await User.findOne({ email: body.email });
+
+    if (!user?.passwordResetOtp?.codeHash || !user.passwordResetOtp.expiresAt) {
+      throw new HttpError(400, "Vui lòng yêu cầu mã OTP mới.");
+    }
+
+    if (user.passwordResetOtp.expiresAt.getTime() < Date.now()) {
+      user.passwordResetOtp = undefined;
+      await user.save();
+      throw new HttpError(400, "Mã OTP đã hết hạn.");
+    }
+
+    if ((user.passwordResetOtp.attempts ?? 0) >= 5) {
+      user.passwordResetOtp = undefined;
+      await user.save();
+      throw new HttpError(429, "Bạn đã nhập sai quá nhiều lần. Vui lòng lấy mã mới.");
+    }
+
+    const validOtp = await verifyPassword(body.otp, user.passwordResetOtp.codeHash);
+
+    if (!validOtp) {
+      user.passwordResetOtp.attempts = (user.passwordResetOtp.attempts ?? 0) + 1;
+      await user.save();
+      throw new HttpError(401, "Mã OTP không đúng.");
+    }
+
+    const newPassword = createGeneratedPassword();
+    user.passwordHash = await hashPassword(newPassword);
+    user.passwordResetOtp = undefined;
+    await user.save();
+    await sendNewPasswordEmail(body.email, newPassword);
+
+    res.json({
+      message: "mật khẩu mới đã được gửi đến email.",
+      devNewPassword: process.env.NODE_ENV === "production" ? undefined : newPassword
     });
   } catch (error) {
     next(error);

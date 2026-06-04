@@ -120,6 +120,16 @@ export const api = {
       method: "POST",
       body
     }),
+  requestPasswordResetOtp: (body: { email: string }) =>
+    request<{ message: string; devOtp?: string }>("/api/auth/password/forgot/request-otp", {
+      method: "POST",
+      body
+    }),
+  verifyPasswordResetOtp: (body: { email: string; otp: string }) =>
+    request<{ message: string; devNewPassword?: string }>("/api/auth/password/forgot/verify-otp", {
+      method: "POST",
+      body
+    }),
   loginWithFacebook: (accessToken: string) =>
     request<{ token: string; user: User }>("/api/auth/facebook", {
       method: "POST",

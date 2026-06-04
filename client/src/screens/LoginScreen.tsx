@@ -23,20 +23,37 @@ import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import { IOS_MINIMUM_INPUT_FONT_SIZE, getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
-import { createAuthErrorState, getAuthErrorMessage, validateLoginForm, type LoginValidationError } from "./loginValidation";
+import {
+  createAuthErrorState,
+  getAuthErrorMessage,
+  validateForgotPasswordForm,
+  validateLoginForm,
+  type LoginValidationError
+} from "./loginValidation";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export function LoginScreen() {
-  const { signIn, register, requestPhoneOtp, verifyPhoneOtp, signInWithFacebook, signInWithGoogle } = useAuth();
+  const {
+    signIn,
+    register,
+    requestPhoneOtp,
+    verifyPhoneOtp,
+    requestPasswordResetOtp,
+    verifyPasswordResetOtp,
+    signInWithFacebook,
+    signInWithGoogle
+  } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
+  const [passwordResetMode, setPasswordResetMode] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [phoneOtpSent, setPhoneOtpSent] = useState(false);
   const [phoneNeedsPassword, setPhoneNeedsPassword] = useState(false);
+  const [passwordResetOtpSent, setPasswordResetOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<LoginValidationError | null>(null);
   const { width: viewportWidth } = useWindowDimensions();
@@ -82,6 +99,11 @@ export function LoginScreen() {
   }
 
   async function submit() {
+    if (passwordResetMode) {
+      await submitPasswordReset();
+      return;
+    }
+
     const validation = validateLoginForm({
       authMethod,
       mode,
@@ -113,6 +135,55 @@ export function LoginScreen() {
       }
     } catch (error) {
       setAuthError(createAuthErrorState(mode, error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitPasswordReset() {
+    const validation = validateForgotPasswordForm({
+      email: identifier,
+      otp,
+      otpSent: passwordResetOtpSent
+    });
+
+    if (validation) {
+      setAuthError(validation);
+      return;
+    }
+
+    setAuthError(null);
+    setLoading(true);
+    try {
+      if (!passwordResetOtpSent) {
+        const result = await requestPasswordResetOtp(identifier);
+        setPasswordResetOtpSent(true);
+        setOtp("");
+        Alert.alert(
+          "ÄÃ£ gá»­i OTP",
+          result.devOtp ? `MÃ£ OTP dev: ${result.devOtp}` : "Vui lÃ²ng kiá»ƒm tra Gmail cá»§a báº¡n."
+        );
+        return;
+      }
+
+      const result = await verifyPasswordResetOtp(identifier, otp);
+      Alert.alert(
+        "ÄÃ£ táº¡o máº­t kháº©u má»›i",
+        result.devNewPassword
+          ? `Máº­t kháº©u dev: ${result.devNewPassword}`
+          : "Máº­t kháº©u má»›i Ä‘Ã£ Ä‘Æ°á»£c gá»­i vá» Gmail cá»§a báº¡n."
+      );
+      setPasswordResetMode(false);
+      setPasswordResetOtpSent(false);
+      setOtp("");
+      setPassword("");
+      setMode("login");
+      setAuthMethod("email");
+    } catch (error) {
+      setAuthError({
+        title: passwordResetOtpSent ? "KhÃ´ng thá»ƒ xÃ¡c nháº­n OTP" : "KhÃ´ng thá»ƒ gá»­i OTP",
+        message: getAuthErrorMessage(error)
+      });
     } finally {
       setLoading(false);
     }
@@ -225,10 +296,14 @@ export function LoginScreen() {
 
               <View style={styles.heading}>
                 <AppText style={styles.titleText}>
-                  {mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
+                  {passwordResetMode ? "Quên mật khẩu" : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
                 </AppText>
                 <AppText style={styles.subtitleText}>
-                  {mode === "login" ? "Chọn phương thức đăng nhập" : "Bắt đầu hành trình ẩm thực của bạn."}
+                  {passwordResetMode
+                    ? "Xác thực email để nhận mật khẩu mới."
+                    : mode === "login"
+                      ? "Chọn phương thức đăng nhập"
+                      : "Bắt đầu hành trình ẩm thực của bạn."}
                 </AppText>
               </View>
 
@@ -242,11 +317,13 @@ export function LoginScreen() {
                 </View>
               ) : null}
 
-              {mode === "login" ? (
+              {passwordResetMode ? (
+                <AppText style={styles.sectionHeader}>Nhập email tài khoản của bạn</AppText>
+              ) : mode === "login" ? (
                 <AppText style={styles.sectionHeader}>Đăng nhập vào tk hiện có</AppText>
               ) : null}
 
-              {mode === "register" || (authMethod === "phone" && phoneNeedsPassword) ? (
+              {!passwordResetMode && (mode === "register" || (authMethod === "phone" && phoneNeedsPassword)) ? (
                 <FigmaField
                   label="Tên hiển thị"
                   value={displayName}
@@ -260,21 +337,27 @@ export function LoginScreen() {
               ) : null}
 
               <FigmaField
-                label={authMethod === "phone" ? "Số điện thoại" : mode === "login" ? "Tên đăng nhập" : "Email"}
+                label={passwordResetMode ? "Email" : authMethod === "phone" ? "Số điện thoại" : mode === "login" ? "Tên đăng nhập" : "Email"}
                 value={identifier}
                 onChangeText={(value) => {
                   setIdentifier(value);
                   clearAuthError();
+                  if (passwordResetMode) {
+                    setPasswordResetOtpSent(false);
+                    setOtp("");
+                  }
                   if (authMethod === "phone") {
                     setPhoneOtpSent(false);
                     setPhoneNeedsPassword(false);
                     setOtp("");
                   }
                 }}
-                keyboardType={authMethod === "phone" ? "phone-pad" : "email-address"}
+                keyboardType={authMethod === "phone" && !passwordResetMode ? "phone-pad" : "email-address"}
                 autoCapitalize="none"
                 placeholder={
-                  authMethod === "phone"
+                  passwordResetMode
+                    ? "email@example.com"
+                    : authMethod === "phone"
                     ? "Nhập số điện thoại"
                     : mode === "login"
                       ? "Nhập tên đăng nhập"
@@ -282,7 +365,7 @@ export function LoginScreen() {
                 }
               />
 
-              {authMethod === "phone" && phoneOtpSent ? (
+              {(passwordResetMode && passwordResetOtpSent) || (authMethod === "phone" && phoneOtpSent) ? (
                 <FigmaField
                   label="Mã OTP"
                   value={otp}
@@ -296,7 +379,7 @@ export function LoginScreen() {
                 />
               ) : null}
 
-              {authMethod === "email" || (authMethod === "phone" && phoneOtpSent && phoneNeedsPassword) ? (
+              {!passwordResetMode && (authMethod === "email" || (authMethod === "phone" && phoneOtpSent && phoneNeedsPassword)) ? (
                 <FigmaField
                   label={authMethod === "phone" ? "Tạo mật khẩu" : "Mật khẩu"}
                   value={password}
@@ -311,7 +394,26 @@ export function LoginScreen() {
                 />
               ) : null}
 
-              {authMethod === "phone" ? (
+              {passwordResetMode ? (
+                <>
+                  <AppButton
+                    label={passwordResetOtpSent ? "Xác nhận OTP" : "Gửi OTP"}
+                    onPress={submit}
+                    loading={loading}
+                    style={styles.primaryAction}
+                  />
+                  <Pressable
+                    onPress={() => {
+                      setPasswordResetMode(false);
+                      setPasswordResetOtpSent(false);
+                      setOtp("");
+                      setAuthError(null);
+                    }}
+                  >
+                    <AppText style={styles.switchText}>Quay lại đăng nhập</AppText>
+                  </Pressable>
+                </>
+              ) : authMethod === "phone" ? (
                 <>
                   <AppButton
                     label={phoneOtpSent ? "Xác nhận OTP" : "Gửi OTP"}
@@ -342,12 +444,26 @@ export function LoginScreen() {
                   <Pressable
                     onPress={() => {
                       setMode("register");
+                      setPasswordResetMode(false);
                       setAuthError(null);
                     }}
                   >
                     <AppText style={styles.switchText}>
                       Chưa có tài khoản? <AppText style={styles.switchLink}>Đăng ký ngay</AppText>
                     </AppText>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setPasswordResetMode(true);
+                      setAuthMethod("email");
+                      setMode("login");
+                      setPassword("");
+                      setOtp("");
+                      setPasswordResetOtpSent(false);
+                      setAuthError(null);
+                    }}
+                  >
+                    <AppText style={[styles.switchText, styles.forgotText]}>Quên mật khẩu?</AppText>
                   </Pressable>
                 </>
               ) : (
@@ -362,6 +478,7 @@ export function LoginScreen() {
                   <Pressable
                     onPress={() => {
                       setMode("login");
+                      setPasswordResetMode(false);
                       setAuthError(null);
                     }}
                   >
@@ -372,20 +489,24 @@ export function LoginScreen() {
                 </>
               )}
 
-              <AppText style={styles.otherLoginText}>Phương thức đăng nhập khác</AppText>
+              {!passwordResetMode ? (
+                <>
+                  <AppText style={styles.otherLoginText}>Phương thức đăng nhập khác</AppText>
 
-              <View style={styles.socialRow}>
-                {(["logo-facebook", "logo-google", "call-outline"] as const).map((icon) => (
-                  <Pressable
-                    key={icon}
-                    style={styles.socialButton}
-                    onPress={() => handleSocialPress(icon)}
-                    disabled={loading || (icon === "logo-facebook" && !request)}
-                  >
-                    <Ionicons name={icon} size={23} color={colors.white} />
-                  </Pressable>
-                ))}
-              </View>
+                  <View style={styles.socialRow}>
+                    {(["logo-facebook", "logo-google", "call-outline"] as const).map((icon) => (
+                      <Pressable
+                        key={icon}
+                        style={styles.socialButton}
+                        onPress={() => handleSocialPress(icon)}
+                        disabled={loading || (icon === "logo-facebook" && !request)}
+                      >
+                        <Ionicons name={icon} size={23} color={colors.white} />
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              ) : null}
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -595,6 +716,11 @@ const styles = StyleSheet.create({
     lineHeight: 20
   },
   switchLink: {
+    color: colors.green,
+    fontFamily: fonts.semibold
+  },
+  forgotText: {
+    marginTop: 8,
     color: colors.green,
     fontFamily: fonts.semibold
   },

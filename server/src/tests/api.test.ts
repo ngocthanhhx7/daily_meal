@@ -737,6 +737,54 @@ describe("Daily Meal API", () => {
       .expect(200);
   });
 
+  it("resets a password after verifying an email OTP", async () => {
+    await register("forgot-password@example.com");
+
+    const otpResponse = await request(app)
+      .post("/api/auth/password/forgot/request-otp")
+      .send({ email: "forgot-password@example.com" })
+      .expect(200);
+
+    expect(otpResponse.body.message).toContain("OTP");
+    expect(otpResponse.body.devOtp).toMatch(/^\d{6}$/);
+
+    await request(app)
+      .post("/api/auth/password/forgot/verify-otp")
+      .send({ email: "forgot-password@example.com", otp: "000000" })
+      .expect(401);
+
+    const resetResponse = await request(app)
+      .post("/api/auth/password/forgot/verify-otp")
+      .send({ email: "forgot-password@example.com", otp: otpResponse.body.devOtp })
+      .expect(200);
+
+    expect(resetResponse.body.message).toContain("mật khẩu mới");
+    expect(resetResponse.body.devNewPassword).toMatch(/^[A-Za-z0-9]{12}$/);
+
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: "forgot-password@example.com", password: "password123" })
+      .expect(401);
+
+    await request(app)
+      .post("/api/auth/login")
+      .send({ email: "forgot-password@example.com", password: resetResponse.body.devNewPassword })
+      .expect(200);
+
+    const user = await User.findOne({ email: "forgot-password@example.com" });
+    expect(user?.passwordResetOtp).toBeUndefined();
+  });
+
+  it("does not reveal whether a forgot-password email exists", async () => {
+    const response = await request(app)
+      .post("/api/auth/password/forgot/request-otp")
+      .send({ email: "missing-forgot-password@example.com" })
+      .expect(200);
+
+    expect(response.body.message).toContain("OTP");
+    expect(response.body.devOtp).toBeUndefined();
+  });
+
   it("creates a Google user and reads the current user", async () => {
     mockedVerifyGoogleIdToken.mockResolvedValue({
       sub: "google-new-user",

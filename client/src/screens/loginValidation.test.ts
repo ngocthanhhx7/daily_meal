@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAuthErrorState, getAuthErrorMessage, validateLoginForm } from "./loginValidation";
+import { createAuthErrorState, getAuthErrorMessage, validateForgotPasswordForm, validateLoginForm } from "./loginValidation";
 
 describe("validateLoginForm", () => {
   it("requires a valid email and password for email login", () => {
@@ -93,6 +93,27 @@ describe("validateLoginForm", () => {
     ).toEqual({
       title: "Mật khẩu quá ngắn",
       message: "Mật khẩu cần ít nhất 6 ký tự."
+    });
+  });
+});
+
+describe("validateForgotPasswordForm", () => {
+  it("requires a valid email before requesting reset OTP", () => {
+    expect(validateForgotPasswordForm({ email: "", otp: "", otpSent: false })).toEqual({
+      title: "Thiáº¿u email",
+      message: "Vui lÃ²ng nháº­p email Ä‘á»ƒ nháº­n mÃ£ OTP."
+    });
+
+    expect(validateForgotPasswordForm({ email: "daily-meal", otp: "", otpSent: false })).toEqual({
+      title: "Email khÃ´ng há»£p lá»‡",
+      message: "Vui lÃ²ng nháº­p Ä‘Ãºng Ä‘á»‹nh dáº¡ng email."
+    });
+  });
+
+  it("requires a 6-digit OTP before resetting password", () => {
+    expect(validateForgotPasswordForm({ email: "user@example.com", otp: "12", otpSent: true })).toEqual({
+      title: "MÃ£ OTP khÃ´ng há»£p lá»‡",
+      message: "Vui lÃ²ng nháº­p mÃ£ OTP gá»“m 6 chá»¯ sá»‘."
     });
   });
 });

@@ -1,15 +1,21 @@
 import { Schema, model, type InferSchemaType } from "mongoose";
 
+const otpSchema = new Schema(
+  {
+    codeHash: { type: String },
+    expiresAt: { type: Date },
+    attempts: { type: Number, default: 0 }
+  },
+  { _id: false }
+);
+
 const userSchema = new Schema(
   {
     email: { type: String, lowercase: true, trim: true },
     phone: { type: String, trim: true },
     passwordHash: { type: String },
-    phoneOtp: {
-      codeHash: { type: String },
-      expiresAt: { type: Date },
-      attempts: { type: Number, default: 0 }
-    },
+    phoneOtp: { type: otpSchema, default: undefined },
+    passwordResetOtp: { type: otpSchema, default: undefined },
     facebookId: { type: String },
     authProviders: {
       google: {

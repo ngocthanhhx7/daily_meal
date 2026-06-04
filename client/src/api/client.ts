@@ -47,6 +47,10 @@ type ApiOptions = {
   headers?: Record<string, string>;
 };
 
+type MealAnalyzeHints = {
+  ingredientsText?: string;
+};
+
 async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const headers: Record<string, string> = {
     ...(options.headers ?? {})
@@ -290,11 +294,11 @@ export const api = {
       body: form
     });
   },
-  analyzeMeal: (token: string, uploadId: string) =>
+  analyzeMeal: (token: string, uploadId: string, hints?: MealAnalyzeHints) =>
     request<{ meal: Meal }>("/api/meals/analyze", {
       method: "POST",
       token,
-      body: { uploadId }
+      body: hints ? { uploadId, hints } : { uploadId }
     }),
   meals: (token: string) => request<{ meals: Meal[] }>("/api/meals", { token }),
   notifications: (token: string) =>

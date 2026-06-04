@@ -7,6 +7,7 @@ import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { EmptyState } from "../components/EmptyState";
 import { NutritionCard } from "../components/NutritionCard";
+import { TextField } from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
 import { demoMeals } from "../data/sample";
 import { colors } from "../theme/colors";
@@ -17,6 +18,7 @@ export function MealsScreen({ navigation }: any) {
   const { token } = useAuth();
   const [meals, setMeals] = useState<Meal[]>(demoMeals);
   const [selectedUri, setSelectedUri] = useState<string | undefined>();
+  const [aiHints, setAiHints] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -59,9 +61,15 @@ export function MealsScreen({ navigation }: any) {
     setLoading(true);
     try {
       const upload = await api.uploadImage(token, selectedUri, "meal");
-      const result = await api.analyzeMeal(token, upload.upload._id);
+      const ingredientsText = aiHints.trim();
+      const result = await api.analyzeMeal(
+        token,
+        upload.upload._id,
+        ingredientsText ? { ingredientsText } : undefined
+      );
       setMeals((current) => [result.meal, ...current]);
       setSelectedUri(undefined);
+      setAiHints("");
     } catch (error) {
       Alert.alert("Không thể tính calo", error instanceof Error ? error.message : "Thử lại sau");
     } finally {
@@ -109,6 +117,15 @@ export function MealsScreen({ navigation }: any) {
             style={styles.pickBtn}
           />
         </View>
+
+        <TextField
+          label="Thành phần và định lượng cho AI"
+          value={aiHints}
+          onChangeText={setAiHints}
+          placeholder={"Ví dụ: Cơm trắng 120g\nThịt heo 100g\nNước cam 200ml"}
+          multiline
+          style={styles.hintInput}
+        />
 
         <AppButton
           label="Phân tích món ăn"
@@ -199,6 +216,11 @@ const styles = StyleSheet.create({
   },
   pickBtn: {
     flex: 1
+  },
+  hintInput: {
+    minHeight: 92,
+    textAlignVertical: "top",
+    paddingTop: 12
   },
   mealCard: {
     gap: 10,

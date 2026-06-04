@@ -39,6 +39,14 @@ const DEFAULT_STICKER: StickerPlacement = {
   rotation: 0
 };
 
+function emptyPerImageText(): Record<number, string> {
+  return {
+    0: "",
+    1: "",
+    2: ""
+  };
+}
+
 const RECENT_PHOTOS: any[] = [];
 
 const DEFAULT_VIP_STICKERS: Sticker[] = [
@@ -109,6 +117,7 @@ export function CreatePostScreen({ navigation, route }: any) {
     1: { title: "", ingredients: "", steps: "" },
     2: { title: "", ingredients: "", steps: "" }
   });
+  const [perImageAiHints, setPerImageAiHints] = useState<Record<number, string>>(() => emptyPerImageText());
   const [recipeEditingIndex, setRecipeEditingIndex] = useState(0);
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [customStickers, setCustomStickers] = useState<Sticker[]>([]);
@@ -241,6 +250,11 @@ export function CreatePostScreen({ navigation, route }: any) {
       next[toIndex] = temp;
       return next;
     });
+    setPerImageAiHints((current) => ({
+      ...current,
+      [fromIndex]: current[toIndex] ?? "",
+      [toIndex]: current[fromIndex] ?? ""
+    }));
     setNutritionDetails((current) =>
       current.map((detail) => {
         if (detail.imageIndex === fromIndex) {
@@ -307,6 +321,17 @@ export function CreatePostScreen({ navigation, route }: any) {
   function removeImage(index: number) {
     setImages((current) => current.filter((_, itemIndex) => itemIndex !== index));
     setTransforms((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setPerImageAiHints((current) => {
+      const next = emptyPerImageText();
+      for (let itemIndex = 0; itemIndex < MAX_IMAGES; itemIndex += 1) {
+        if (itemIndex < index) {
+          next[itemIndex] = current[itemIndex] ?? "";
+        } else if (itemIndex > index) {
+          next[itemIndex - 1] = current[itemIndex] ?? "";
+        }
+      }
+      return next;
+    });
     setNutritionDetails((current) =>
       current
         .filter((detail) => detail.imageIndex !== index)
@@ -356,7 +381,12 @@ export function CreatePostScreen({ navigation, route }: any) {
     try {
       for (let index = 0; index < images.length; index += 1) {
         const upload = await api.uploadImage(token, images[index], "meal");
-        const result = await api.analyzeMeal(token, upload.upload._id);
+        const ingredientsText = perImageAiHints[index]?.trim();
+        const result = await api.analyzeMeal(
+          token,
+          upload.upload._id,
+          ingredientsText ? { ingredientsText } : undefined
+        );
         analyzedDetails.push(mealToNutritionDetail(result.meal, index));
         setNutritionDetails((current) => [
           ...current.filter((detail) => detail.imageIndex !== index),
@@ -460,6 +490,7 @@ export function CreatePostScreen({ navigation, route }: any) {
       1: { title: "", ingredients: "", steps: "" },
       2: { title: "", ingredients: "", steps: "" }
     });
+    setPerImageAiHints(emptyPerImageText());
     setRecipeEditingIndex(0);
     setNutritionDetails([]);
     setSelectedSticker(undefined);
@@ -606,6 +637,31 @@ export function CreatePostScreen({ navigation, route }: any) {
               </AppText>
             </Pressable>
           ) : null}
+
+          <View style={styles.aiHintPanel}>
+            <View style={styles.aiHintHeader}>
+              <Ionicons name="sparkles-outline" size={18} color={colors.green} />
+              <View style={styles.aiHintCopy}>
+                <AppText variant="button">
+                  {images.length > 1 ? `Thông tin thêm cho AI - Ảnh ${selectedIndex + 1}` : "Thông tin thêm cho AI"}
+                </AppText>
+                <AppText variant="caption" muted>
+                  Thành phần và định lượng giúp AI tính calo sát hơn.
+                </AppText>
+              </View>
+            </View>
+            <TextField
+              label="Thành phần và định lượng"
+              value={perImageAiHints[selectedIndex] ?? ""}
+              onChangeText={(text) => setPerImageAiHints((current) => ({
+                ...current,
+                [selectedIndex]: text
+              }))}
+              placeholder={"Ví dụ: Cơm trắng 120g\nThịt heo 100g\nNước cam 200ml"}
+              multiline
+              style={styles.multiline}
+            />
+          </View>
 
           <AppButton label="Tính calo từng ảnh bằng AI" onPress={analyzeImages} loading={loading} variant="ghost" />
           <NutritionCard nutrition={nutritionTotal} />
@@ -1327,6 +1383,23 @@ const styles = StyleSheet.create({
   stickerImage: {
     width: 42,
     height: 42
+  },
+  aiHintPanel: {
+    gap: 12,
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface
+  },
+  aiHintHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8
+  },
+  aiHintCopy: {
+    flex: 1,
+    gap: 4
   },
   recipeToggle: {
     flexDirection: "row",

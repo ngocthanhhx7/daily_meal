@@ -4,13 +4,14 @@ import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 import { Meal } from "../models/Meal.js";
 import { Upload } from "../models/Upload.js";
-import { analyzeFoodImage } from "../services/shineshop.js";
+import { analyzeFoodImage, nutritionHintsSchema } from "../services/shineshop.js";
 import { readStoredUpload } from "../services/storage.js";
 
 export const mealsRouter = Router();
 
 const analyzeSchema = z.object({
-  uploadId: z.string().min(1)
+  uploadId: z.string().min(1),
+  hints: nutritionHintsSchema.optional()
 });
 
 mealsRouter.post("/analyze", requireAuth, async (req, res, next) => {
@@ -26,7 +27,8 @@ mealsRouter.post("/analyze", requireAuth, async (req, res, next) => {
     const result = await analyzeFoodImage({
       imageData,
       imagePath: upload.localPath ?? undefined,
-      mimeType: upload.mime
+      mimeType: upload.mime,
+      hints: body.hints
     });
 
     const meal = await Meal.create({

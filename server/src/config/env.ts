@@ -45,6 +45,10 @@ const envSchema = z.object({
     z.string().default("gpt-4o-mini")
   ),
   SHINESHOP_FALLBACK_MODEL: optionalString,
+  SHINESHOP_MAX_TOKENS: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().default(1200)
+  ),
   GOOGLE_WEB_CLIENT_ID: optionalString,
   GOOGLE_ANDROID_CLIENT_ID: optionalString,
   GOOGLE_IOS_CLIENT_ID: optionalString,

@@ -27,7 +27,13 @@ export const mealAnalysisSchema = z.object({
 
 export type MealAnalysis = z.infer<typeof mealAnalysisSchema>;
 
-const prompt = `
+export const nutritionHintsSchema = z.object({
+  ingredientsText: z.string().trim().max(2000).optional()
+});
+
+export type NutritionHints = z.infer<typeof nutritionHintsSchema>;
+
+const basePrompt = `
 You are a nutrition estimation assistant for a food photo app.
 Estimate visible foods and return only valid JSON with this shape:
 {
@@ -47,6 +53,23 @@ Estimate visible foods and return only valid JSON with this shape:
 }
 Use grams for macros. Explain uncertainty only inside warnings.
 `;
+
+function buildPrompt(hints?: NutritionHints) {
+  const ingredientsText = hints?.ingredientsText?.trim();
+
+  if (!ingredientsText) {
+    return basePrompt;
+  }
+
+  return `${basePrompt}
+
+User-provided ingredients and quantities:
+${ingredientsText}
+
+Treat the user-provided ingredients and quantities as stronger evidence than visual portion guesses.
+If an item is not visible but the user listed it, include it and mention the uncertainty in warnings.
+`;
+}
 
 function mockAnalysis(): MealAnalysis {
   return {
@@ -100,6 +123,7 @@ async function runShineshopVisionModel(input: {
   model: string;
   imageBase64: string;
   mimeType: string;
+  hints?: NutritionHints;
 }) {
   if (!env.SHINESHOP_API_KEY || !env.SHINESHOP_BASE_URL) {
     throw new HttpError(500, "Shineshop chưa được cấu hình trên server.");
@@ -117,7 +141,7 @@ async function runShineshopVisionModel(input: {
         {
           role: "user",
           content: [
-            { type: "text", text: prompt },
+            { type: "text", text: buildPrompt(input.hints) },
             {
               type: "image_url",
               image_url: {
@@ -127,7 +151,8 @@ async function runShineshopVisionModel(input: {
           ]
         }
       ],
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      max_tokens: env.SHINESHOP_MAX_TOKENS
     })
   });
 
@@ -157,6 +182,7 @@ export async function analyzeFoodImage(input: {
   imagePath?: string;
   imageData?: Buffer;
   mimeType: string;
+  hints?: NutritionHints;
 }): Promise<MealAnalysis> {
   if (!env.SHINESHOP_API_KEY) {
     return mockAnalysis();
@@ -168,7 +194,8 @@ export async function analyzeFoodImage(input: {
     return await runShineshopVisionModel({
       model: env.SHINESHOP_MODEL,
       imageBase64,
-      mimeType: input.mimeType
+      mimeType: input.mimeType,
+      hints: input.hints
     });
   } catch (error) {
     if (!env.SHINESHOP_FALLBACK_MODEL || env.SHINESHOP_FALLBACK_MODEL === env.SHINESHOP_MODEL) {
@@ -178,7 +205,8 @@ export async function analyzeFoodImage(input: {
     return runShineshopVisionModel({
       model: env.SHINESHOP_FALLBACK_MODEL,
       imageBase64,
-      mimeType: input.mimeType
+      mimeType: input.mimeType,
+      hints: input.hints
     });
   }
 }

@@ -3,7 +3,7 @@ import { Schema, model, Types, type InferSchemaType } from "mongoose";
 const notificationSchema = new Schema(
   {
     user: { type: Types.ObjectId, ref: "User", required: true, index: true },
-    sender: { type: Types.ObjectId, ref: "User", required: true },
+    sender: { type: Types.ObjectId, ref: "User" },
     type: { type: String, enum: ["like", "comment", "follow", "message"], required: true },
     post: { type: Types.ObjectId, ref: "Post", index: true },
     comment: { type: Types.ObjectId, ref: "Comment" },

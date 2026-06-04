@@ -2,18 +2,12 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 import { Notification } from "../models/Notification.js";
-import { seedWelcomeNotificationsForUser } from "../services/seeder.js";
 
 export const notificationsRouter = Router();
 
 // Get list of notifications for current authenticated user
 notificationsRouter.get("/", requireAuth, async (req, res, next) => {
   try {
-    const userId = req.user?.id;
-    if (userId) {
-      await seedWelcomeNotificationsForUser(userId);
-    }
-
     const notifications = await Notification.find({ user: req.user?.id })
       .sort({ createdAt: -1 })
       .limit(50)
@@ -22,6 +16,16 @@ notificationsRouter.get("/", requireAuth, async (req, res, next) => {
       .lean();
 
     res.json({ notifications });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete all user's notifications
+notificationsRouter.delete("/", requireAuth, async (req, res, next) => {
+  try {
+    await Notification.deleteMany({ user: req.user?.id });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
@@ -51,6 +55,21 @@ notificationsRouter.patch("/:id/read", requireAuth, async (req, res, next) => {
     }
 
     res.json({ notification });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete single notification
+notificationsRouter.delete("/:id", requireAuth, async (req, res, next) => {
+  try {
+    const notification = await Notification.findOneAndDelete({ _id: req.params.id, user: req.user?.id });
+
+    if (!notification) {
+      throw new HttpError(404, "Notification not found");
+    }
+
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

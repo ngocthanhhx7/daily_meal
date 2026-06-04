@@ -13,7 +13,7 @@ type AuthContextValue = {
   requestPhoneOtp: (phone: string) => Promise<{ requiresPasswordSetup: boolean; devOtp?: string }>;
   verifyPhoneOtp: (phone: string, otp: string, password?: string, displayName?: string) => Promise<void>;
   requestPasswordResetOtp: (email: string) => Promise<{ devOtp?: string }>;
-  verifyPasswordResetOtp: (email: string, otp: string) => Promise<{ devNewPassword?: string }>;
+  verifyPasswordResetOtp: (email: string, otp: string, newPassword: string) => Promise<void>;
   signInWithFacebook: (facebookToken: string) => Promise<void>;
   signInWithGoogle: (idToken: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
@@ -147,9 +147,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const result = await api.requestPasswordResetOtp({ email });
         return { devOtp: result.devOtp };
       },
-      verifyPasswordResetOtp: async (email, otp) => {
-        const result = await api.verifyPasswordResetOtp({ email, otp });
-        return { devNewPassword: result.devNewPassword };
+      verifyPasswordResetOtp: async (email, otp, newPassword) => {
+        const result = await api.verifyPasswordResetOtp({ email, otp, newPassword });
+        await persistSession(result.token, result.user);
       },
       signInWithFacebook: async (facebookToken) => {
         const result = await api.loginWithFacebook(facebookToken);

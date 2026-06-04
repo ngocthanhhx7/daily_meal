@@ -28,7 +28,7 @@ type Notification = {
     _id: string;
     displayName: string;
     avatarUrl?: string;
-  };
+  } | null;
   type: "like" | "comment" | "follow" | "message";
   post?: any;
   comment?: any;
@@ -114,6 +114,8 @@ type NotificationContextValue = {
   enableWebPushNotifications: () => Promise<WebPushReadiness>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
+  deleteAllNotifications: () => Promise<void>;
 };
 
 const NotificationContext = createContext<NotificationContextValue | undefined>(undefined);
@@ -453,6 +455,32 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
+  const deleteNotification = async (id: string) => {
+    if (!token) return;
+    try {
+      await api.deleteNotification(token, id);
+      setNotifications((current) => {
+        const removed = current.find((n) => n._id === id);
+        if (removed && !removed.read) {
+          setUnreadCount((count) => Math.max(0, count - 1));
+        }
+        return current.filter((n) => n._id !== id);
+      });
+    } catch (err) {
+      console.error(`❌ Failed to delete notification ${id}:`, err);
+    }
+  };
+
+  const deleteAllNotifications = async () => {
+    if (!token) return;
+    try {
+      await api.deleteAllNotifications(token);
+      applyNotifications([]);
+    } catch (err) {
+      console.error("❌ Failed to delete all notifications:", err);
+    }
+  };
+
   return (
     <NotificationContext.Provider
       value={{
@@ -461,7 +489,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         webPushStatus,
         enableWebPushNotifications,
         markAsRead,
-        markAllAsRead
+        markAllAsRead,
+        deleteNotification,
+        deleteAllNotifications
       }}
     >
       {children}

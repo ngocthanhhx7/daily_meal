@@ -246,70 +246,19 @@ export async function seedMockData() {
   }
 }
 
-// Automatically seed custom welcome notifications for a user if they have none
-export async function seedWelcomeNotificationsForUser(userId: string) {
+// Deprecated: keep this as a no-op so existing imports/routes no longer create sample notifications.
+export async function seedWelcomeNotificationsForUser(_userId: string) {
+  return;
+}
+
+export async function createAccountCreatedNotification(userId: string) {
   try {
-    const existingCount = await Notification.countDocuments({ user: userId });
-    if (existingCount > 0) return;
-
-    // Find our mock users
-    const mockUsers = await User.find({ email: { $in: [
-      "trungbacthao@dailymeal.local",
-      "thohuong@dailymeal.local",
-      "becho@dailymeal.local",
-      "trungbongbenh@dailymeal.local"
-    ]}});
-
-    if (mockUsers.length === 0) return;
-
-    const user1 = mockUsers.find(u => u.email === "trungbacthao@dailymeal.local");
-    const user2 = mockUsers.find(u => u.email === "thohuong@dailymeal.local");
-    const user3 = mockUsers.find(u => u.email === "becho@dailymeal.local");
-    const user4 = mockUsers.find(u => u.email === "trungbongbenh@dailymeal.local");
-
-    const fallbackId = mockUsers[0]?._id;
-    if (!fallbackId) return;
-
-    // Fetch one of their posts for reference in the notification
-    const post = await Post.findOne({ author: user1 ? user1._id : fallbackId });
-
-    const sender1 = user3 ? user3._id : fallbackId;
-    const sender2 = user2 ? user2._id : fallbackId;
-    const sender3 = user1 ? user1._id : fallbackId;
-    const sender4 = user4 ? user4._id : fallbackId;
-
-    const notificationsData = [
-      {
-        user: userId,
-        sender: sender1,
-        type: "follow",
-        body: `đã bắt đầu theo dõi bạn.`
-      },
-      {
-        user: userId,
-        sender: sender2,
-        type: "like",
-        post: post ? post._id : undefined,
-        body: `đã thích nhật ký ăn uống của bạn.`
-      },
-      {
-        user: userId,
-        sender: sender3,
-        type: "comment",
-        post: post ? post._id : undefined,
-        body: `đã bình luận về bữa ăn của bạn: "Trông healthy và giòn rụm quá bạn ơi! Xin tí bí quyết với! 🥗"`
-      },
-      {
-        user: userId,
-        sender: sender4,
-        type: "message",
-        body: `đã gửi tin nhắn: "Chào mừng bạn đến với Daily Meal! Chúc bạn có những trải nghiệm ẩm thực ngon lành và đạt mục tiêu calo nhé! 🎉"`
-      }
-    ];
-
-    await Notification.insertMany(notificationsData);
-    console.log(`🔔 Automatically seeded 4 welcome notifications for new user: ${userId}`);
+    await Notification.create({
+      user: userId,
+      type: "message",
+      body: "Bạn đã tạo tài khoản Daily Meal thành công! Chúc bạn có những trải nghiệm thật tốt và luôn vui vẻ trên hành trình ăn uống lành mạnh. 🎉"
+    });
   } catch (error) {
-    console.error("❌ Failed to seed welcome notifications:", error);
+    console.error("❌ Failed to create account welcome notification:", error);
   }
 }

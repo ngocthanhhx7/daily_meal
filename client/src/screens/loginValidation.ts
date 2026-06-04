@@ -19,6 +19,7 @@ export type ForgotPasswordValidationInput = {
   email: string;
   otp: string;
   otpSent: boolean;
+  newPassword?: string;
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -99,11 +100,19 @@ export function validateForgotPasswordForm(input: ForgotPasswordValidationInput)
     };
   }
 
-  if (input.otpSent && !/^\d{6}$/.test(otp)) {
-    return {
-      title: "MÃ£ OTP khÃ´ng há»£p lá»‡",
-      message: "Vui lÃ²ng nháº­p mÃ£ OTP gá»“m 6 chá»¯ sá»‘."
-    };
+  if (input.otpSent) {
+    if (!/^\d{6}$/.test(otp)) {
+      return {
+        title: "MÃ£ OTP khÃ´ng há»£p lá»‡",
+        message: "Vui lÃ²ng nháº­p mÃ£ OTP gá»“m 6 chá»¯ sá»‘."
+      };
+    }
+    if (input.newPassword !== undefined && input.newPassword.trim().length < 8) {
+      return {
+        title: "Mật khẩu quá ngắn",
+        message: "Mật khẩu mới cần ít nhất 8 ký tự."
+      };
+    }
   }
 
   return null;

@@ -5,9 +5,10 @@ import { User } from "../models/User.js";
 import { hashPassword, normalizePhoneNumber, signAccessToken, verifyPassword } from "../services/auth.js";
 import { verifyGoogleIdToken } from "../services/googleAuth.js";
 import { sendPhoneOtpSms } from "../services/sms.js";
-import { sendNewPasswordEmail, sendPasswordResetOtpEmail } from "../services/email.js";
+import { sendPasswordResetSuccessEmail, sendPasswordResetOtpEmail } from "../services/email.js";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
+import { createAccountCreatedNotification } from "../services/seeder.js";
 
 export const authRouter = Router();
 
@@ -28,7 +29,8 @@ const forgotPasswordRequestSchema = z.object({
 
 const forgotPasswordVerifySchema = z.object({
   email: z.string().email().transform((value) => value.toLowerCase()),
-  otp: z.string().regex(/^\d{6}$/)
+  otp: z.string().regex(/^\d{6}$/),
+  newPassword: z.string().min(8).max(128)
 });
 
 const facebookAuthSchema = z.object({
@@ -113,6 +115,7 @@ authRouter.post("/register", async (req, res, next) => {
       passwordHash: await hashPassword(body.password),
       displayName: body.displayName ?? body.email.split("@")[0]
     });
+    await createAccountCreatedNotification(user._id.toString());
 
     res.status(201).json({
       token: signAccessToken(user._id.toString()),
@@ -199,15 +202,15 @@ authRouter.post("/password/forgot/verify-otp", async (req, res, next) => {
       throw new HttpError(401, "Mã OTP không đúng.");
     }
 
-    const newPassword = createGeneratedPassword();
-    user.passwordHash = await hashPassword(newPassword);
+    user.passwordHash = await hashPassword(body.newPassword);
     user.passwordResetOtp = undefined;
     await user.save();
-    await sendNewPasswordEmail(body.email, newPassword);
+    await sendPasswordResetSuccessEmail(body.email);
 
     res.json({
-      message: "mật khẩu mới đã được gửi đến email.",
-      devNewPassword: process.env.NODE_ENV === "production" ? undefined : newPassword
+      token: signAccessToken(user._id.toString()),
+      user: userDto(user),
+      message: "Mật khẩu đã được cập nhật thành công."
     });
   } catch (error) {
     next(error);
@@ -228,6 +231,7 @@ authRouter.post("/phone/register", async (req, res, next) => {
       passwordHash: await hashPassword(body.password),
       displayName: body.displayName ?? body.phone
     });
+    await createAccountCreatedNotification(user._id.toString());
 
     res.status(201).json({
       token: signAccessToken(user._id.toString()),
@@ -398,6 +402,7 @@ authRouter.post("/facebook", async (req, res, next) => {
         displayName: fbUser.name || `fb_${fbUser.id}`,
         avatarUrl: fbUser.picture?.data?.url || ""
       });
+      await createAccountCreatedNotification(user._id.toString());
     }
 
     res.json({
@@ -435,6 +440,7 @@ authRouter.post("/google", async (req, res, next) => {
           }
         }
       });
+      await createAccountCreatedNotification(user._id.toString());
     }
 
     res.json({

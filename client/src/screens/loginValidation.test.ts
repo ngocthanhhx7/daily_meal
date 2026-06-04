@@ -110,11 +110,18 @@ describe("validateForgotPasswordForm", () => {
     });
   });
 
-  it("requires a 6-digit OTP before resetting password", () => {
-    expect(validateForgotPasswordForm({ email: "user@example.com", otp: "12", otpSent: true })).toEqual({
+  it("requires a 6-digit OTP and valid new password before resetting password", () => {
+    expect(validateForgotPasswordForm({ email: "user@example.com", otp: "12", otpSent: true, newPassword: "short" })).toEqual({
       title: "MÃ£ OTP khÃ´ng há»£p lá»‡",
       message: "Vui lÃ²ng nháº­p mÃ£ OTP gá»“m 6 chá»¯ sá»‘."
     });
+
+    expect(validateForgotPasswordForm({ email: "user@example.com", otp: "123456", otpSent: true, newPassword: "short" })).toEqual({
+      title: "Mật khẩu quá ngắn",
+      message: "Mật khẩu mới cần ít nhất 8 ký tự."
+    });
+
+    expect(validateForgotPasswordForm({ email: "user@example.com", otp: "123456", otpSent: true, newPassword: "validpassword" })).toBeNull();
   });
 });
 

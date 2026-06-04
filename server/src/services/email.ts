@@ -56,11 +56,12 @@ export async function sendPasswordResetOtpEmail(to: string, otp: string) {
   });
 }
 
-export async function sendNewPasswordEmail(to: string, newPassword: string) {
+export async function sendPasswordResetSuccessEmail(to: string) {
   await sendMail({
     to,
-    subject: "Daily Meal - Mat khau moi",
-    text: `Mat khau moi cua ban la: ${newPassword}\nVui long dang nhap va doi mat khau sau khi vao tai khoan.`,
-    html: `<p>Mat khau moi cua ban la: <strong>${newPassword}</strong></p><p>Vui long dang nhap va doi mat khau sau khi vao tai khoan.</p>`
+    subject: "Daily Meal - Mat khau da duoc thay doi",
+    text: `Mat khau Daily Meal cua ban da duoc thay doi thanh cong.`,
+    html: `<p>Mat khau Daily Meal cua ban da duoc thay doi thanh cong.</p>`
   });
 }
+

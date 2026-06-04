@@ -750,16 +750,17 @@ describe("Daily Meal API", () => {
 
     await request(app)
       .post("/api/auth/password/forgot/verify-otp")
-      .send({ email: "forgot-password@example.com", otp: "000000" })
+      .send({ email: "forgot-password@example.com", otp: "000000", newPassword: "mynewpassword" })
       .expect(401);
 
     const resetResponse = await request(app)
       .post("/api/auth/password/forgot/verify-otp")
-      .send({ email: "forgot-password@example.com", otp: otpResponse.body.devOtp })
+      .send({ email: "forgot-password@example.com", otp: otpResponse.body.devOtp, newPassword: "mynewpassword" })
       .expect(200);
 
-    expect(resetResponse.body.message).toContain("mật khẩu mới");
-    expect(resetResponse.body.devNewPassword).toMatch(/^[A-Za-z0-9]{12}$/);
+    expect(resetResponse.body.message).toContain("thành công");
+    expect(resetResponse.body.token).toBeDefined();
+    expect(resetResponse.body.user).toBeDefined();
 
     await request(app)
       .post("/api/auth/login")
@@ -768,12 +769,13 @@ describe("Daily Meal API", () => {
 
     await request(app)
       .post("/api/auth/login")
-      .send({ email: "forgot-password@example.com", password: resetResponse.body.devNewPassword })
+      .send({ email: "forgot-password@example.com", password: "mynewpassword" })
       .expect(200);
 
     const user = await User.findOne({ email: "forgot-password@example.com" });
     expect(user?.passwordResetOtp).toBeUndefined();
   });
+
 
   it("does not reveal whether a forgot-password email exists", async () => {
     const response = await request(app)

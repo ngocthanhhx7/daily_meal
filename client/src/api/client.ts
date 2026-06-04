@@ -125,8 +125,8 @@ export const api = {
       method: "POST",
       body
     }),
-  verifyPasswordResetOtp: (body: { email: string; otp: string }) =>
-    request<{ message: string; devNewPassword?: string }>("/api/auth/password/forgot/verify-otp", {
+  verifyPasswordResetOtp: (body: { email: string; otp: string; newPassword?: string }) =>
+    request<{ token: string; user: User; message: string }>("/api/auth/password/forgot/verify-otp", {
       method: "POST",
       body
     }),
@@ -307,6 +307,16 @@ export const api = {
   markAllNotificationsRead: (token: string) =>
     request<void>("/api/notifications/read-all", {
       method: "PATCH",
+      token
+    }),
+  deleteNotification: (token: string, id: string) =>
+    request<void>(`/api/notifications/${id}`, {
+      method: "DELETE",
+      token
+    }),
+  deleteAllNotifications: (token: string) =>
+    request<void>("/api/notifications", {
+      method: "DELETE",
       token
     }),
   registerPushToken: (token: string, pushToken: string) =>

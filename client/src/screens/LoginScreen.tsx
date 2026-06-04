@@ -144,7 +144,8 @@ export function LoginScreen() {
     const validation = validateForgotPasswordForm({
       email: identifier,
       otp,
-      otpSent: passwordResetOtpSent
+      otpSent: passwordResetOtpSent,
+      newPassword: passwordResetOtpSent ? password : undefined
     });
 
     if (validation) {
@@ -159,29 +160,26 @@ export function LoginScreen() {
         const result = await requestPasswordResetOtp(identifier);
         setPasswordResetOtpSent(true);
         setOtp("");
+        setPassword("");
         Alert.alert(
-          "ÄÃ£ gá»­i OTP",
-          result.devOtp ? `MÃ£ OTP dev: ${result.devOtp}` : "Vui lÃ²ng kiá»ƒm tra Gmail cá»§a báº¡n."
+          "Đã gửi OTP",
+          result.devOtp ? `Mã OTP dev: ${result.devOtp}` : "Vui lòng kiểm tra Gmail của bạn."
         );
         return;
       }
 
-      const result = await verifyPasswordResetOtp(identifier, otp);
+      await verifyPasswordResetOtp(identifier, otp, password);
       Alert.alert(
-        "ÄÃ£ táº¡o máº­t kháº©u má»›i",
-        result.devNewPassword
-          ? `Máº­t kháº©u dev: ${result.devNewPassword}`
-          : "Máº­t kháº©u má»›i Ä‘Ã£ Ä‘Æ°á»£c gá»­i vá» Gmail cá»§a báº¡n."
+        "Thành công",
+        "Mật khẩu của bạn đã được thay đổi và bạn đã đăng nhập thành công."
       );
       setPasswordResetMode(false);
       setPasswordResetOtpSent(false);
       setOtp("");
       setPassword("");
-      setMode("login");
-      setAuthMethod("email");
     } catch (error) {
       setAuthError({
-        title: passwordResetOtpSent ? "KhÃ´ng thá»ƒ xÃ¡c nháº­n OTP" : "KhÃ´ng thá»ƒ gá»­i OTP",
+        title: passwordResetOtpSent ? "Không thể xác nhận OTP" : "Không thể gửi OTP",
         message: getAuthErrorMessage(error)
       });
     } finally {
@@ -376,6 +374,19 @@ export function LoginScreen() {
                   keyboardType="number-pad"
                   maxLength={6}
                   placeholder="Nhập mã OTP"
+                />
+              ) : null}
+
+              {passwordResetMode && passwordResetOtpSent ? (
+                <FigmaField
+                  label="Mật khẩu mới"
+                  value={password}
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    clearAuthError();
+                  }}
+                  secureTextEntry
+                  placeholder="Nhập mật khẩu mới (tối thiểu 8 ký tự)"
                 />
               ) : null}
 

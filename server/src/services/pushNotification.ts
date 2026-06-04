@@ -16,7 +16,7 @@ function configureWebPush() {
 
   const publicKey = process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
   const privateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
-  const subject = process.env.WEB_PUSH_VAPID_SUBJECT || "mailto:support@ngocthanhhx7.site";
+  const subject = process.env.WEB_PUSH_VAPID_SUBJECT || "mailto:support@dailymeal.site";
 
   if (!publicKey || !privateKey) {
     return false;

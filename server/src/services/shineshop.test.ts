@@ -144,4 +144,64 @@ describe("analyzeFoodImage with Shineshop", () => {
     expect(result.total.calories).toBe(650);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("instructs Shineshop to return food names, portions, and warnings in Vietnamese", async () => {
+    Object.assign(env, {
+      SHINESHOP_API_KEY: "shine-key",
+      SHINESHOP_BASE_URL: "https://api.shineshop.test/v1",
+      SHINESHOP_MODEL: "vision-model",
+      SHINESHOP_FALLBACK_MODEL: undefined,
+      SHINESHOP_MAX_TOKENS: 1200
+    });
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      const promptText = body.messages[0].content[0].text;
+
+      expect(promptText).toContain("Return all user-facing text in Vietnamese");
+      expect(promptText).toContain("items[].name");
+      expect(promptText).toContain("items[].portion");
+      expect(promptText).toContain("warnings[]");
+
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  items: [
+                    {
+                      name: "Hoanh thanh chien",
+                      portion: "1 phan",
+                      calories: 650,
+                      protein: 20,
+                      carbs: 80,
+                      fat: 28,
+                      confidence: 0.82
+                    }
+                  ],
+                  total: {
+                    calories: 650,
+                    protein: 20,
+                    carbs: 80,
+                    fat: 28
+                  },
+                  warnings: ["Uoc tinh tu anh"]
+                })
+              }
+            }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await analyzeFoodImage({
+      imageData: Buffer.from("image-bytes"),
+      mimeType: "image/png"
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

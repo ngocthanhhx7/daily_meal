@@ -52,6 +52,8 @@ Estimate visible foods and return only valid JSON with this shape:
   "warnings": ["short uncertainty note"]
 }
 Use grams for macros. Explain uncertainty only inside warnings.
+Return all user-facing text in Vietnamese, especially items[].name, items[].portion, and warnings[].
+Do not return English food names or English portion descriptions unless the item is a brand name.
 `;
 
 function buildPrompt(hints?: NutritionHints) {

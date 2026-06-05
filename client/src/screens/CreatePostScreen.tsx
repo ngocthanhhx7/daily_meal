@@ -14,6 +14,7 @@ import type {
   ImageRecipe,
   Meal,
   NutritionDetail,
+  PostVisibility,
   PostImageTransform,
   PostLayout,
   Sticker,
@@ -50,26 +51,26 @@ function emptyPerImageText(): Record<number, string> {
 const RECENT_PHOTOS: any[] = [];
 
 const DEFAULT_VIP_STICKERS: Sticker[] = [
-  { _id: "v1", key: "apple", name: "Táo đỏ", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f34e/512.webp", premiumOnly: true },
-  { _id: "v2", key: "pancake", name: "Bánh kếp", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f95e/512.webp", premiumOnly: true },
-  { _id: "v3", key: "salad", name: "Xà lách", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f957/512.webp", premiumOnly: true },
-  { _id: "v4", key: "noodles", name: "Mì ramen", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f35c/512.webp", premiumOnly: true },
-  { _id: "v5", key: "cooking", name: "Chiên trứng", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f373/512.webp", premiumOnly: true },
-  { _id: "v6", key: "heart-eyes", name: "Mê mẩn", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f60d/512.webp", premiumOnly: true },
-  { _id: "v7", key: "yum", name: "Ngon tuyệt", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f60b/512.webp", premiumOnly: true },
-  { _id: "v8", key: "sparkling", name: "Lấp lánh", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/2728/512.webp", premiumOnly: true },
-  { _id: "v9", key: "fire", name: "Nóng bỏng", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f525/512.webp", premiumOnly: true },
-  { _id: "v10", key: "cute-cat", name: "Mèo con", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f431/512.webp", premiumOnly: true },
-  { _id: "v11", key: "dino", name: "Khủng long", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f995/512.webp", premiumOnly: true },
-  { _id: "v12", key: "bear", name: "Gấu trúc", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f43b/512.webp", premiumOnly: true },
-  { _id: "v13", key: "rabbit", name: "Thỏ hồng", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f430/512.webp", premiumOnly: true },
-  { _id: "v14", key: "hamburger", name: "Burger", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f354/512.webp", premiumOnly: true },
-  { _id: "v15", key: "pizza", name: "Pizza", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f355/512.webp", premiumOnly: true },
-  { _id: "v16", key: "cake", name: "Bánh kem", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f370/512.webp", premiumOnly: true },
-  { _id: "v17", key: "strawberry", name: "Dâu tây", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f353/512.webp", premiumOnly: true },
-  { _id: "v18", key: "coffee", name: "Cà phê", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/2615/512.webp", premiumOnly: true },
-  { _id: "v19", key: "taco", name: "Taco", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f32e/512.webp", premiumOnly: true },
-  { _id: "v20", key: "sushi", name: "Sushi", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f363/512.webp", premiumOnly: true }
+  { _id: "60b8d5a1f2e3d4c5b6a70001", key: "apple", name: "Táo đỏ", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f34e/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70002", key: "pancake", name: "Bánh kếp", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f95e/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70003", key: "salad", name: "Xà lách", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f957/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70004", key: "noodles", name: "Mì ramen", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f35c/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70005", key: "cooking", name: "Chiên trứng", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f373/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70006", key: "heart-eyes", name: "Mê mẩn", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f60d/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70007", key: "yum", name: "Ngon tuyệt", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f60b/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70008", key: "sparkling", name: "Lấp lánh", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/2728/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70009", key: "fire", name: "Nóng bỏng", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f525/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70010", key: "cute-cat", name: "Mèo con", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f431/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70011", key: "dino", name: "Khủng long", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f995/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70012", key: "bear", name: "Gấu trúc", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f43b/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70013", key: "rabbit", name: "Thỏ hồng", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f430/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70014", key: "hamburger", name: "Burger", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f354/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70015", key: "pizza", name: "Pizza", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f355/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70016", key: "cake", name: "Bánh kem", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f370/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70017", key: "strawberry", name: "Dâu tây", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f353/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70018", key: "coffee", name: "Cà phê", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/2615/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70019", key: "taco", name: "Taco", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f32e/512.webp", premiumOnly: true },
+  { _id: "60b8d5a1f2e3d4c5b6a70020", key: "sushi", name: "Sushi", assetPath: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f363/512.webp", premiumOnly: true }
 ];
 
 type Step = "capture" | "edit" | "sticker";
@@ -111,6 +112,7 @@ export function CreatePostScreen({ navigation, route }: any) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [caption, setCaption] = useState("");
   const [tags, setTags] = useState("");
+  const [visibility, setVisibility] = useState<PostVisibility>("public");
   const [includeRecipe, setIncludeRecipe] = useState(false);
   const [perImageRecipes, setPerImageRecipes] = useState<Record<number, { title: string; ingredients: string; steps: string }>>({
     0: { title: "", ingredients: "", steps: "" },
@@ -130,6 +132,7 @@ export function CreatePostScreen({ navigation, route }: any) {
     return routeMeal ? [mealToNutritionDetail(routeMeal, 0)] : [];
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const recentUris = useMemo(() => {
     return RECENT_PHOTOS.map((asset) =>
@@ -304,17 +307,31 @@ export function CreatePostScreen({ navigation, route }: any) {
       Alert.alert("Chỉ dành cho VIP", "Tính năng tự tải nhãn dán chỉ dành cho tài khoản VIP.");
       return;
     }
+    setError(null);
     const uri = await pickSingleImage("library");
     if (uri) {
-      const newSticker: Sticker = {
-        _id: `custom-user-${Date.now()}`,
-        key: `custom-user-${Date.now()}`,
-        name: "Tự tải",
-        assetPath: uri,
-        premiumOnly: true
-      };
-      setCustomStickers((current) => [newSticker, ...current]);
-      setSelectedSticker(newSticker._id);
+      setLoading(true);
+      try {
+        const uploadResult = await api.uploadImage(token!, uri, "sticker");
+        const assetUrl = uploadResult.upload.url;
+
+        const key = `custom-user-${Date.now()}`;
+        const stickerResult = await api.createSticker(token!, {
+          name: "Tự tải",
+          assetPath: assetUrl,
+          key
+        });
+
+        const newSticker = stickerResult.sticker;
+        setCustomStickers((current) => [newSticker, ...current]);
+        setSelectedSticker(newSticker._id);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Thử lại sau";
+        setError(msg);
+        Alert.alert("Không thể tải lên nhãn dán", msg);
+      } finally {
+        setLoading(false);
+      }
     }
   }
 
@@ -373,9 +390,11 @@ export function CreatePostScreen({ navigation, route }: any) {
 
   async function analyzeImages() {
     if (!token || !images.length) {
+      setError("Chụp hoặc chọn một ảnh món ăn trước.");
       Alert.alert("Chưa có ảnh", "Chụp hoặc chọn một ảnh món ăn trước.");
       return;
     }
+    setError(null);
     setLoading(true);
     const analyzedDetails: NutritionDetail[] = [];
     try {
@@ -393,8 +412,10 @@ export function CreatePostScreen({ navigation, route }: any) {
           mealToNutritionDetail(result.meal, index)
         ]);
       }
-    } catch (error) {
-      Alert.alert("Không thể tính calo", error instanceof Error ? error.message : "Thử lại sau");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Thử lại sau";
+      setError(msg);
+      Alert.alert("Không thể tính calo", msg);
       if (analyzedDetails.length) {
         setNutritionDetails((current) => [
           ...current.filter((detail) => !analyzedDetails.some((analyzed) => analyzed.imageIndex === detail.imageIndex)),
@@ -408,13 +429,16 @@ export function CreatePostScreen({ navigation, route }: any) {
 
   async function publish() {
     if (!token || !images.length) {
+      setError("Bài viết cần ít nhất một ảnh.");
       Alert.alert("Thiếu ảnh", "Bài viết cần ít nhất một ảnh.");
       return;
     }
     if (!isPremium && user?.counts?.posts !== undefined && user.counts.posts >= 6) {
+      setError("Tài khoản miễn phí chỉ được đăng tối đa 6 bài viết. Hãy nâng cấp VIP để đăng bài không giới hạn!");
       Alert.alert("Đạt giới hạn bài đăng", "Tài khoản miễn phí chỉ được đăng tối đa 6 bài viết. Hãy nâng cấp VIP để đăng bài không giới hạn!");
       return;
     }
+    setError(null);
     setLoading(true);
     try {
       const uploads: Upload[] = [];
@@ -468,12 +492,14 @@ export function CreatePostScreen({ navigation, route }: any) {
         nutritionDetails,
         recipe: legacyRecipe,
         recipes,
-        visibility: "public"
+        visibility
       });
       resetDraft();
       navigation.goBack();
-    } catch (error) {
-      Alert.alert("Không thể đăng bài", error instanceof Error ? error.message : "Thử lại sau");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Thử lại sau";
+      setError(msg);
+      Alert.alert("Không thể đăng bài", msg);
     } finally {
       setLoading(false);
     }
@@ -484,6 +510,7 @@ export function CreatePostScreen({ navigation, route }: any) {
     setTransforms([]);
     setCaption("");
     setTags("");
+    setVisibility("public");
     setIncludeRecipe(false);
     setPerImageRecipes({
       0: { title: "", ingredients: "", steps: "" },
@@ -497,6 +524,7 @@ export function CreatePostScreen({ navigation, route }: any) {
     setStickerPlacement(DEFAULT_STICKER);
     setLayout("stack");
     setStep("capture");
+    setError(null);
   }
 
   function parseLines(value: string) {
@@ -667,6 +695,29 @@ export function CreatePostScreen({ navigation, route }: any) {
           <NutritionCard nutrition={nutritionTotal} />
           <TextField label="Mô tả" value={caption} onChangeText={setCaption} multiline />
           <TextField label="Tags, cách nhau bằng dấu phẩy" value={tags} onChangeText={setTags} />
+          <View style={styles.toolSection}>
+            <AppText variant="button">Quyền xem</AppText>
+            <View style={styles.segmentRow}>
+              {([
+                { value: "public", label: "Công khai", icon: "globe-outline" },
+                { value: "friends", label: "Bạn bè", icon: "people-outline" }
+              ] as Array<{ value: PostVisibility; label: string; icon: keyof typeof Ionicons.glyphMap }>).map((item) => {
+                const active = visibility === item.value;
+                return (
+                  <Pressable
+                    key={item.value}
+                    style={[styles.segment, active && styles.segmentActive]}
+                    onPress={() => setVisibility(item.value)}
+                  >
+                    <Ionicons name={item.icon} size={16} color={active ? colors.white : colors.ink} />
+                    <AppText variant="caption" style={active ? styles.segmentTextActive : undefined}>
+                      {item.label}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
           <View style={styles.recipeToggle}>
             <View style={styles.recipeCopy}>
               <AppText variant="button">Công thức của bạn</AppText>
@@ -737,6 +788,15 @@ export function CreatePostScreen({ navigation, route }: any) {
                 multiline
                 style={styles.multiline}
               />
+            </View>
+          ) : null}
+          {error ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={18} color={colors.red} />
+              <View style={styles.errorCopy}>
+                <AppText style={styles.errorTitle}>Lỗi</AppText>
+                <AppText style={styles.errorMessage}>{error}</AppText>
+              </View>
             </View>
           ) : null}
           <AppButton label="Đăng bài" onPress={publish} loading={loading} />
@@ -1547,5 +1607,34 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     resizeMode: "contain"
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginTop: 6,
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: `${colors.red}55`,
+    backgroundColor: `${colors.red}12`
+  },
+  errorCopy: {
+    flex: 1,
+    gap: 2
+  },
+  errorTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    lineHeight: 17,
+    color: colors.red
+  },
+  errorMessage: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.ink
   }
 });

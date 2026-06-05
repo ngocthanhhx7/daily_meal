@@ -43,7 +43,7 @@ async function register(email: string) {
   return response.body as { token: string; user: { id: string } };
 }
 
-async function createPost(token: string, caption: string) {
+async function createPost(token: string, caption: string, visibility: "public" | "friends" | "private" = "public") {
   const response = await request(app)
     .post("/api/posts")
     .set("Authorization", `Bearer ${token}`)
@@ -51,7 +51,7 @@ async function createPost(token: string, caption: string) {
       images: [{ url: "/uploads/demo.jpg" }],
       caption,
       tags: [],
-      visibility: "public"
+      visibility
     })
     .expect(201);
 
@@ -533,6 +533,48 @@ describe("Daily Meal API", () => {
       .expect(403);
   });
 
+  it("registers custom stickers for premium users and rejects for free users", async () => {
+    const freeSession = await register("sticker-free@example.com");
+    const vipSession = await register("sticker-vip@example.com");
+    await makePremium(vipSession.user.id);
+
+    // 1. Rejects free user
+    await request(app)
+      .post("/api/stickers")
+      .set("Authorization", `Bearer ${freeSession.token}`)
+      .send({
+        key: "custom-free-key",
+        name: "My Custom Sticker",
+        assetPath: "/uploads/my-sticker.png"
+      })
+      .expect(403);
+
+    // 2. Accepts premium user
+    const response = await request(app)
+      .post("/api/stickers")
+      .set("Authorization", `Bearer ${vipSession.token}`)
+      .send({
+        key: "custom-vip-key",
+        name: "VIP Custom Sticker",
+        assetPath: "/uploads/vip-sticker.png"
+      })
+      .expect(201);
+
+    expect(response.body.sticker).toBeDefined();
+    expect(response.body.sticker._id).toBeDefined();
+    expect(response.body.sticker.name).toBe("VIP Custom Sticker");
+    expect(response.body.sticker.premiumOnly).toBe(true);
+
+    // 3. Rejects missing fields
+    await request(app)
+      .post("/api/stickers")
+      .set("Authorization", `Bearer ${vipSession.token}`)
+      .send({
+        name: "Incomplete"
+      })
+      .expect(400);
+  });
+
   it("turns mutual follows into friends", async () => {
     const alice = await register("alice@example.com");
     const bob = await register("bob@example.com");
@@ -602,12 +644,74 @@ describe("Daily Meal API", () => {
     const captions = feed.body.posts.map((post: { caption: string }) => post.caption);
     expect(captions).toContain("Alice own meal");
     expect(captions).toContain("Bob followed meal");
-    expect(captions).not.toContain("Carol outside network");
+    expect(captions).toContain("Carol outside network");
+    expect(captions.indexOf("Alice own meal")).toBeLessThan(captions.indexOf("Bob followed meal"));
+    expect(captions.indexOf("Bob followed meal")).toBeLessThan(captions.indexOf("Carol outside network"));
 
     const followedPost = feed.body.posts.find(
       (post: { caption: string }) => post.caption === "Bob followed meal"
     );
     expect(followedPost.viewerState).toEqual({ liked: true, saved: true });
+  });
+
+  it("prioritizes feed by relationship and only exposes friends posts to mutual friends", async () => {
+    const viewer = await register("feed-priority-viewer@example.com");
+    const friend = await register("feed-priority-friend@example.com");
+    const followed = await register("feed-priority-followed@example.com");
+    const stranger = await register("feed-priority-stranger@example.com");
+
+    await createPost(stranger.token, "Stranger public meal");
+    await createPost(followed.token, "Followed public meal");
+    await createPost(friend.token, "Friend friends meal", "friends");
+    await createPost(viewer.token, "Viewer own meal", "friends");
+
+    await request(app)
+      .post(`/api/users/${friend.user.id}/follow`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    await request(app)
+      .post(`/api/users/${viewer.user.id}/follow`)
+      .set("Authorization", `Bearer ${friend.token}`)
+      .expect(200);
+    await request(app)
+      .post(`/api/users/${followed.user.id}/follow`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    const viewerFeed = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    const viewerCaptions = viewerFeed.body.posts.map((post: { caption: string }) => post.caption);
+    expect(viewerCaptions).toContain("Viewer own meal");
+    expect(viewerCaptions).toContain("Friend friends meal");
+    expect(viewerCaptions).toContain("Followed public meal");
+    expect(viewerCaptions).toContain("Stranger public meal");
+    expect(viewerCaptions.indexOf("Viewer own meal")).toBeLessThan(viewerCaptions.indexOf("Friend friends meal"));
+    expect(viewerCaptions.indexOf("Friend friends meal")).toBeLessThan(viewerCaptions.indexOf("Followed public meal"));
+    expect(viewerCaptions.indexOf("Followed public meal")).toBeLessThan(viewerCaptions.indexOf("Stranger public meal"));
+
+    const followedFeed = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${followed.token}`)
+      .expect(200);
+
+    const followedCaptions = followedFeed.body.posts.map((post: { caption: string }) => post.caption);
+    expect(followedCaptions).not.toContain("Friend friends meal");
+    expect(followedCaptions).not.toContain("Viewer own meal");
+
+    const friendProfile = await request(app)
+      .get(`/api/users/${friend.user.id}/posts`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(friendProfile.body.posts.map((post: { caption: string }) => post.caption)).toContain("Friend friends meal");
+
+    const friendProfileForStranger = await request(app)
+      .get(`/api/users/${friend.user.id}/posts`)
+      .set("Authorization", `Bearer ${stranger.token}`)
+      .expect(200);
+    expect(friendProfileForStranger.body.posts.map((post: { caption: string }) => post.caption)).not.toContain("Friend friends meal");
   });
 
   it("exposes saved posts and profile interactions", async () => {

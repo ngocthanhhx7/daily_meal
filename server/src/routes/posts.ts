@@ -99,7 +99,7 @@ const postBodySchema = z.object({
   mealId: z.string().optional(),
   stickerId: z.string().optional(),
   stickerPlacement: stickerPlacementSchema.optional(),
-  visibility: z.enum(["public", "private"]).default("public")
+  visibility: z.enum(["public", "friends", "private"]).default("public")
 });
 
 const postUpdateSchema = postBodySchema.partial().extend({
@@ -167,31 +167,75 @@ async function serializePostsForViewer(posts: any[], viewerId: string | undefine
   return posts.map((post) => serializePost(post, likedPostIds, savedPostIds));
 }
 
+async function networkIds(viewerId: string | undefined) {
+  if (!viewerId) {
+    return { followingIds: new Set<string>(), friendIds: new Set<string>() };
+  }
+
+  const [following, followers] = await Promise.all([
+    Follow.find({ follower: viewerId }).select("following").lean(),
+    Follow.find({ following: viewerId }).select("follower").lean()
+  ]);
+
+  const followingIds = new Set(following.map((item) => item.following.toString()));
+  const followerIds = new Set(followers.map((item) => item.follower.toString()));
+  const friendIds = new Set([...followingIds].filter((id) => followerIds.has(id)));
+
+  return { followingIds, friendIds };
+}
+
+function visiblePostFilter(viewerId: string | undefined, friendIds: Set<string>) {
+  return {
+    $or: [
+      { visibility: "public" },
+      ...(viewerId ? [{ author: viewerId }] : []),
+      ...(friendIds.size ? [{ author: { $in: [...friendIds] }, visibility: "friends" }] : [])
+    ]
+  };
+}
+
+function feedPriority(post: any, viewerId: string | undefined, followingIds: Set<string>, friendIds: Set<string>) {
+  const authorId = post.author?._id?.toString?.() ?? post.author?.id?.toString?.() ?? post.author?.toString?.();
+
+  if (viewerId && authorId === viewerId) {
+    return 0;
+  }
+  if (friendIds.has(authorId)) {
+    return 1;
+  }
+  if (followingIds.has(authorId)) {
+    return 2;
+  }
+  return 3;
+}
+
+function rankFeedPosts(posts: any[], viewerId: string | undefined, followingIds: Set<string>, friendIds: Set<string>) {
+  return [...posts].sort((a, b) => {
+    const priorityDiff = feedPriority(a, viewerId, followingIds, friendIds) - feedPriority(b, viewerId, followingIds, friendIds);
+
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+}
+
 postsRouter.get("/feed", requireAuth, async (req, res, next) => {
   try {
     const page = Number(req.query.page ?? 1);
     const limit = Math.min(Number(req.query.limit ?? 20), 50);
     const skip = (Math.max(page, 1) - 1) * limit;
-    const following = await Follow.find({ follower: req.user?.id }).select("following").lean();
-    const networkAuthorIds = [
-      req.user?.id,
-      ...following.map((item) => item.following.toString())
-    ].filter(Boolean);
-    const filter: Record<string, unknown> = { visibility: "public" };
+    const { followingIds, friendIds } = await networkIds(req.user?.id);
 
-    if (following.length) {
-      filter.author = { $in: networkAuthorIds };
-    }
-
-    const posts = await Post.find(filter)
+    const posts = await Post.find(visiblePostFilter(req.user?.id, friendIds))
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
       .populate("author", "displayName avatarUrl isPremium themeColor")
       .populate("stickerId")
       .lean();
+    const rankedPosts = rankFeedPosts(posts, req.user?.id, followingIds, friendIds).slice(skip, skip + limit);
 
-    res.json({ posts: await serializePostsForViewer(posts, req.user?.id), page, limit });
+    res.json({ posts: await serializePostsForViewer(rankedPosts, req.user?.id), page, limit });
   } catch (error) {
     next(error);
   }
@@ -205,7 +249,8 @@ postsRouter.get("/search", requireAuth, async (req, res, next) => {
     const savedOnly = req.query.saved === "true";
     const premiumStickerOnly = req.query.premiumSticker === "true";
 
-    const filter: Record<string, unknown> = { visibility: "public" };
+    const { friendIds } = await networkIds(req.user?.id);
+    const filter: Record<string, unknown> = visiblePostFilter(req.user?.id, friendIds);
 
     if (q) {
       filter.$or = [

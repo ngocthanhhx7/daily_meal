@@ -270,6 +270,12 @@ export const api = {
       body: { body }
     }),
   stickers: (token: string) => request<{ stickers: Sticker[] }>("/api/stickers", { token }),
+  createSticker: (token: string, body: { name: string; assetPath: string; key: string }) =>
+    request<{ sticker: Sticker }>("/api/stickers", {
+      method: "POST",
+      token,
+      body
+    }),
   uploadImage: async (token: string, uri: string, category: string) => {
     const form = new FormData();
     if (Platform.OS === "web") {

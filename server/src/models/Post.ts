@@ -98,7 +98,7 @@ const postSchema = new Schema(
     mealId: { type: Types.ObjectId, ref: "Meal" },
     stickerId: { type: Types.ObjectId, ref: "Sticker" },
     stickerPlacement: { type: stickerPlacementSchema },
-    visibility: { type: String, enum: ["public", "private"], default: "public", index: true },
+    visibility: { type: String, enum: ["public", "friends", "private"], default: "public", index: true },
     stats: {
       likes: { type: Number, default: 0 },
       comments: { type: Number, default: 0 },

@@ -102,6 +102,8 @@ export type StickerPlacement = {
   rotation: number;
 };
 
+export type PostVisibility = "public" | "friends" | "private";
+
 export type Post = {
   _id: string;
   author: User;
@@ -120,7 +122,7 @@ export type Post = {
   nutritionDetails?: NutritionDetail[];
   stickerId?: Sticker;
   stickerPlacement?: StickerPlacement;
-  visibility: "public" | "private";
+  visibility: PostVisibility;
   stats: {
     likes: number;
     comments: number;

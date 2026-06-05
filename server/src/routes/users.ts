@@ -154,6 +154,31 @@ async function serializePostsForViewer(posts: any[], viewerId: string | undefine
   );
 }
 
+async function friendIdsFor(viewerId: string | undefined) {
+  if (!viewerId) {
+    return new Set<string>();
+  }
+
+  const [following, followers] = await Promise.all([
+    Follow.find({ follower: viewerId }).select("following").lean(),
+    Follow.find({ following: viewerId }).select("follower").lean()
+  ]);
+  const followingIds = new Set(following.map((item) => item.following.toString()));
+  const followerIds = new Set(followers.map((item) => item.follower.toString()));
+
+  return new Set([...followingIds].filter((id) => followerIds.has(id)));
+}
+
+function visiblePostFilter(viewerId: string | undefined, friendIds: Set<string>) {
+  return {
+    $or: [
+      { visibility: "public" },
+      ...(viewerId ? [{ author: viewerId }] : []),
+      ...(friendIds.size ? [{ author: { $in: [...friendIds] }, visibility: "friends" }] : [])
+    ]
+  };
+}
+
 const updateMeSchema = z.object({
   displayName: z.string().min(1).max(80).optional(),
   avatarUrl: z.string().max(500).optional(),
@@ -453,7 +478,11 @@ usersRouter.delete("/:id/follow", requireAuth, async (req, res, next) => {
 
 usersRouter.get("/:id/posts", requireAuth, async (req, res, next) => {
   try {
-    const posts = await Post.find({ author: req.params.id, visibility: "public" })
+    const friendIds = await friendIdsFor(req.user?.id);
+    const posts = await Post.find({
+      author: req.params.id,
+      ...visiblePostFilter(req.user?.id, friendIds)
+    })
       .sort({ createdAt: -1 })
       .populate("author", "displayName avatarUrl isPremium themeColor")
       .populate("stickerId")
@@ -468,9 +497,10 @@ usersRouter.get("/:id/posts", requireAuth, async (req, res, next) => {
 usersRouter.get("/:id/saved-posts", requireAuth, async (req, res, next) => {
   try {
     const saves = await PostSave.find({ user: req.params.id }).select("post").sort({ createdAt: -1 }).lean();
+    const friendIds = await friendIdsFor(req.user?.id);
     const posts = await Post.find({
       _id: { $in: saves.map((save) => save.post) },
-      visibility: "public"
+      ...visiblePostFilter(req.user?.id, friendIds)
     })
       .sort({ createdAt: -1 })
       .populate("author", "displayName avatarUrl isPremium themeColor")

@@ -263,23 +263,7 @@ export function LoginScreen() {
         style={[styles.background, showDesktopFrame && styles.desktopFrame]}
         resizeMode="stretch"
       >
-        <View pointerEvents="none" style={styles.foodCluster}>
-          <Image
-            source={require("../../assets/feed/home-food-back.png")}
-            style={[styles.foodCard, styles.foodLeft]}
-            resizeMode="cover"
-          />
-          <Image
-            source={require("../../assets/feed/home-food-mid.png")}
-            style={[styles.foodCard, styles.foodCenter]}
-            resizeMode="cover"
-          />
-          <Image
-            source={require("../../assets/feed/home-food-main.png")}
-            style={[styles.foodCard, styles.foodRight]}
-            resizeMode="cover"
-          />
-        </View>
+        
         <SafeAreaView style={styles.safeArea}>
           <KeyboardAvoidingView
             behavior={getKeyboardAvoidingBehavior(Platform.OS)}

@@ -93,7 +93,7 @@ export function FollowsScreen({ route, navigation }: any) {
       const result = target.relationship?.isFollowing
         ? await api.unfollowUser(token, target.id)
         : await api.followUser(token, target.id);
-      
+
       // Update local state for the modified user
       setUsers((current) =>
         current.map((item) => (item.id === target.id ? result.user : item))
@@ -207,7 +207,7 @@ export function FollowsScreen({ route, navigation }: any) {
                     </AppText>
                   </View>
                 </Pressable>
-                
+
                 {/* Do not show follow button for self */}
                 {item.id !== currentUser?.id && (
                   <AppButton

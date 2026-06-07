@@ -12,13 +12,16 @@ import {
   View,
   Keyboard,
   LayoutAnimation,
-  UIManager
+  UIManager,
+  Modal
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { api } from "../api/client";
 import { FigmaLineBackground } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
+import { BouncePress } from "../components/Animations";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { colors } from "../theme/colors";
@@ -26,6 +29,7 @@ import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
 import { IOS_MINIMUM_INPUT_FONT_SIZE, getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
 import { getParticipantAccent, getParticipantAvatarLabel, isDoubleTap } from "./messagePresentation";
+import { CameraIcon, CategoryIcon } from "../components/SvgIcons";
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === "android") {
@@ -109,19 +113,26 @@ function Avatar({
   );
 }
 
+const DEMO_REPLIES: Record<string, { replyToDisplayName: string, replyToId: string, replyToAvatarUrl?: string }> = {
+  "d3": { replyToDisplayName: "Bé Chó màu vàng", replyToId: "other2" },
+  "d4": { replyToDisplayName: "Trùng bắc thảo", replyToId: "other1" }
+};
+
 // --- Bubble ---
 function CommentBubble({
   comment,
   isMine,
-  onDoubleLike
+  onDoubleLike,
+  openInput
 }: {
   comment: Comment;
   isMine: boolean;
   onDoubleLike: (commentId: string) => void;
+  openInput: () => void;
 }) {
   const lastTapRef = useRef<number | undefined>(undefined);
-  const bubbleBg = isMine ? colors.greenDark : colors.green; // Mine is dark green, other is soft green
-  const textColor = colors.white;
+  const bubbleBg = isMine ? colors.white : getParticipantAccent(comment.author?.id ?? comment.author?.displayName);
+  const textColor = colors.ink;
 
   function handleBubblePress() {
     const now = Date.now();
@@ -134,47 +145,82 @@ function CommentBubble({
     lastTapRef.current = now;
   }
 
-  return (
-    <View style={styles.commentItemRow}>
-      {/* Left Column: holds avatar pushed down to align with bubble */}
-      <View style={styles.commentLeftColumn}>
-        <Avatar
-          name={comment.author?.displayName}
-          id={comment.author?.id}
-          avatarUrl={comment.author?.avatarUrl}
-          size={36}
-        />
-      </View>
+  const replyTo = DEMO_REPLIES[comment._id];
+  const cleanBody = replyTo ? comment.body.replace(/^trả lời\s*/i, "") : comment.body;
 
-      {/* Right Column: Name, Bubble, Metadata */}
-      <View style={styles.commentRightColumn}>
-        <AppText style={styles.commentAuthorName}>
+  return (
+    <View style={[styles.commentItemRow, isMine && { justifyContent: "flex-end" }]}>
+      <View style={[styles.commentRightColumn, isMine && { alignItems: "flex-end" }]}>
+        {/* Name Row */}
+        <AppText style={[styles.commentAuthorName, isMine && { textAlign: "right" }]}>
           {comment.author?.displayName ?? "Daily Meal"}
         </AppText>
 
-        <Pressable onPress={handleBubblePress} style={[styles.commentBubble, { backgroundColor: bubbleBg }]}>
-          <AppText style={[styles.commentBubbleText, { color: textColor }]}>
-            {comment.body}
-          </AppText>
-        </Pressable>
+        {/* Bubble & Time Row */}
+        <View style={[styles.commentMiddleRow, isMine && { flexDirection: "row-reverse" }]}>
+          <View style={styles.commentBubbleContainer}>
+            <Pressable
+              onPress={handleBubblePress}
+              style={[
+                styles.commentBubble,
+                { backgroundColor: bubbleBg, alignSelf: isMine ? "flex-end" : "flex-start" },
+                isMine && { borderWidth: 1, borderColor: colors.line }
+              ]}
+            >
+              {!isMine && (
+                <Avatar
+                  name={comment.author?.displayName}
+                  id={comment.author?.id}
+                  avatarUrl={comment.author?.avatarUrl}
+                  size={36}
+                />
+              )}
+              <View style={{ flexShrink: 1 }}>
+                <AppText style={[styles.commentBubbleText, { color: textColor }]}>
+                  {replyTo ? (
+                    <>
+                      trả lời{" "}
+                      <View style={styles.inlineAvatarWrap}>
+                        <Avatar
+                          name={replyTo.replyToDisplayName}
+                          id={replyTo.replyToId}
+                          avatarUrl={replyTo.replyToAvatarUrl}
+                          size={18}
+                        />
+                      </View>
+                      {" "}{cleanBody}
+                    </>
+                  ) : (
+                    comment.body
+                  )}
+                </AppText>
+              </View>
+            </Pressable>
 
-        <View style={styles.commentMetaRow}>
-          <AppText variant="caption" muted style={styles.commentMetaText}>
+            {(comment.likes ?? 0) > 0 && (
+              <View style={[styles.commentLikeChipAbsolute, isMine ? { left: 12 } : { right: 12 }]}>
+                {(comment.likes ?? 0) > 1 && (
+                  <AppText variant="caption" style={styles.commentLikeText}>
+                    {comment.likes}
+                  </AppText>
+                )}
+                <Ionicons name="heart" size={12} color={colors.red} />
+              </View>
+            )}
+          </View>
+
+          <AppText variant="caption" muted style={styles.commentTimeText}>
             {relativeTime(comment.createdAt)}
           </AppText>
-          <Pressable hitSlop={8}>
+        </View>
+
+        {/* Reply Action Row */}
+        <View style={[styles.commentMetaRow, isMine && { justifyContent: "flex-end" }]}>
+          <Pressable hitSlop={8} onPress={openInput}>
             <AppText variant="caption" muted style={styles.commentMetaText}>
-              Trả lời
+              trả lời
             </AppText>
           </Pressable>
-          {(comment.likes ?? 0) > 0 && (
-            <View style={styles.commentLikeChip}>
-              <AppText variant="caption" style={styles.commentLikeText}>
-                {comment.likes}
-              </AppText>
-              <Ionicons name="heart" size={10} color={colors.red} />
-            </View>
-          )}
         </View>
       </View>
     </View>
@@ -192,12 +238,16 @@ export function CommentsScreen({ navigation, route }: any) {
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
   const [isInputVisible, setIsInputVisible] = useState(false);
-  
+  const [showCategory, setShowCategory] = useState(false);
+
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
 
   const totalLikes = post?.stats?.likes ?? 48;
   const totalComments = comments.length || post?.stats?.comments || 0;
+
+  const headerHeight = insets.top + 56;
+  const bottomBarHeight = insets.bottom + 64;
 
   // Real-time comments socket room integration
   useEffect(() => {
@@ -357,67 +407,24 @@ export function CommentsScreen({ navigation, route }: any) {
 
   return (
     <FigmaLineBackground>
-      <SafeAreaView style={styles.safe} edges={["top"]}>
+      <View style={styles.container}>
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={getKeyboardAvoidingBehavior(Platform.OS)}
           contentContainerStyle={styles.flex}
           keyboardVerticalOffset={0}
         >
-          {/* ── HEADER ── */}
-          <ImageBackground
-            source={imageSource(post)}
-            style={styles.postHero}
-            imageStyle={styles.postHeroImage}
-            resizeMode="cover"
-          >
-            <View style={styles.postHeroShade}>
-              <View style={styles.header}>
-                <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
-                  <Ionicons name="chevron-back" size={22} color={colors.ink} />
-                </Pressable>
-                <AppText style={styles.headerTitle}>
-                  Bình luận
-                </AppText>
-                <View style={styles.headerRight}>
-                  <Pressable style={styles.headerBtn} hitSlop={8}>
-                    <Ionicons name="ellipsis-horizontal" size={20} color={colors.ink} />
-                  </Pressable>
-                  <Pressable style={styles.headerBtn} hitSlop={8}>
-                    <Ionicons name="person-outline" size={20} color={colors.ink} />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          </ImageBackground>
-
-          {/* ── ENGAGEMENT PILL ── */}
-          <View style={styles.engagementPillContainer}>
-            <View style={styles.statsRow}>
-              {/* Green circle avatar with initial "K" or author avatar */}
-              <Avatar
-                name={post?.author?.displayName ?? "K"}
-                id={post?.author?.id}
-                avatarUrl={post?.author?.avatarUrl}
-                size={26}
-                bg={colors.greenDark}
-              />
-              <View style={styles.statItem}>
-                <Ionicons name="chatbubble-outline" size={14} color={colors.muted} />
-                <AppText variant="caption" style={styles.statText}>{totalComments}</AppText>
-              </View>
-              <View style={styles.statItem}>
-                <Ionicons name="heart" size={14} color={colors.red} />
-                <AppText variant="caption" style={styles.statText}>{totalLikes}</AppText>
-              </View>
-            </View>
-          </View>
-
           {/* ── CHAT BUBBLES ── */}
           <ScrollView
             ref={scrollRef}
             style={styles.flex}
-            contentContainerStyle={styles.chatContent}
+            contentContainerStyle={[
+              styles.chatContent,
+              {
+                paddingTop: headerHeight + 12,
+                paddingBottom: isInputVisible ? 12 : bottomBarHeight + 16
+              }
+            ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={() =>
@@ -425,23 +432,98 @@ export function CommentsScreen({ navigation, route }: any) {
             }
           >
             <Pressable onPress={Keyboard.dismiss} style={{ gap: 12, width: "100%" }}>
+              {/* ── POST HERO SCROLLING CARD ── */}
+              <View style={styles.scrollHeroContainer}>
+                <ImageBackground
+                  source={imageSource(post)}
+                  style={styles.postHero}
+                  imageStyle={styles.postHeroImage}
+                  resizeMode="cover"
+                />
+
+                {/* ── ENGAGEMENT PILL ── */}
+                <View style={styles.engagementPillContainerScroll}>
+                  <View style={styles.statsRow}>
+                    <Avatar
+                      name={post?.author?.displayName ?? "K"}
+                      id={post?.author?.id}
+                      avatarUrl={post?.author?.avatarUrl}
+                      size={26}
+                      bg={colors.greenDark}
+                    />
+                    <View style={styles.statItem}>
+                      <Ionicons name="chatbubble-outline" size={14} color={colors.muted} />
+                      <AppText variant="caption" style={styles.statText}>{totalComments}</AppText>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Ionicons name="heart" size={14} color={colors.red} />
+                      <AppText variant="caption" style={styles.statText}>{totalLikes}</AppText>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Comments list */}
               {comments.map((comment) => {
-                const isMine = comment.author?.id === user?.id;
+                const author = comment.author as any;
+                const currentUser = user as any;
+                const commentAuthorId = author?.id ?? author?._id;
+                const currentUserId = currentUser?.id ?? currentUser?._id;
+                const isMine = !!(commentAuthorId && currentUserId && commentAuthorId === currentUserId);
                 return (
                   <CommentBubble
                     key={comment._id}
                     comment={comment}
                     isMine={isMine}
                     onDoubleLike={likeComment}
+                    openInput={openInput}
                   />
                 );
               })}
             </Pressable>
           </ScrollView>
 
-          {/* ── BOTTOM ACTIONS (FLOATING BUTTON OR INPUT BAR) ── */}
+          {/* ── TRANSLUCENT HEADER OVERLAY ── */}
+          <BlurView
+            intensity={80}
+            tint="light"
+            style={[styles.headerOverlay, { paddingTop: insets.top, height: headerHeight }]}
+          >
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn} hitSlop={8}>
+                  <Ionicons name="arrow-back" size={16} color={colors.white} />
+                </Pressable>
+                <AppText style={styles.headerTitle}>
+                  Bình luận
+                </AppText>
+              </View>
+              <View style={styles.headerRight}>
+                <Pressable
+                  style={styles.headerEllipsisBtn}
+                  onPress={() => navigation.navigate("Settings")}
+                  hitSlop={8}
+                >
+                  <Ionicons name="ellipsis-horizontal" size={30} color={colors.black} />
+                </Pressable>
+                <Pressable
+                  style={styles.headerProfileBtn}
+                  onPress={() => navigation.navigate("Profile")}
+                  hitSlop={8}
+                >
+                  <Ionicons name="person" size={30} color={colors.black} />
+                </Pressable>
+              </View>
+            </View>
+          </BlurView>
+
+          {/* ── BOTTOM ACTIONS (FLOATING BAR OR INPUT BAR) ── */}
           {isInputVisible ? (
-            <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
+            <BlurView
+              intensity={80}
+              tint="light"
+              style={[styles.inputBarOverlay, { paddingBottom: insets.bottom + 8 }]}
+            >
               <TextInput
                 ref={inputRef}
                 value={body}
@@ -467,57 +549,151 @@ export function CommentsScreen({ navigation, route }: any) {
                   color={body.trim() ? colors.greenDark : colors.muted}
                 />
               </Pressable>
-            </View>
+            </BlurView>
           ) : (
-            <View style={[styles.floatingBtnContainer, { paddingBottom: insets.bottom + 16 }]}>
-              <Pressable style={styles.floatingCommentBtn} onPress={openInput} hitSlop={12}>
-                <Ionicons name="chatbubble" size={20} color={colors.white} />
-              </Pressable>
-            </View>
+            <BlurView
+              intensity={80}
+              tint="light"
+              style={[styles.bottomBarOverlay, { paddingBottom: insets.bottom, height: bottomBarHeight }]}
+            >
+              <View style={styles.bottomBarRow}>
+                <BouncePress style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
+                  <CategoryIcon size={30} color={colors.black} />
+                </BouncePress>
+
+                <Pressable style={styles.floatingCommentBtn} onPress={openInput} hitSlop={12}>
+                  <Ionicons name="chatbubble" size={20} color={colors.white} />
+                </Pressable>
+
+                <BouncePress style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
+                  <CameraIcon size={30} color={colors.black} />
+                </BouncePress>
+              </View>
+            </BlurView>
           )}
         </KeyboardAvoidingView>
-      </SafeAreaView>
+
+        {/* Category Features Modal */}
+        <CategoryModal
+          visible={showCategory}
+          onClose={() => setShowCategory(false)}
+          onNavigate={(screen) => navigation.navigate(screen)}
+        />
+      </View>
     </FigmaLineBackground>
   );
 }
 
+const CATEGORY_ITEMS = [
+  { icon: "search-outline" as const, label: "Tìm kiếm", screen: "Search" },
+  { icon: "chatbubbles-outline" as const, label: "Tin nhắn", screen: "Inbox" },
+  { icon: "person-outline" as const, label: "Hồ sơ", screen: "Profile" },
+  { icon: "settings-outline" as const, label: "Cài đặt", screen: "Settings" }
+] as const;
+
+function CategoryModal({
+  visible,
+  onClose,
+  onNavigate
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onNavigate: (screen: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.sheetHandle} />
+          <AppText variant="subtitle" style={styles.sheetTitle}>Tính năng</AppText>
+          <View style={styles.categoryGrid}>
+            {CATEGORY_ITEMS.map((item) => (
+              <Pressable
+                key={item.label}
+                style={styles.categoryItem}
+                onPress={() => {
+                  onClose();
+                  onNavigate(item.screen);
+                }}
+              >
+                <View style={styles.categoryIconWrap}>
+                  <Ionicons name={item.icon} size={24} color={colors.black} />
+                </View>
+                <AppText variant="caption" style={styles.categoryLabel}>{item.label}</AppText>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
-  safe: {
+  container: {
     flex: 1
   },
   flex: {
     flex: 1
   },
 
-  // Header
+  // Header Overlay
+  headerOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0,0,0,0.05)"
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 12,
-    paddingTop: 12,
+    height: 56,
     position: "relative",
     width: "100%"
   },
   headerBtn: {
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 24,
+    backgroundColor: colors.black,
+    zIndex: 2
+  },
+  headerEllipsisBtn: {
     width: 36,
     height: 36,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    backgroundColor: "transparent",
+    zIndex: 2
+  },
+  headerProfileBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+    zIndex: 2
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
     zIndex: 2
   },
   headerTitle: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 18,
-    textAlign: "center",
     fontFamily: fonts.bold,
-    fontSize: 20,
-    color: colors.black,
-    zIndex: 1
+    fontSize: 40,
+    color: colors.black
   },
   headerRight: {
     flexDirection: "row",
@@ -537,19 +713,17 @@ const styles = StyleSheet.create({
   postHeroImage: {
     borderRadius: 20
   },
-  postHeroShade: {
-    flex: 1,
-    justifyContent: "space-between",
-    backgroundColor: "rgba(255, 255, 255, 0.15)"
+  scrollHeroContainer: {
+    width: "100%",
+    marginBottom: 8
+  },
+  engagementPillContainerScroll: {
+    alignItems: "center",
+    zIndex: 10,
+    marginTop: -20
   },
 
   // Engagement Pill
-  engagementPillContainer: {
-    alignItems: "center",
-    zIndex: 10,
-    marginTop: -20,
-    marginBottom: 8
-  },
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -581,71 +755,99 @@ const styles = StyleSheet.create({
   chatContent: {
     paddingHorizontal: 14,
     paddingTop: 12,
-    paddingBottom: 88, // Add padding bottom so comments can scroll past the floating button
+    paddingBottom: 88, // Add padding bottom so comments can scroll past the bottom bar
     gap: 12
   },
 
   // Comment item layout
   commentItemRow: {
     flexDirection: "row",
-    gap: 12,
-    alignItems: "flex-start",
-    marginVertical: 4,
+    marginVertical: 6,
     width: "100%"
-  },
-  commentLeftColumn: {
-    paddingTop: 18, // Pushes avatar down past the author name to align with the bubble
-    alignItems: "center"
   },
   commentRightColumn: {
     flex: 1,
     gap: 4
   },
   commentAuthorName: {
-    fontFamily: fonts.semibold,
-    fontSize: 13,
+    fontFamily: fonts.regular,
+    fontSize: 12,
     color: colors.muted,
-    paddingLeft: 4
+    paddingHorizontal: 4
+  },
+  commentMiddleRow: {
+    flexDirection: "row",
+    alignItems: "center"
+  },
+  commentBubbleContainer: {
+    position: "relative",
+    maxWidth: "80%"
   },
   commentBubble: {
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    alignSelf: "flex-start",
-    maxWidth: "85%"
+    paddingLeft: 8,
+    paddingRight: 16,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    maxWidth: "100%"
   },
   commentBubbleText: {
     fontFamily: fonts.regular,
     fontSize: 15,
     lineHeight: 20
   },
+  commentTimeText: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    color: colors.muted,
+    marginLeft: 10,
+    marginRight: 10,
+    alignSelf: "center"
+  },
   commentMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     marginTop: 2
   },
   commentMetaText: {
     fontFamily: fonts.regular,
     fontSize: 12,
-    color: colors.muted
+    color: colors.muted,
+    textDecorationLine: "underline"
   },
-  commentLikeChip: {
+  commentLikeChipAbsolute: {
+    position: "absolute",
+    top: -6,
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
     backgroundColor: colors.surface,
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line
+    borderColor: colors.line,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    zIndex: 10
   },
   commentLikeText: {
     fontFamily: fonts.regular,
     fontSize: 11,
     color: colors.muted
+  },
+  inlineAvatarWrap: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    overflow: "hidden",
+    top: Platform.OS === "ios" ? 2 : 4
   },
 
   // Avatar
@@ -665,13 +867,19 @@ const styles = StyleSheet.create({
   },
 
   // Input bar
-  inputBar: {
+  inputBarOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
     paddingHorizontal: 14,
     paddingTop: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.94)"
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(0,0,0,0.05)"
   },
   textInput: {
     flex: 1,
@@ -698,16 +906,30 @@ const styles = StyleSheet.create({
     opacity: 0.6
   },
 
-  // Floating comment button
-  floatingBtnContainer: {
+  // Bottom Bar Overlay
+  bottomBarOverlay: {
     position: "absolute",
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
+    zIndex: 100,
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(0,0,0,0.05)",
+    justifyContent: "center"
+  },
+  bottomBarRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-    pointerEvents: "box-none"
+    justifyContent: "space-between",
+    paddingHorizontal: 34,
+    height: 64
+  },
+  squareBtn: {
+    width: 52,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center"
   },
   floatingCommentBtn: {
     width: 140,
@@ -721,5 +943,53 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6
+  },
+
+  // CategoryModal
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end"
+  },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: 24
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.line,
+    alignSelf: "center",
+    marginBottom: 18
+  },
+  sheetTitle: {
+    marginBottom: 20
+  },
+  categoryGrid: {
+    flexDirection: "row",
+    gap: 14
+  },
+  categoryItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 8
+  },
+  categoryIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: colors.canvas,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.line
+  },
+  categoryLabel: {
+    color: colors.muted,
+    textAlign: "center"
   }
 });

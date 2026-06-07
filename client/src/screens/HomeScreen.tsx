@@ -30,6 +30,7 @@ import { fonts } from "../theme/typography";
 import type { Post, PostLayout } from "../types/api";
 import { stickerImageSource } from "../utils/stickers";
 import { getNutritionDetailSections } from "./postNutrition";
+import { CameraIcon, CategoryIcon } from "../components/SvgIcons";
 
 const PHONE_MAX_WIDTH = 383;
 const ARTWORK_MAX_WIDTH = 380;
@@ -371,7 +372,7 @@ export function HomeScreen({ navigation }: any) {
         <FadeSlideIn delay={200} slideDistance={20} duration={500}>
           <View style={[styles.bottomBar, showDesktopFrame && styles.desktopBottomBar]}>
             <BouncePress style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
-              <Ionicons name="apps" size={30} color={colors.black} />
+              <CategoryIcon size={30} color={colors.black} />
             </BouncePress>
 
             <View style={styles.actionPill}>
@@ -391,7 +392,7 @@ export function HomeScreen({ navigation }: any) {
             </View>
 
             <BouncePress style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
-              <Ionicons name="camera" size={30} color={colors.black} />
+              <CameraIcon size={30} color={colors.black} />
             </BouncePress>
           </View>
         </FadeSlideIn>

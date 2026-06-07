@@ -47,7 +47,7 @@ export function getPwaEnvironment(input: PwaEnvironmentInput = {}): PwaEnvironme
 
   const isWeb = platform === "web";
   const isIphoneOrIpod = /iPhone|iPod/i.test(userAgent);
-  const isIpad = /iPad/i.test(userAgent) || (/Macintosh/i.test(userAgent) && maxTouchPoints > 1 && /Mobile/i.test(userAgent));
+  const isIpad = /iPad/i.test(userAgent) || (/Macintosh/i.test(userAgent) && maxTouchPoints > 1);
   const isIos = isIphoneOrIpod || isIpad;
   const hasSafari = /Safari/i.test(userAgent);
   const hasSafariVersion = /Version\/[\d.]+/i.test(userAgent);

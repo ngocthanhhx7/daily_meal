@@ -248,14 +248,20 @@ function SwipeDeleteItem({ children, onDelete }: { children: React.ReactNode; on
     [close, open, opened, translateX]
   );
 
+  const opacity = translateX.interpolate({
+    inputRange: [-84, 0],
+    outputRange: [1, 0],
+    extrapolate: "clamp"
+  });
+
   return (
     <View style={styles.swipeContainer}>
-      <View style={styles.deleteBehind}>
+      <Animated.View style={[styles.deleteBehind, { opacity }]}>
         <Pressable style={styles.deleteAction} onPress={onDelete}>
           <Ionicons name="trash" size={20} color={colors.white} />
           <AppText style={styles.deleteText}>Xóa</AppText>
         </Pressable>
-      </View>
+      </Animated.View>
       <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
         {children}
       </Animated.View>
@@ -429,7 +435,7 @@ const styles = StyleSheet.create({
   },
   unreadItem: {
     borderColor: colors.greenDark,
-    backgroundColor: `${colors.green}05`
+    backgroundColor: "#F4F8F4" // Opaque light green to prevent delete button underneath from showing through
   },
   iconWrap: {
     width: 38,

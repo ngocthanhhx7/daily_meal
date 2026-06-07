@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   profileSummary: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 20,
     paddingHorizontal: 2
   },
   avatarWrap: {
@@ -438,11 +438,10 @@ const styles = StyleSheet.create({
   stats: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8
+    gap: 80
   },
   statItem: {
-    flex: 1,
-    alignItems: "center",
+    alignItems: "flex-start",
     minWidth: 0,
     gap: 1
   },
@@ -451,13 +450,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 15,
     lineHeight: 19,
-    textAlign: "center"
+    textAlign: "left"
   },
   statLabel: {
     color: colors.muted,
     fontSize: 10,
     lineHeight: 13,
-    textAlign: "center"
+    textAlign: "left"
   },
   bioBlock: {
     gap: 3,

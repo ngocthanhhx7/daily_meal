@@ -293,7 +293,13 @@ export function CommentsScreen({ navigation, route }: any) {
 
       if (postId && !postId.startsWith("demo")) {
         const result = await api.addComment(token, postId, body.trim());
-        setComments((c) => [...c, result.comment as Comment]);
+        const createdComment = result.comment as Comment;
+        setComments((c) => {
+          if (c.some((item) => item._id === createdComment?._id)) {
+            return c;
+          }
+          return [...c, createdComment];
+        });
       } else {
         setComments((c) => [...c, newComment]);
       }

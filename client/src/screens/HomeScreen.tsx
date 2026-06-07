@@ -554,22 +554,25 @@ function FeedArtwork({ post }: { post: Post }) {
       })}
 
       {stickerSource ? (
-        <Wiggle>
+        <Wiggle
+          style={[
+            styles.feedSticker,
+            {
+              left: `${placement.x * 100}%`,
+              top: `${placement.y * 100}%`,
+              transform: [
+                { translateX: -25 },
+                { translateY: -25 },
+                { rotate: `${placement.rotation}deg` },
+                { scale: placement.scale }
+              ]
+            }
+          ]}
+        >
           <Image
             source={stickerSource}
-            style={[
-              styles.feedSticker,
-              {
-                left: `${placement.x * 100}%`,
-                top: `${placement.y * 100}%`,
-                transform: [
-                  { translateX: -25 },
-                  { translateY: -25 },
-                  { rotate: `${placement.rotation}deg` },
-                  { scale: placement.scale }
-                ]
-              }
-            ]}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="contain"
           />
         </Wiggle>
       ) : null}
@@ -1238,7 +1241,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 78,
     height: 78,
-    zIndex: 80
+    zIndex: 99,
+    elevation: 15
   },
   authorChip: {
     marginTop: 16,

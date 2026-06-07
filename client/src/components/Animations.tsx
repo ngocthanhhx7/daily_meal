@@ -207,8 +207,11 @@ export function Wiggle({
     outputRange: ["-6deg", "0deg", "6deg"]
   });
 
+  const flatStyle = StyleSheet.flatten(style) || {};
+  const existingTransform = Array.isArray(flatStyle.transform) ? flatStyle.transform : [];
+
   return (
-    <Animated.View style={[style, { transform: [{ rotate }] }]}>
+    <Animated.View style={[style, { transform: [...existingTransform, { rotate }] as any }]}>
       {children}
     </Animated.View>
   );

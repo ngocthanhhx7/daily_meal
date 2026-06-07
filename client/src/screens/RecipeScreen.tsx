@@ -104,13 +104,11 @@ export function RecipeScreen({ navigation, route }: any) {
                   </View>
                   {/* Sticker on image */}
                   {stickerSource ? (
-                    <Wiggle>
-                      <Image
-                        source={stickerSource}
-                        style={[
-                          styles.recipeSticker,
-                          {
-                            right: 12,
+                    <Wiggle
+                      style={[
+                        styles.recipeSticker,
+                        {
+                          right: 12,
                           top: 8,
                           transform: [
                             { rotate: `${placement.rotation}deg` },
@@ -118,8 +116,12 @@ export function RecipeScreen({ navigation, route }: any) {
                           ]
                         }
                       ]}
-                      resizeMode="contain"
-                    />
+                    >
+                      <Image
+                        source={stickerSource}
+                        style={{ width: "100%", height: "100%" }}
+                        resizeMode="contain"
+                      />
                     </Wiggle>
                   ) : null}
                 </View>
@@ -288,7 +290,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 56,
     height: 56,
-    zIndex: 10
+    zIndex: 99,
+    elevation: 15
   },
   recipeContent: {
     padding: 16,

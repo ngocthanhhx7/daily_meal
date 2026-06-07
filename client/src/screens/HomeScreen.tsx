@@ -1299,7 +1299,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 34,
     paddingTop: 8,
-    paddingBottom: 8,
+    paddingBottom: 35,
     width: "100%",
     alignSelf: "center"
   },

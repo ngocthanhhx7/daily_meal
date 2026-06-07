@@ -247,7 +247,7 @@ export function CommentsScreen({ navigation, route }: any) {
   const totalComments = comments.length || post?.stats?.comments || 0;
 
   const headerHeight = insets.top + 56;
-  const bottomBarHeight = insets.bottom + 64;
+  const bottomBarHeight = insets.bottom + 100;
 
   // Real-time comments socket room integration
   useEffect(() => {
@@ -522,7 +522,7 @@ export function CommentsScreen({ navigation, route }: any) {
             <BlurView
               intensity={80}
               tint="light"
-              style={[styles.inputBarOverlay, { paddingBottom: insets.bottom + 8 }]}
+              style={[styles.inputBarOverlay, { paddingBottom: insets.bottom + 3 }]}
             >
               <TextInput
                 ref={inputRef}

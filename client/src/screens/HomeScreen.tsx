@@ -137,12 +137,12 @@ export function HomeScreen({ navigation }: any) {
         currentPosts.map((post) =>
           post._id === postId
             ? {
-                ...post,
-                stats: {
-                  ...post.stats,
-                  ...stats
-                }
+              ...post,
+              stats: {
+                ...post.stats,
+                ...stats
               }
+            }
             : post
         )
       );
@@ -212,12 +212,12 @@ export function HomeScreen({ navigation }: any) {
       currentPosts.map((p) =>
         p._id === postId
           ? {
-              ...p,
-              stats: {
-                ...p.stats,
-                likes: Math.max(0, (p.stats?.likes ?? 0) + (isCurrentlyLiked ? -1 : 1))
-              }
+            ...p,
+            stats: {
+              ...p.stats,
+              likes: Math.max(0, (p.stats?.likes ?? 0) + (isCurrentlyLiked ? -1 : 1))
             }
+          }
           : p
       )
     );
@@ -233,12 +233,12 @@ export function HomeScreen({ navigation }: any) {
         currentPosts.map((p) =>
           p._id === postId
             ? {
-                ...p,
-                stats: {
-                  ...p.stats,
-                  likes: Math.max(0, (p.stats?.likes ?? 0) + (isCurrentlyLiked ? 1 : -1))
-                }
+              ...p,
+              stats: {
+                ...p.stats,
+                likes: Math.max(0, (p.stats?.likes ?? 0) + (isCurrentlyLiked ? 1 : -1))
               }
+            }
             : p
         )
       );
@@ -256,12 +256,12 @@ export function HomeScreen({ navigation }: any) {
       currentPosts.map((p) =>
         p._id === postId
           ? {
-              ...p,
-              stats: {
-                ...p.stats,
-                saves: Math.max(0, (p.stats?.saves ?? 0) + (isCurrentlySaved ? -1 : 1))
-              }
+            ...p,
+            stats: {
+              ...p.stats,
+              saves: Math.max(0, (p.stats?.saves ?? 0) + (isCurrentlySaved ? -1 : 1))
             }
+          }
           : p
       )
     );
@@ -277,12 +277,12 @@ export function HomeScreen({ navigation }: any) {
         currentPosts.map((p) =>
           p._id === postId
             ? {
-                ...p,
-                stats: {
-                  ...p.stats,
-                  saves: Math.max(0, (p.stats?.saves ?? 0) + (isCurrentlySaved ? 1 : -1))
-                }
+              ...p,
+              stats: {
+                ...p.stats,
+                saves: Math.max(0, (p.stats?.saves ?? 0) + (isCurrentlySaved ? 1 : -1))
               }
+            }
             : p
         )
       );
@@ -369,31 +369,31 @@ export function HomeScreen({ navigation }: any) {
         </View>
 
         <FadeSlideIn delay={200} slideDistance={20} duration={500}>
-        <View style={[styles.bottomBar, showDesktopFrame && styles.desktopBottomBar]}>
-          <BouncePress style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
-            <Ionicons name="apps" size={30} color={colors.black} />
-          </BouncePress>
-
-          <View style={styles.actionPill}>
-            <BouncePress style={styles.pillBtn} onPress={handleComment} hitSlop={4}>
-              <Ionicons name="chatbubble" size={24} color={colors.white} />
+          <View style={[styles.bottomBar, showDesktopFrame && styles.desktopBottomBar]}>
+            <BouncePress style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
+              <Ionicons name="apps" size={30} color={colors.black} />
             </BouncePress>
-            <Pressable style={styles.pillBtn} onPress={() => { bounceHeart(); handleLike(); }} hitSlop={4}>
-              <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-                <Ionicons name={isLiked ? "heart" : "heart-outline"} size={26} color={isLiked ? colors.red : colors.white} />
-              </Animated.View>
-            </Pressable>
-            <Pressable style={styles.pillBtn} onPress={() => { bounceSave(); handleSave(); }} hitSlop={4}>
-              <Animated.View style={{ transform: [{ scale: saveScale }] }}>
-                <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={25} color={isSaved ? colors.yellow : colors.white} />
-              </Animated.View>
-            </Pressable>
-          </View>
 
-          <BouncePress style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
-            <Ionicons name="camera" size={30} color={colors.black} />
-          </BouncePress>
-        </View>
+            <View style={styles.actionPill}>
+              <BouncePress style={styles.pillBtn} onPress={handleComment} hitSlop={4}>
+                <Ionicons name="chatbubble" size={24} color={colors.white} />
+              </BouncePress>
+              <Pressable style={styles.pillBtn} onPress={() => { bounceHeart(); handleLike(); }} hitSlop={4}>
+                <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+                  <Ionicons name={isLiked ? "heart" : "heart-outline"} size={26} color={isLiked ? colors.red : colors.white} />
+                </Animated.View>
+              </Pressable>
+              <Pressable style={styles.pillBtn} onPress={() => { bounceSave(); handleSave(); }} hitSlop={4}>
+                <Animated.View style={{ transform: [{ scale: saveScale }] }}>
+                  <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={25} color={isSaved ? colors.yellow : colors.white} />
+                </Animated.View>
+              </Pressable>
+            </View>
+
+            <BouncePress style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
+              <Ionicons name="camera" size={30} color={colors.black} />
+            </BouncePress>
+          </View>
         </FadeSlideIn>
 
         <ExpandedPostModal
@@ -687,7 +687,7 @@ function ExpandedPostModal({
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={expandedStyles.overlay} onPress={onClose}>
-        <Pressable style={expandedStyles.container} onPress={() => {}}>
+        <Pressable style={expandedStyles.container} onPress={() => { }}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={expandedStyles.scrollContent}>
             {/* Caption chip */}
             <View style={expandedStyles.headerRow}>
@@ -975,7 +975,7 @@ function NutritionDetailModal({ post, onClose }: { post: Post | null; onClose: (
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={[styles.nutritionSheet, { paddingBottom: insets.bottom + 18 }]} onPress={() => {}}>
+        <Pressable style={[styles.nutritionSheet, { paddingBottom: insets.bottom + 18 }]} onPress={() => { }}>
           <View style={styles.sheetHandle} />
           <View style={styles.nutritionHeader}>
             <View>
@@ -1316,9 +1316,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.black,
     borderRadius: 24,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingVertical: 7,
-    gap: 22
+    gap: 20
   },
   pillBtn: {
     width: 32,

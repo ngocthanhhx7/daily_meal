@@ -1318,7 +1318,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 24,
     paddingVertical: 7,
-    gap: 20
+    gap: 14
   },
   pillBtn: {
     width: 32,

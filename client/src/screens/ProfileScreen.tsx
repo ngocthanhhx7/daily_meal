@@ -153,7 +153,7 @@ export function ProfileScreen({ navigation }: any) {
               }
             />
             <StatItem
-              label="Đang TD"
+              label="Đang Theo Dõi"
               value={user?.counts?.following ?? 0}
               onPress={() =>
                 navigation.navigate("Follows", {

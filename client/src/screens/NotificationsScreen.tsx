@@ -75,7 +75,7 @@ export function NotificationsScreen({ navigation }: any) {
     } else if (notification.type === "message") {
       navigation.navigate("Inbox");
     } else if (notification.post) {
-      navigation.navigate(notification.type === "like" ? "Recipe" : "Comments", { post: notification.post });
+      navigation.navigate("Home", { postId: notification.post._id, targetPost: notification.post });
     }
   }
 

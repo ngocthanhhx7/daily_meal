@@ -95,7 +95,7 @@ function isDesktopPointer() {
   return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 }
 
-export function HomeScreen({ navigation }: any) {
+export function HomeScreen({ navigation, route }: any) {
   const { width: viewportWidth } = useWindowDimensions();
   const { token, user } = useAuth();
   const { socket } = useSocket();
@@ -155,11 +155,19 @@ export function HomeScreen({ navigation }: any) {
     };
   }, [socket]);
 
-  const load = useCallback(async (jumpToTop = false) => {
+  const load = useCallback(async (jumpToTop = false, targetPostId?: string, targetPost?: Post) => {
     if (!token) return;
     try {
       const result = await api.feed(token);
-      const feedPosts = result.posts.length ? result.posts : demoPosts;
+      let feedPosts = result.posts.length ? result.posts : demoPosts;
+
+      if (targetPostId) {
+        const exists = feedPosts.some((p) => p._id === targetPostId);
+        if (!exists && targetPost) {
+          feedPosts = [targetPost, ...feedPosts];
+        }
+      }
+
       setPosts(feedPosts);
 
       // Populate liked and saved sets from database viewerState on page load
@@ -176,7 +184,7 @@ export function HomeScreen({ navigation }: any) {
       setLikedSet(initialLikes);
       setSavedSet(initialSaves);
 
-      if (jumpToTop) {
+      if (!targetPostId && jumpToTop) {
         setCurrentIndex(0);
         requestAnimationFrame(() => {
           flatRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -189,14 +197,31 @@ export function HomeScreen({ navigation }: any) {
 
   useFocusEffect(
     useCallback(() => {
+      const targetPostId = route?.params?.postId;
+      const targetPost = route?.params?.targetPost;
+
       if (isInitialMount.current) {
-        load(true);
+        load(true, targetPostId, targetPost);
         isInitialMount.current = false;
       } else {
-        load(false);
+        load(false, targetPostId, targetPost);
       }
-    }, [load])
+    }, [load, route?.params?.postId, route?.params?.targetPost])
   );
+
+  useEffect(() => {
+    const targetPostId = route?.params?.postId;
+    if (listHeight > 0 && targetPostId && posts.length > 0) {
+      const index = posts.findIndex((p) => p._id === targetPostId);
+      if (index !== -1) {
+        setCurrentIndex(index);
+        requestAnimationFrame(() => {
+          flatRef.current?.scrollToIndex({ index, animated: false });
+        });
+        navigation.setParams({ postId: undefined, targetPost: undefined });
+      }
+    }
+  }, [listHeight, route?.params?.postId, posts, navigation]);
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0];

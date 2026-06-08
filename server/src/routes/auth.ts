@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { z } from "zod";
 import crypto from "node:crypto";
 import { User } from "../models/User.js";
@@ -9,6 +9,7 @@ import { sendPasswordResetSuccessEmail, sendPasswordResetOtpEmail } from "../ser
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 import { createAccountCreatedNotification } from "../services/seeder.js";
+import { hasActivePremium, premiumTrialDto } from "../utils/premium.js";
 
 export const authRouter = Router();
 
@@ -79,7 +80,8 @@ function userDto(user: any) {
         }
       : { date: "", visibility: "hidden" },
     preferences: user.preferences,
-    isPremium: user.isPremium,
+    isPremium: hasActivePremium(user),
+    ...premiumTrialDto(user),
     counts: user.counts
   };
 }
@@ -150,7 +152,7 @@ authRouter.post("/password/forgot/request-otp", async (req, res, next) => {
     const user = await User.findOne({ email: body.email });
 
     if (!user?.email) {
-      res.json({ message: "Nếu email tồn tại, mã OTP đã được gửi." });
+      res.json({ message: "Náº¿u email tá»“n táº¡i, mÃ£ OTP Ä‘Ã£ Ä‘Æ°á»£c gá»­i." });
       return;
     }
 
@@ -165,7 +167,7 @@ authRouter.post("/password/forgot/request-otp", async (req, res, next) => {
     await sendPasswordResetOtpEmail(user.email, otp);
 
     res.json({
-      message: "Mã OTP đã được gửi đến email.",
+      message: "MÃ£ OTP Ä‘Ã£ Ä‘Æ°á»£c gá»­i Ä‘áº¿n email.",
       devOtp: process.env.NODE_ENV === "production" ? undefined : otp
     });
   } catch (error) {
@@ -179,19 +181,19 @@ authRouter.post("/password/forgot/verify-otp", async (req, res, next) => {
     const user = await User.findOne({ email: body.email });
 
     if (!user?.passwordResetOtp?.codeHash || !user.passwordResetOtp.expiresAt) {
-      throw new HttpError(400, "Vui lòng yêu cầu mã OTP mới.");
+      throw new HttpError(400, "Vui lÃ²ng yÃªu cáº§u mÃ£ OTP má»›i.");
     }
 
     if (user.passwordResetOtp.expiresAt.getTime() < Date.now()) {
       user.passwordResetOtp = undefined;
       await user.save();
-      throw new HttpError(400, "Mã OTP đã hết hạn.");
+      throw new HttpError(400, "MÃ£ OTP Ä‘Ã£ háº¿t háº¡n.");
     }
 
     if ((user.passwordResetOtp.attempts ?? 0) >= 5) {
       user.passwordResetOtp = undefined;
       await user.save();
-      throw new HttpError(429, "Bạn đã nhập sai quá nhiều lần. Vui lòng lấy mã mới.");
+      throw new HttpError(429, "Báº¡n Ä‘Ã£ nháº­p sai quÃ¡ nhiá»u láº§n. Vui lÃ²ng láº¥y mÃ£ má»›i.");
     }
 
     const validOtp = await verifyPassword(body.otp, user.passwordResetOtp.codeHash);
@@ -199,7 +201,7 @@ authRouter.post("/password/forgot/verify-otp", async (req, res, next) => {
     if (!validOtp) {
       user.passwordResetOtp.attempts = (user.passwordResetOtp.attempts ?? 0) + 1;
       await user.save();
-      throw new HttpError(401, "Mã OTP không đúng.");
+      throw new HttpError(401, "MÃ£ OTP khÃ´ng Ä‘Ãºng.");
     }
 
     user.passwordHash = await hashPassword(body.newPassword);
@@ -210,7 +212,7 @@ authRouter.post("/password/forgot/verify-otp", async (req, res, next) => {
     res.json({
       token: signAccessToken(user._id.toString()),
       user: userDto(user),
-      message: "Mật khẩu đã được cập nhật thành công."
+      message: "Máº­t kháº©u Ä‘Ã£ Ä‘Æ°á»£c cáº­p nháº­t thÃ nh cÃ´ng."
     });
   } catch (error) {
     next(error);
@@ -223,7 +225,7 @@ authRouter.post("/phone/register", async (req, res, next) => {
     const existing = await User.findOne({ phone: body.phone }).lean();
 
     if (existing) {
-      throw new HttpError(409, "Số điện thoại đã được đăng ký");
+      throw new HttpError(409, "Sá»‘ Ä‘iá»‡n thoáº¡i Ä‘Ã£ Ä‘Æ°á»£c Ä‘Äƒng kÃ½");
     }
 
     const user = await User.create({
@@ -265,7 +267,7 @@ authRouter.post("/phone/request-otp", async (req, res, next) => {
     await user.save();
 
     res.json({
-      message: "Mã OTP đã được gửi",
+      message: "MÃ£ OTP Ä‘Ã£ Ä‘Æ°á»£c gá»­i",
       requiresPasswordSetup: !user.passwordHash,
       devOtp: process.env.NODE_ENV === "production" ? undefined : otp
     });
@@ -280,19 +282,19 @@ authRouter.post("/phone/verify-otp", async (req, res, next) => {
     const user = await User.findOne({ phone: body.phone });
 
     if (!user?.phoneOtp?.codeHash || !user.phoneOtp.expiresAt) {
-      throw new HttpError(400, "Vui lòng yêu cầu mã OTP mới");
+      throw new HttpError(400, "Vui lÃ²ng yÃªu cáº§u mÃ£ OTP má»›i");
     }
 
     if (user.phoneOtp.expiresAt.getTime() < Date.now()) {
       user.phoneOtp = undefined;
       await user.save();
-      throw new HttpError(400, "Mã OTP đã hết hạn");
+      throw new HttpError(400, "MÃ£ OTP Ä‘Ã£ háº¿t háº¡n");
     }
 
     if ((user.phoneOtp.attempts ?? 0) >= 5) {
       user.phoneOtp = undefined;
       await user.save();
-      throw new HttpError(429, "Bạn đã nhập sai quá nhiều lần. Vui lòng lấy mã mới");
+      throw new HttpError(429, "Báº¡n Ä‘Ã£ nháº­p sai quÃ¡ nhiá»u láº§n. Vui lÃ²ng láº¥y mÃ£ má»›i");
     }
 
     const validOtp = await verifyPassword(body.otp, user.phoneOtp.codeHash);
@@ -300,11 +302,11 @@ authRouter.post("/phone/verify-otp", async (req, res, next) => {
     if (!validOtp) {
       user.phoneOtp.attempts = (user.phoneOtp.attempts ?? 0) + 1;
       await user.save();
-      throw new HttpError(401, "Mã OTP không đúng");
+      throw new HttpError(401, "MÃ£ OTP khÃ´ng Ä‘Ãºng");
     }
 
     if (!user.passwordHash && !body.password) {
-      throw new HttpError(400, "Vui lòng tạo mật khẩu cho lần đăng nhập đầu tiên");
+      throw new HttpError(400, "Vui lÃ²ng táº¡o máº­t kháº©u cho láº§n Ä‘Äƒng nháº­p Ä‘áº§u tiÃªn");
     }
 
     if (!user.passwordHash && body.password) {
@@ -333,7 +335,7 @@ authRouter.post("/phone/login", async (req, res, next) => {
     const user = await User.findOne({ phone: body.phone });
 
     if (!user?.passwordHash || !(await verifyPassword(body.password, user.passwordHash))) {
-      throw new HttpError(401, "Số điện thoại hoặc mật khẩu không đúng");
+      throw new HttpError(401, "Sá»‘ Ä‘iá»‡n thoáº¡i hoáº·c máº­t kháº©u khÃ´ng Ä‘Ãºng");
     }
 
     res.json({
@@ -531,3 +533,4 @@ authRouter.patch("/password", requireAuth, async (req, res, next) => {
     next(error);
   }
 });
+

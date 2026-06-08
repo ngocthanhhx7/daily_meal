@@ -1,7 +1,8 @@
-import type { RequestHandler } from "express";
+﻿import type { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { User } from "../models/User.js";
+import { hasActivePremium } from "../utils/premium.js";
 import { HttpError } from "./error.js";
 
 type JwtPayload = {
@@ -18,7 +19,7 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
     }
 
     const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
-    const user = await User.findById(payload.sub).select("email phone isPremium").lean();
+    const user = await User.findById(payload.sub).select("email phone isPremium premiumTrialEndsAt").lean();
 
     if (!user) {
       throw new HttpError(401, "Invalid session");
@@ -28,10 +29,11 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
       id: user._id.toString(),
       email: user.email ?? undefined,
       phone: user.phone ?? undefined,
-      isPremium: Boolean(user.isPremium)
+      isPremium: hasActivePremium(user)
     };
     next();
   } catch (error) {
     next(error instanceof HttpError ? error : new HttpError(401, "Invalid session"));
   }
 };
+

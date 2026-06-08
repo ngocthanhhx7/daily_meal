@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Dimensions,
   Easing,
@@ -44,6 +45,7 @@ const DEMO_IMAGES = [
 
 const DEMO_STICKER = require("../../assets/feed/home-sticker.png");
 const DEMO_AUTHOR_AVATAR = require("../../assets/feed/home-author.png");
+const PREMIUM_TRIAL_MASCOT = require("../../assets/stickers/b76f47fb-cc9c-41e7-ada3-39fc570671c9.jpg");
 
 const CATEGORY_ITEMS = [
   { icon: "search-outline" as const, label: "Tìm kiếm", screen: "Search" },
@@ -97,7 +99,7 @@ function isDesktopPointer() {
 
 export function HomeScreen({ navigation, route }: any) {
   const { width: viewportWidth } = useWindowDimensions();
-  const { token, user } = useAuth();
+  const { token, user, claimPremiumTrial, refreshUser } = useAuth();
   const { socket } = useSocket();
   const { unreadCount } = useNotifications();
   const [posts, setPosts] = useState<Post[]>(demoPosts);
@@ -107,6 +109,9 @@ export function HomeScreen({ navigation, route }: any) {
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [showCategory, setShowCategory] = useState(false);
+  const [hideTrialMascot, setHideTrialMascot] = useState(false);
+  const [isClaimingTrial, setIsClaimingTrial] = useState(false);
+  const [showTrialOfferModal, setShowTrialOfferModal] = useState(false);
   const [expandedPost, setExpandedPost] = useState<Post | null>(null);
   const [nutritionPost, setNutritionPost] = useState<Post | null>(null);
   const flatRef = useRef<FlatList>(null);
@@ -326,6 +331,41 @@ export function HomeScreen({ navigation, route }: any) {
     navigation.navigate("Comments", { post: currentPost });
   }
 
+  const shouldShowTrialMascot = Boolean(
+    user?.preferences.completedOnboarding &&
+    !user.isPremium &&
+    !user.premiumTrialUsed &&
+    !hideTrialMascot
+  );
+
+  async function claimTrialOffer() {
+    try {
+      setIsClaimingTrial(true);
+      await claimPremiumTrial();
+      setHideTrialMascot(true);
+      setShowTrialOfferModal(false);
+      Alert.alert("\u0110\u00e3 n\u00e2ng Premium!", "Premium mi\u1ec5n ph\u00ed 1 th\u00e1ng \u0111\u00e3 \u0111\u01b0\u1ee3c k\u00edch ho\u1ea1t cho b\u1ea1n.");
+    } catch (error: any) {
+      Alert.alert("Ch\u01b0a nh\u1eadn \u0111\u01b0\u1ee3c qu\u00e0", error?.message || "Vui l\u00f2ng th\u1eed l\u1ea1i sau nh\u00e9.");
+      await refreshUser();
+    } finally {
+      setIsClaimingTrial(false);
+    }
+  }
+
+  function handlePremiumTrialPress() {
+    if (isClaimingTrial) {
+      return;
+    }
+
+    setShowTrialOfferModal(true);
+  }
+
+  function handleDeclineTrialOffer() {
+    setShowTrialOfferModal(false);
+    setHideTrialMascot(true);
+  }
+
   return (
     <FigmaLineBackground>
       <SafeAreaView style={[styles.safe, showDesktopFrame && styles.phoneFrame]} edges={["top", "bottom"]}>
@@ -403,6 +443,10 @@ export function HomeScreen({ navigation, route }: any) {
           ) : null}
         </View>
 
+        {shouldShowTrialMascot && (
+          <PremiumTrialMascot onPress={handlePremiumTrialPress} disabled={isClaimingTrial} />
+        )}
+
         <FadeSlideIn delay={200} slideDistance={20} duration={500}>
           <View style={[styles.bottomBar, showDesktopFrame && styles.desktopBottomBar]}>
             <BouncePress style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
@@ -462,8 +506,210 @@ export function HomeScreen({ navigation, route }: any) {
           onClose={() => setShowCategory(false)}
           onNavigate={(screen) => navigation.navigate(screen)}
         />
+
+        <PremiumTrialOfferModal
+          visible={showTrialOfferModal}
+          isClaiming={isClaimingTrial}
+          onAccept={() => {
+            void claimTrialOffer();
+          }}
+          onDecline={handleDeclineTrialOffer}
+          onClose={() => setShowTrialOfferModal(false)}
+        />
       </SafeAreaView>
     </FigmaLineBackground>
+  );
+}
+
+const TRIAL_MASCOT_LINES = [
+  "B\u1ea1n \u01a1i, c\u00f3 qu\u00e0 Premium n\u00e8!",
+  "Th\u1eed 1 th\u00e1ng VIP mi\u1ec5n ph\u00ed nha!",
+  "Nh\u1eadn qu\u00e0 \u0111\u1ec3 n\u1ea5u ngon h\u01a1n n\u00e0o!",
+  "Miu \u0111\u1ea7u b\u1ebfp \u0111ang \u0111\u1ee3i b\u1ea1n \u0111\u00f3!"
+];
+
+function PremiumTrialOfferModal({
+  visible,
+  isClaiming,
+  onAccept,
+  onDecline,
+  onClose
+}: {
+  visible: boolean;
+  isClaiming: boolean;
+  onAccept: () => void;
+  onDecline: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.trialOfferOverlay}>
+        <Pressable style={styles.trialOfferBackdrop} onPress={onClose} />
+        <View style={styles.trialOfferCard}>
+          <View style={styles.trialOfferIconWrap}>
+            <Image
+              source={require("../../assets/stickers/b76f47fb-cc9c-41e7-ada3-39fc570671c9-cutout.png")}
+              style={styles.trialOfferIcon}
+              resizeMode="contain"
+            />
+          </View>
+          <AppText style={styles.trialOfferTitle}>{"Nh\u1eadn 1 th\u00e1ng Premium mi\u1ec5n ph\u00ed?"}</AppText>
+          <AppText style={styles.trialOfferMessage}>{"B\u1ea1n ch\u01b0a s\u1eed d\u1ee5ng \u01b0u \u0111\u00e3i l\u1ea7n \u0111\u1ea7u. N\u00e2ng l\u00ean Premium ngay \u0111\u1ec3 tr\u1ea3i nghi\u1ec7m \u0111\u1ea7y \u0111\u1ee7 t\u00ednh n\u0103ng Daily Meal trong 1 th\u00e1ng."}</AppText>
+          <View style={styles.trialOfferPerks}>
+            <AppText style={styles.trialOfferPerk}>{"\u2022 \u0110\u0103ng nhi\u1ec1u \u1ea3nh h\u01a1n"}</AppText>
+            <AppText style={styles.trialOfferPerk}>{"\u2022 D\u00f9ng sticker Premium"}</AppText>
+            <AppText style={styles.trialOfferPerk}>{"\u2022 Tr\u1ea3i nghi\u1ec7m c\u00e1c quy\u1ec1n l\u1ee3i VIP"}</AppText>
+          </View>
+          <View style={styles.trialOfferActions}>
+            <Pressable style={styles.trialOfferSecondaryButton} onPress={onDecline} disabled={isClaiming}>
+              <AppText style={styles.trialOfferSecondaryText}>{"\u0110\u1ec3 sau"}</AppText>
+            </Pressable>
+            <Pressable style={styles.trialOfferPrimaryButton} onPress={onAccept} disabled={isClaiming}>
+              <AppText style={styles.trialOfferPrimaryText}>{isClaiming ? "\u0110ang n\u00e2ng..." : "N\u00e2ng Premium"}</AppText>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function PremiumTrialMascot({ onPress, disabled }: { onPress: () => void; disabled?: boolean }) {
+  const walk = useRef(new Animated.Value(0)).current;
+  const step = useRef(new Animated.Value(0)).current;
+  const bubblePulse = useRef(new Animated.Value(0)).current;
+  const [lineIndex, setLineIndex] = useState(0);
+  const mascotFloat = useRef(new Animated.Value(0)).current;
+  const mascotWobble = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const walkAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(walk, {
+          toValue: 1,
+          duration: 3800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true
+        }),
+        Animated.timing(walk, {
+          toValue: 0,
+          duration: 3800,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true
+        })
+      ])
+    );
+    const stepAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(step, {
+          toValue: 1,
+          duration: 360,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true
+        }),
+        Animated.timing(step, {
+          toValue: 0,
+          duration: 360,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true
+        })
+      ])
+    );
+    const bubbleAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bubblePulse, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true
+        }),
+        Animated.timing(bubblePulse, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true
+        })
+      ])
+    );
+    const floatAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(mascotFloat, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true
+        }),
+        Animated.timing(mascotFloat, {
+          toValue: 0,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true
+        })
+      ])
+    );
+    const wobbleAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(mascotWobble, {
+          toValue: 1,
+          duration: 650,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true
+        }),
+        Animated.timing(mascotWobble, {
+          toValue: 0,
+          duration: 650,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true
+        })
+      ])
+    );
+    const lineTimer = setInterval(() => {
+      setLineIndex((current) => (current + 1) % TRIAL_MASCOT_LINES.length);
+    }, 2600);
+
+    walkAnimation.start();
+    stepAnimation.start();
+    bubbleAnimation.start();
+    floatAnimation.start();
+    wobbleAnimation.start();
+
+    return () => {
+      walkAnimation.stop();
+      stepAnimation.stop();
+      bubbleAnimation.stop();
+      floatAnimation.stop();
+      wobbleAnimation.stop();
+      clearInterval(lineTimer);
+    };
+  }, [bubblePulse, mascotFloat, mascotWobble, step, walk]);
+
+  const translateX = walk.interpolate({ inputRange: [0, 1], outputRange: [-96, 96] });
+  const bobY = step.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
+  const bodyRotate = step.interpolate({ inputRange: [0, 1], outputRange: ["-3deg", "3deg"] });
+  const faceDirection = walk.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1, -1] });
+  const bubbleScale = bubblePulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
+  const floatLift = mascotFloat.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
+  const wobbleRotate = mascotWobble.interpolate({ inputRange: [0, 1], outputRange: ["-4deg", "4deg"] });
+
+  return (
+    <Animated.View style={[styles.trialMascotRail, { transform: [{ translateX }] }]} pointerEvents="box-none">
+      <Pressable style={styles.trialMascotButton} onPress={onPress} disabled={disabled} hitSlop={{ top: 18, bottom: 18, left: 28, right: 28 }}>
+        <Animated.View style={[styles.trialSpeechBubble, { transform: [{ scale: bubbleScale }] }]}> 
+          <AppText style={styles.trialSpeechText}>{TRIAL_MASCOT_LINES[lineIndex]}</AppText>
+          <View style={styles.trialSpeechTail} />
+        </Animated.View>
+        <Animated.View style={[styles.trialModelWrap, { transform: [{ translateY: bobY }, { rotate: bodyRotate }, { scaleX: faceDirection }, { translateY: floatLift }, { rotate: wobbleRotate }] }]}> 
+          <Animated.View style={[styles.trialSpriteGlow, { opacity: bubblePulse.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.55] }) }]} />
+          <Animated.Image
+            source={require("../../assets/stickers/b76f47fb-cc9c-41e7-ada3-39fc570671c9-cutout.png")}
+            style={styles.trialMascotCutout}
+            resizeMode="contain"
+          />
+          <View style={styles.trialSparkleLeft} />
+          <View style={styles.trialSparkleRight} />
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -1408,6 +1654,203 @@ const styles = StyleSheet.create({
   },
   desktopBottomBar: {
     maxWidth: PHONE_MAX_WIDTH
+  },
+  trialMascotRail: {
+    position: "absolute",
+    left: "50%",
+    bottom: 78,
+    zIndex: 120,
+    alignItems: "center"
+  },
+  trialMascotButton: {
+    marginLeft: -95,
+    width: 190,
+    minHeight: 240,
+    alignItems: "center",
+    justifyContent: "flex-start"
+  },
+  trialSpeechBubble: {
+    minWidth: 142,
+    maxWidth: 168,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.97)",
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(139,165,138,0.35)",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    elevation: 4,
+    alignItems: "center"
+  },
+  trialSpeechTail: {
+    position: "absolute",
+    bottom: -6,
+    width: 12,
+    height: 12,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.97)",
+    transform: [{ rotate: "45deg" }],
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "rgba(139,165,138,0.25)"
+  },
+  trialSpeechText: {
+    color: colors.black,
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    lineHeight: 14,
+    textAlign: "center"
+  },
+  trialOfferOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    zIndex: 300
+  },
+  trialOfferBackdrop: {
+    ...StyleSheet.absoluteFillObject
+  },
+  trialOfferCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 28,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 18,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 26,
+    elevation: 10,
+    alignItems: "center"
+  },
+  trialOfferIconWrap: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    backgroundColor: "rgba(169,194,155,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10
+  },
+  trialOfferIcon: {
+    width: 96,
+    height: 96
+  },
+  trialOfferTitle: {
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 18,
+    lineHeight: 24,
+    textAlign: "center"
+  },
+  trialOfferMessage: {
+    marginTop: 10,
+    color: colors.black,
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center"
+  },
+  trialOfferPerks: {
+    marginTop: 14,
+    width: "100%",
+    gap: 8,
+    backgroundColor: "rgba(139,165,138,0.09)",
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12
+  },
+  trialOfferPerk: {
+    color: colors.black,
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    lineHeight: 18
+  },
+  trialOfferActions: {
+    marginTop: 16,
+    width: "100%",
+    flexDirection: "row",
+    gap: 12
+  },
+  trialOfferSecondaryButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 15,
+    backgroundColor: "rgba(0,0,0,0.06)",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  trialOfferSecondaryText: {
+    color: colors.black,
+    fontFamily: fonts.semibold,
+    fontSize: 14
+  },
+  trialOfferPrimaryButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 15,
+    backgroundColor: colors.green,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  trialOfferPrimaryText: {
+    color: colors.white,
+    fontFamily: fonts.bold,
+    fontSize: 14
+  },
+  trialModelWrap: {
+    width: 170,
+    height: 186,
+    marginTop: 2,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  trialSpriteGlow: {
+    position: "absolute",
+    width: 152,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(203,231,162,0.18)",
+    shadowColor: "#DFF2A1",
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 0 }
+  },
+  trialMascotCutout: {
+    position: "absolute",
+    width: 154,
+    height: 172,
+    top: 3,
+    borderRadius: 18
+  },
+  trialSparkleLeft: {
+    position: "absolute",
+    top: 35,
+    left: 0,
+    width: 13,
+    height: 13,
+    borderRadius: 2,
+    borderWidth: 2,
+    borderColor: colors.yellow,
+    transform: [{ rotate: "45deg" }]
+  },
+  trialSparkleRight: {
+    position: "absolute",
+    top: 34,
+    right: 0,
+    width: 13,
+    height: 13,
+    borderRadius: 2,
+    borderWidth: 2,
+    borderColor: colors.yellow,
+    transform: [{ rotate: "45deg" }]
   },
   squareBtn: {
     width: 52,

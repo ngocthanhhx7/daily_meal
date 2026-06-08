@@ -13,6 +13,9 @@ export type User = {
     visibility: "hidden" | "dayMonth" | "full";
   };
   isPremium: boolean;
+  premiumTrialUsed?: boolean;
+  premiumTrialStartedAt?: string;
+  premiumTrialEndsAt?: string;
   themeColor?: string;
   preferences: {
     interests: string[];

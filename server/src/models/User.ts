@@ -38,6 +38,9 @@ const userSchema = new Schema(
       completedOnboarding: { type: Boolean, default: false }
     },
     isPremium: { type: Boolean, default: false },
+    premiumTrialUsed: { type: Boolean, default: false },
+    premiumTrialStartedAt: { type: Date },
+    premiumTrialEndsAt: { type: Date },
     themeColor: { type: String, default: "#8BA58A" },
     pushTokens: { type: [String], default: [] },
     webPushSubscriptions: {

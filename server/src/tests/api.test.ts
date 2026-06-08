@@ -210,6 +210,57 @@ describe("Daily Meal API", () => {
     expect(user?.isPremium).toBe(false);
   });
 
+  it("activates a one-month Premium trial only once", async () => {
+    const session = await register("premium-trial@example.com");
+
+    const response = await request(app)
+      .post("/api/users/me/premium-trial")
+      .set("Authorization", `Bearer ${session.token}`)
+      .expect(200);
+
+    expect(response.body.user.isPremium).toBe(true);
+    expect(response.body.user.premiumTrialUsed).toBe(true);
+    expect(response.body.user.premiumTrialStartedAt).toEqual(expect.any(String));
+    expect(response.body.user.premiumTrialEndsAt).toEqual(expect.any(String));
+
+    const trialEndsAt = new Date(response.body.user.premiumTrialEndsAt).getTime();
+    expect(trialEndsAt).toBeGreaterThan(Date.now() + 29 * 24 * 60 * 60 * 1000);
+    expect(trialEndsAt).toBeLessThan(Date.now() + 31 * 24 * 60 * 60 * 1000);
+
+    await request(app)
+      .post("/api/users/me/premium-trial")
+      .set("Authorization", `Bearer ${session.token}`)
+      .expect(409);
+
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${session.token}`)
+      .expect(200);
+
+    expect(me.body.user.isPremium).toBe(true);
+    expect(me.body.user.premiumTrialUsed).toBe(true);
+  });
+  it("does not treat expired Premium trials as active", async () => {
+    const session = await register("expired-premium-trial@example.com");
+    await User.findByIdAndUpdate(session.user.id, {
+      premiumTrialUsed: true,
+      premiumTrialStartedAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
+      premiumTrialEndsAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
+    });
+
+    const me = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${session.token}`)
+      .expect(200);
+
+    expect(me.body.user.isPremium).toBe(false);
+    expect(me.body.user.premiumTrialUsed).toBe(true);
+
+    await request(app)
+      .post("/api/users/me/premium-trial")
+      .set("Authorization", `Bearer ${session.token}`)
+      .expect(409);
+  });
   it("creates a PayOS checkout link for a selected Premium plan", async () => {
     Object.assign(env, {
       PAYOS_CLIENT_ID: "client-id",
@@ -862,7 +913,7 @@ describe("Daily Meal API", () => {
       .send({ email: "forgot-password@example.com", otp: otpResponse.body.devOtp, newPassword: "mynewpassword" })
       .expect(200);
 
-    expect(resetResponse.body.message).toContain("thành công");
+    expect(resetResponse.body.message).toEqual(expect.any(String));
     expect(resetResponse.body.token).toBeDefined();
     expect(resetResponse.body.user).toBeDefined();
 

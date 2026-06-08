@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
@@ -11,6 +11,7 @@ import { UserInteraction } from "../models/UserInteraction.js";
 import { Notification } from "../models/Notification.js";
 import { emitToUser } from "../services/socket.js";
 import { sendPushNotification } from "../services/pushNotification.js";
+import { hasActivePremium, premiumTrialDto } from "../utils/premium.js";
 
 export const usersRouter = Router();
 
@@ -93,7 +94,8 @@ async function publicUserDto(user: any, viewerId?: string) {
     coverUrl: user.coverUrl,
     bio: user.bio,
     birthday: birthdayDto(user, viewerId === id),
-    isPremium: user.isPremium,
+    isPremium: hasActivePremium(user),
+    ...premiumTrialDto(user),
     themeColor: user.themeColor,
     counts: user.counts,
     relationship: relation,
@@ -214,6 +216,32 @@ usersRouter.patch("/me", requireAuth, async (req, res, next) => {
 
     if (!user) {
       throw new HttpError(404, "User not found");
+    }
+
+    res.json({ user: await publicUserDto(user, req.user?.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.post("/me/premium-trial", requireAuth, async (req, res, next) => {
+  try {
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const user = await User.findOneAndUpdate(
+      { _id: req.user?.id, premiumTrialUsed: { $ne: true } },
+      {
+        $set: {
+          premiumTrialUsed: true,
+          premiumTrialStartedAt: now,
+          premiumTrialEndsAt: trialEndsAt
+        }
+      },
+      { new: true }
+    );
+
+    if (!user) {
+      throw new HttpError(409, "Ban da su dung uu dai Premium mien phi roi.");
     }
 
     res.json({ user: await publicUserDto(user, req.user?.id) });
@@ -409,13 +437,13 @@ usersRouter.post("/:id/follow", requireAuth, async (req, res, next) => {
 
       // Trigger follow notification
       const sender = await User.findById(req.user?.id).select("displayName").lean();
-      const senderName = sender?.displayName || "Ai đó";
+      const senderName = sender?.displayName || "Ai Ä‘Ã³";
 
       const notification = await Notification.create({
         user: targetId,
         sender: req.user?.id,
         type: "follow",
-        body: `đã bắt đầu theo dõi bạn.`
+        body: `Ä‘Ã£ báº¯t Ä‘áº§u theo dÃµi báº¡n.`
       });
 
       const populatedNotification = await Notification.findById(notification._id)
@@ -427,8 +455,8 @@ usersRouter.post("/:id/follow", requireAuth, async (req, res, next) => {
       // Trigger Push Notification
       sendPushNotification(
         targetId || "",
-        "Người theo dõi mới 👤",
-        `${senderName} đã bắt đầu theo dõi bạn.`,
+        "NgÆ°á»i theo dÃµi má»›i ðŸ‘¤",
+        `${senderName} Ä‘Ã£ báº¯t Ä‘áº§u theo dÃµi báº¡n.`,
         { type: "follow", senderId: req.user?.id }
       );
     }
@@ -558,3 +586,5 @@ usersRouter.delete("/:id/interactions/:type", requireAuth, async (req, res, next
     next(error);
   }
 });
+
+

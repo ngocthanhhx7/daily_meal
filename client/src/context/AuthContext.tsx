@@ -23,6 +23,7 @@ type AuthContextValue = {
   savePreferences: (interests: string[], eatingStyles: string[]) => Promise<void>;
   updateUser: (patch: Partial<Omit<User, "isPremium">>) => Promise<void>;
   refreshUser: () => Promise<void>;
+  claimPremiumTrial: () => Promise<void>;
 };
 
 const TOKEN_KEY = "daily-meal-token";
@@ -198,6 +199,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         const result = await api.me(token);
+        setUser(result.user);
+      },
+      claimPremiumTrial: async () => {
+        if (!token) {
+          return;
+        }
+        const result = await api.claimPremiumTrial(token);
         setUser(result.user);
       }
     }),

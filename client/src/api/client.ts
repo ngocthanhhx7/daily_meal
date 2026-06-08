@@ -354,5 +354,10 @@ export const api = {
       method: "DELETE",
       token,
       body: { endpoint }
+    }),
+  claimPremiumTrial: (token: string) =>
+    request<{ user: User }>("/api/users/me/premium-trial", {
+      method: "POST",
+      token
     })
 };

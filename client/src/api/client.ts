@@ -1,5 +1,5 @@
 import { NativeModules, Platform } from "react-native";
-import type { ChatMessage, Conversation, Meal, PayosPayment, Post, PremiumPlan, Sticker, Upload, User } from "../types/api";
+import type { AdminDashboard, AdminUserDetail, AdminUserSummary, ChatMessage, Conversation, Meal, PayosPayment, Post, PremiumPlan, Sticker, Upload, User } from "../types/api";
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -93,6 +93,21 @@ async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
 }
 
 export const api = {
+  adminLogin: (body: { email: string; password: string }) =>
+    request<{ token: string; admin: { email: string; displayName: string } }>("/api/admin/login", {
+      method: "POST",
+      body
+    }),
+  adminDashboard: (token: string) => request<AdminDashboard>("/api/admin/dashboard", { token }),
+  adminUsers: (token: string, params?: { q?: string; page?: number; limit?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set("q", params.q);
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.limit) search.set("limit", String(params.limit));
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<{ users: AdminUserSummary[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/api/admin/users${suffix}`, { token });
+  },
+  adminUser: (token: string, id: string) => request<{ user: AdminUserDetail }>(`/api/admin/users/${id}`, { token }),
   baseUrl: API_BASE_URL,
   register: (body: { email: string; password: string; displayName?: string }) =>
     request<{ token: string; user: User }>("/api/auth/register", {

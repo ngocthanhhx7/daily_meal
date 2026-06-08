@@ -8,9 +8,13 @@ import { env } from "../config/env.js";
 import { seedDefaultStickers } from "../services/stickers.js";
 import { createPayosSignature } from "../services/payos.js";
 import { broadcastToRoom, emitToUser } from "../services/socket.js";
+import { Comment } from "../models/Comment.js";
 import { Payment } from "../models/Payment.js";
+import { PostLike } from "../models/PostLike.js";
+import { PostSave } from "../models/PostSave.js";
 import { Sticker } from "../models/Sticker.js";
 import { User } from "../models/User.js";
+import { UserInteraction } from "../models/UserInteraction.js";
 import { verifyGoogleIdToken } from "../services/googleAuth.js";
 
 vi.mock("../services/googleAuth.js", () => ({
@@ -260,6 +264,58 @@ describe("Daily Meal API", () => {
       .post("/api/users/me/premium-trial")
       .set("Authorization", `Bearer ${session.token}`)
       .expect(409);
+  });
+  it("protects admin APIs and returns dashboard plus user details", async () => {
+    Object.assign(env, { ADMIN_EMAIL: "admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const alice = await register("admin-alice@example.com");
+    const bob = await register("admin-bob@example.com");
+    const post = await createPost(alice.token, "Admin dashboard meal");
+    await Promise.all([
+      PostLike.create({ post: post._id, user: bob.user.id }),
+      PostSave.create({ post: post._id, user: bob.user.id }),
+      Comment.create({ post: post._id, author: bob.user.id, body: "Looks good" }),
+      UserInteraction.create({ actor: bob.user.id, target: alice.user.id, type: "report", note: "admin review" })
+    ]);
+
+    await request(app).get("/api/admin/dashboard").expect(401);
+    await request(app)
+      .get("/api/admin/dashboard")
+      .set("Authorization", `Bearer ${alice.token}`)
+      .expect(403);
+
+    const login = await request(app)
+      .post("/api/admin/login")
+      .send({ email: "admin@example.com", password: "admin-secret" })
+      .expect(200);
+
+    const adminToken = login.body.token as string;
+    expect(adminToken).toBeDefined();
+
+    const dashboard = await request(app)
+      .get("/api/admin/dashboard")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(dashboard.body.totals.users).toBeGreaterThanOrEqual(2);
+    expect(dashboard.body.totals.posts).toBeGreaterThanOrEqual(1);
+    expect(dashboard.body.today.interactions).toBeGreaterThanOrEqual(4);
+
+    const users = await request(app)
+      .get("/api/admin/users?q=admin-alice")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(users.body.users[0]).toMatchObject({ email: "admin-alice@example.com" });
+    expect(users.body.users[0].stats).toHaveProperty("posts");
+
+    const detail = await request(app)
+      .get(`/api/admin/users/${alice.user.id}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(detail.body.user.email).toBe("admin-alice@example.com");
+    expect(detail.body.user.recentPosts[0].caption).toBe("Admin dashboard meal");
+    expect(detail.body.user.interactions[0].type).toBe("report");
   });
   it("creates a PayOS checkout link for a selected Premium plan", async () => {
     Object.assign(env, {

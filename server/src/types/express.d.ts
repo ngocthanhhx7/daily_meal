@@ -3,6 +3,7 @@ export type AuthUser = {
   email?: string;
   phone?: string;
   isPremium: boolean;
+  isAdmin?: boolean;
 };
 
 declare global {

@@ -30,6 +30,7 @@ import { SupportScreen } from "../screens/SupportScreen";
 import { ShareAccountScreen } from "../screens/ShareAccountScreen";
 import { PremiumBenefitsScreen } from "../screens/PremiumBenefitsScreen";
 import { FollowsScreen } from "../screens/FollowsScreen";
+import { AdminDashboardScreen, AdminLoginScreen, AdminUserDetailScreen, AdminUsersScreen } from "../screens/AdminScreens";
 
 // NOTE: MealsScreen removed – calo analysis is now in CreatePostScreen
 
@@ -53,7 +54,7 @@ function LoadingScreen() {
 }
 
 export function AppNavigator() {
-  const { isLoading, user } = useAuth();
+  const { isLoading, user, isAdmin } = useAuth();
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -69,8 +70,17 @@ export function AppNavigator() {
         }}
       >
         {/* ── AUTH FLOW ── */}
-        {!user ? (
-          <Stack.Screen name="Login" component={LoginScreen} />
+        {isAdmin ? (
+          <>
+            <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ animation: "none" }} />
+            <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
+            <Stack.Screen name="AdminUserDetail" component={AdminUserDetailScreen} />
+          </>
+        ) : !user ? (
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
+          </>
         ) : !user.preferences.completedOnboarding ? (
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         ) : (

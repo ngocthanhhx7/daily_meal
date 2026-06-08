@@ -6,8 +6,11 @@ import type { User } from "../types/api";
 
 type AuthContextValue = {
   token: string | null;
+  adminToken: string | null;
   user: User | null;
   isLoading: boolean;
+  isAdmin: boolean;
+  signInAdmin: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithPhone: (phone: string, password: string) => Promise<void>;
   requestPhoneOtp: (phone: string) => Promise<{ requiresPasswordSetup: boolean; devOtp?: string }>;
@@ -27,6 +30,7 @@ type AuthContextValue = {
 };
 
 const TOKEN_KEY = "daily-meal-token";
+const ADMIN_TOKEN_KEY = "daily-meal-admin-token";
 const safeStorage = {
   async getItem(key: string): Promise<string | null> {
     if (Platform.OS === "web") {
@@ -82,6 +86,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
+  const [adminToken, setAdminToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -90,6 +95,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function restore() {
       try {
+        const savedAdminToken = await safeStorage.getItem(ADMIN_TOKEN_KEY);
+        if (savedAdminToken) {
+          await api.adminDashboard(savedAdminToken);
+          if (mounted) {
+            setAdminToken(savedAdminToken);
+          }
+          return;
+        }
+
         const savedToken = await safeStorage.getItem(TOKEN_KEY);
         if (!savedToken) {
           return;
@@ -101,6 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {
         await safeStorage.deleteItem(TOKEN_KEY);
+        await safeStorage.deleteItem(ADMIN_TOKEN_KEY);
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -123,8 +138,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       token,
+      adminToken,
       user,
       isLoading,
+      isAdmin: Boolean(adminToken),
+      signInAdmin: async (email, password) => {
+        const result = await api.adminLogin({ email, password });
+        await safeStorage.setItem(ADMIN_TOKEN_KEY, result.token);
+        await safeStorage.deleteItem(TOKEN_KEY);
+        setAdminToken(result.token);
+        setToken(null);
+        setUser(null);
+      },
       signIn: async (email, password) => {
         const result = await api.login({ email, password });
         await persistSession(result.token, result.user);
@@ -170,7 +195,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       signOut: async () => {
         await safeStorage.deleteItem(TOKEN_KEY);
+        await safeStorage.deleteItem(ADMIN_TOKEN_KEY);
         setToken(null);
+        setAdminToken(null);
         setUser(null);
       },
       linkGoogle: async (idToken) => {
@@ -209,7 +236,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(result.user);
       }
     }),
-    [isLoading, token, user]
+    [adminToken, isLoading, token, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

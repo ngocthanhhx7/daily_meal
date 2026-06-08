@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppButton } from "../components/AppButton";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
+import { useNavigation } from "@react-navigation/native";
 import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
@@ -44,6 +45,7 @@ export function LoginScreen() {
     signInWithFacebook,
     signInWithGoogle
   } = useAuth();
+  const navigation = useNavigation<any>();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
   const [passwordResetMode, setPasswordResetMode] = useState(false);
@@ -459,6 +461,9 @@ export function LoginScreen() {
                     }}
                   >
                     <AppText style={[styles.switchText, styles.forgotText]}>Quên mật khẩu?</AppText>
+                  </Pressable>
+                  <Pressable onPress={() => navigation.navigate("AdminLogin")}>
+                    <AppText style={styles.switchText}>??ng nh?p admin</AppText>
                   </Pressable>
                 </>
               ) : (

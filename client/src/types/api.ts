@@ -203,3 +203,48 @@ export type Conversation = {
   };
   updatedAt: string;
 };
+
+export type AdminDashboard = {
+  totals: { users: number; posts: number };
+  today: {
+    users: number;
+    posts: number;
+    interactions: number;
+    likes: number;
+    saves: number;
+    comments: number;
+    userInteractions: number;
+  };
+};
+
+export type AdminUserSummary = {
+  id: string;
+  email?: string;
+  phone?: string;
+  displayName: string;
+  avatarUrl?: string;
+  isPremium: boolean;
+  premiumTrialUsed?: boolean;
+  premiumTrialStartedAt?: string;
+  premiumTrialEndsAt?: string;
+  counts?: User["counts"];
+  stats: { posts: number; followers: number; following: number; reports: number };
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type AdminUserDetail = AdminUserSummary & {
+  bio?: string;
+  birthday?: User["birthday"];
+  preferences?: User["preferences"];
+  themeColor?: string;
+  recentPosts: Array<{
+    id: string;
+    caption: string;
+    visibility: string;
+    stats?: { likes: number; comments: number; saves: number };
+    imageCount: number;
+    createdAt?: string;
+  }>;
+  interactions: Array<{ id: string; type: string; note?: string; actor?: string; createdAt?: string }>;
+};

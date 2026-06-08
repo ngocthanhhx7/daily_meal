@@ -22,6 +22,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   MONGO_URI: z.string().default("mongodb://127.0.0.1:27017/daily_meal"),
   JWT_SECRET: z.string().min(16).default("daily-meal-local-development-secret"),
+  ADMIN_EMAIL: optionalString,
+  ADMIN_PASSWORD: optionalString,
   CLIENT_ORIGIN: z.string().default("*"),
   UPLOAD_DIR: z.string().default("uploads"),
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),

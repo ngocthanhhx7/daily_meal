@@ -407,7 +407,7 @@ export function LoginScreen() {
                       setAuthError(null);
                     }}
                   >
-                    <AppText style={styles.switchText}>Quay lại đăng nhập</AppText>
+                    <AppText style={styles.switchText}>Đăng nhập admin</AppText>
                   </Pressable>
                 </>
               ) : authMethod === "phone" ? (
@@ -463,7 +463,7 @@ export function LoginScreen() {
                     <AppText style={[styles.switchText, styles.forgotText]}>Quên mật khẩu?</AppText>
                   </Pressable>
                   <Pressable onPress={() => navigation.navigate("AdminLogin")}>
-                    <AppText style={styles.switchText}>??ng nh?p admin</AppText>
+                    <AppText style={styles.switchText}>Đăng nhập admin</AppText>
                   </Pressable>
                 </>
               ) : (

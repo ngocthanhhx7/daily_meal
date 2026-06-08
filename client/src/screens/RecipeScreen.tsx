@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
     paddingRight: 14,
     paddingVertical: 4,
-    borderRadius: 14,
+    borderRadius: 24,
     marginTop: 8
   },
   authorAvatar: {

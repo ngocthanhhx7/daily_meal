@@ -110,6 +110,7 @@ export function HomeScreen({ navigation }: any) {
   const [expandedPost, setExpandedPost] = useState<Post | null>(null);
   const [nutritionPost, setNutritionPost] = useState<Post | null>(null);
   const flatRef = useRef<FlatList>(null);
+  const isInitialMount = useRef(true);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
 
   // Animation refs
@@ -188,7 +189,12 @@ export function HomeScreen({ navigation }: any) {
 
   useFocusEffect(
     useCallback(() => {
-      load(true);
+      if (isInitialMount.current) {
+        load(true);
+        isInitialMount.current = false;
+      } else {
+        load(false);
+      }
     }, [load])
   );
 
@@ -324,8 +330,11 @@ export function HomeScreen({ navigation }: any) {
         <View
           style={styles.feedWrap}
           onLayout={(event) => {
-            setListHeight(event.nativeEvent.layout.height);
-            setListWidth(event.nativeEvent.layout.width);
+            const { height, width } = event.nativeEvent.layout;
+            if (height > 0 && width > 0) {
+              setListHeight(height);
+              setListWidth(width);
+            }
           }}
         >
           {listHeight > 0 ? (
@@ -643,43 +652,114 @@ function ExpandedPostModal({
   const availableWidth = Math.min(screenWidth - gridPadding * 2, 380);
 
   function renderImageGrid() {
+    const hasRec = hasRecipe(post!);
+
     if (imgCount === 1) {
       return (
         <View style={expandedStyles.singleImageWrap}>
           <Image source={imageSource(post!, 0)} style={expandedStyles.singleImage} resizeMode="cover" />
-        </View>
-      );
-    }
-
-    if (imgCount === 2) {
-      const itemW = (availableWidth - gridGap) / 2;
-      return (
-        <View style={expandedStyles.gridRow}>
-          {[0, 1].map((i) => (
-            <View key={i} style={[expandedStyles.gridItem, { width: itemW, height: itemW * 1.2 }]}>
-              <Image source={imageSource(post!, i)} style={expandedStyles.gridImage} resizeMode="cover" />
-            </View>
-          ))}
-        </View>
-      );
-    }
-
-    // 3 images: 2 on top row, 1 on bottom row centered
-    const topItemW = (availableWidth - gridGap) / 2;
-    const bottomItemW = topItemW;
-    return (
-      <View style={expandedStyles.gridWrap}>
-        <View style={expandedStyles.gridRow}>
-          {[0, 1].map((i) => (
-            <View key={i} style={[expandedStyles.gridItem, { width: topItemW, height: topItemW * 1.15 }]}>
-              <Image source={imageSource(post!, i)} style={expandedStyles.gridImage} resizeMode="cover" />
-            </View>
-          ))}
-        </View>
-        <View style={expandedStyles.gridRowCenter}>
-          <View style={[expandedStyles.gridItem, { width: bottomItemW, height: bottomItemW * 1.15 }]}>
-            <Image source={imageSource(post!, 2)} style={expandedStyles.gridImage} resizeMode="cover" />
+          
+          {/* Caption Overlay - Top Left */}
+          <View style={[expandedStyles.overlayBadge, { left: 14, top: 14 }]}>
+            <Ionicons name="location" size={15} color={colors.black} />
+            <AppText numberOfLines={2} style={expandedStyles.overlayBadgeText}>
+              {post!.caption || "Nó ngon phải biết"}
+            </AppText>
           </View>
+
+          {/* Stats Overlay - Top Right */}
+          <View style={[expandedStyles.overlayBadge, { right: 14, top: 14 }]}>
+            <AppText style={expandedStyles.statsNum}>{post!.stats?.comments ?? 0}</AppText>
+            <Ionicons name="chatbubble-outline" size={14} color={colors.black} />
+            <AppText style={expandedStyles.statsNum}>{post!.stats?.likes ?? 0}</AppText>
+            <Ionicons name="heart" size={14} color={colors.red} />
+          </View>
+
+          {/* Recipe Overlay - Bottom Left */}
+          {hasRec ? (
+            <Pressable style={expandedStyles.recipeOverlayBtn} onPress={onRecipePress}>
+              <View style={expandedStyles.recipeDashedCircleMini}>
+                <Ionicons name="clipboard-outline" size={18} color={colors.muted} />
+                <AppText style={expandedStyles.recipeMiniLabel}>Công thức</AppText>
+              </View>
+            </Pressable>
+          ) : null}
+        </View>
+      );
+    }
+
+    // 2 or 3 images (2-column masonry-style layout)
+    const colW = (availableWidth - gridGap) / 2;
+    const isTwoImg = imgCount === 2;
+
+    return (
+      <View style={{ flexDirection: "row", gap: gridGap, width: "100%" }}>
+        {/* Left Column */}
+        <View style={{ flex: 1, gap: gridGap, paddingTop: (isTwoImg && !hasRec) ? 40 : 0 }}>
+          {/* Case: 2 images + Has Recipe -> Caption card block at the top of left column */}
+          {isTwoImg && hasRec ? (
+            <View style={expandedStyles.captionCardBlock}>
+              <Ionicons name="location" size={17} color={colors.black} />
+              <AppText numberOfLines={3} style={expandedStyles.captionCardBlockText}>
+                {post!.caption || "Nó ngon phải biết"}
+              </AppText>
+            </View>
+          ) : null}
+
+          {/* Image 1 (Always at top of left column, except below caption card if isTwoImg && hasRec) */}
+          <View style={[expandedStyles.gridItem, { width: colW, height: colW * 1.25 }]}>
+            <Image source={imageSource(post!, 0)} style={expandedStyles.gridImage} resizeMode="cover" />
+
+            {/* Caption Overlay on Image 1 (If not rendered as block card) */}
+            {!(isTwoImg && hasRec) ? (
+              <View
+                style={[
+                  expandedStyles.overlayBadge,
+                  isTwoImg
+                    ? { left: 10, bottom: 10 } // Bottom left for 2 images
+                    : { left: 10, top: 10 }    // Top left for 3 images
+                ]}
+              >
+                <Ionicons name="location" size={14} color={colors.black} />
+                <AppText numberOfLines={2} style={expandedStyles.overlayBadgeText}>
+                  {post!.caption || "Nó ngon phải biết"}
+                </AppText>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Image 3 (Only if 3 images) */}
+          {!isTwoImg && imgCount >= 3 ? (
+            <View style={[expandedStyles.gridItem, { width: colW, height: colW * 0.95 }]}>
+              <Image source={imageSource(post!, 2)} style={expandedStyles.gridImage} resizeMode="cover" />
+            </View>
+          ) : null}
+        </View>
+
+        {/* Right Column */}
+        <View style={{ flex: 1, gap: gridGap }}>
+          {/* Image 2 (Always at top of right column) */}
+          <View style={[expandedStyles.gridItem, { width: colW, height: colW * 1.25 }]}>
+            <Image source={imageSource(post!, 1)} style={expandedStyles.gridImage} resizeMode="cover" />
+
+            {/* Stats Overlay on Image 2 */}
+            <View style={[expandedStyles.overlayBadge, { right: 10, top: 10 }]}>
+              <AppText style={expandedStyles.statsNum}>{post!.stats?.comments ?? 0}</AppText>
+              <Ionicons name="chatbubble-outline" size={13} color={colors.black} />
+              <AppText style={expandedStyles.statsNum}>{post!.stats?.likes ?? 0}</AppText>
+              <Ionicons name="heart" size={13} color={colors.red} />
+            </View>
+          </View>
+
+          {/* Recipe Button inside Right Column (Only if hasRecipe) */}
+          {hasRec ? (
+            <Pressable style={[expandedStyles.recipeGridCard, { width: colW, height: colW * 0.95 }]} onPress={onRecipePress}>
+              <View style={expandedStyles.recipeDashedCircleGrid}>
+                <Ionicons name="clipboard-outline" size={32} color={colors.muted} />
+                <AppText style={expandedStyles.recipeDashedLabelGrid}>Công thức</AppText>
+              </View>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     );
@@ -690,40 +770,34 @@ function ExpandedPostModal({
       <Pressable style={expandedStyles.overlay} onPress={onClose}>
         <Pressable style={expandedStyles.container} onPress={() => { }}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={expandedStyles.scrollContent}>
-            {/* Caption chip */}
-            <View style={expandedStyles.headerRow}>
-              <View style={expandedStyles.captionBubble}>
-                <AppText numberOfLines={2} style={expandedStyles.captionText}>
-                  {post.caption || "Nó ngon phải biết"}
-                </AppText>
-              </View>
+            
+            {/* Image grid and Sticker wrapper */}
+            <View style={{ position: "relative", width: availableWidth, marginTop: 12 }}>
+              {renderImageGrid()}
+              
+              {/* Sticker overlay using absolute placement */}
               {stickerSource ? (
-                <Wiggle>
-                  <Image source={stickerSource} style={expandedStyles.headerSticker} resizeMode="contain" />
+                <Wiggle
+                  style={[
+                    styles.feedSticker,
+                    {
+                      position: "absolute",
+                      left: `${placement.x * 100}%`,
+                      top: `${placement.y * 100}%`,
+                      transform: [
+                        { translateX: -25 },
+                        { translateY: -25 },
+                        { rotate: `${placement.rotation}deg` },
+                        { scale: placement.scale }
+                      ],
+                      zIndex: 99
+                    }
+                  ]}
+                >
+                  <Image source={stickerSource} style={{ width: "100%", height: "100%" }} resizeMode="contain" />
                 </Wiggle>
               ) : null}
             </View>
-
-            {/* Stats */}
-            <View style={expandedStyles.statsRow}>
-              <AppText style={expandedStyles.statsNum}>{post.stats?.comments ?? 0}</AppText>
-              <Ionicons name="chatbubble-outline" size={15} color={colors.black} />
-              <AppText style={expandedStyles.statsNum}>{post.stats?.likes ?? 0}</AppText>
-              <Ionicons name="heart" size={15} color={colors.red} />
-            </View>
-
-            {/* Image grid */}
-            {renderImageGrid()}
-
-            {/* Recipe dashed circle button */}
-            {hasRecipe(post) ? (
-              <Pressable style={expandedStyles.recipeDashedBtn} onPress={onRecipePress}>
-                <View style={expandedStyles.recipeDashedCircle}>
-                  <Ionicons name="clipboard-outline" size={28} color={colors.muted} />
-                </View>
-                <AppText style={expandedStyles.recipeDashedLabel}>Công thức</AppText>
-              </Pressable>
-            ) : null}
 
             {/* Author chip */}
             <Pressable
@@ -777,51 +851,9 @@ const expandedStyles = StyleSheet.create({
     gap: 16,
     alignItems: "center"
   },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    width: "100%"
-  },
-  captionBubble: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2
-  },
-  captionText: {
-    fontFamily: fonts.semibold,
-    fontSize: 15,
-    color: colors.black
-  },
-  headerSticker: {
-    width: 48,
-    height: 48
-  },
-  statsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    alignSelf: "flex-end",
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2
-  },
   statsNum: {
     fontFamily: fonts.semibold,
-    fontSize: 14,
+    fontSize: 12,
     color: colors.black
   },
   singleImageWrap: {
@@ -834,20 +866,6 @@ const expandedStyles = StyleSheet.create({
   singleImage: {
     width: "100%",
     height: "100%"
-  },
-  gridWrap: {
-    width: "100%",
-    gap: 10
-  },
-  gridRow: {
-    flexDirection: "row",
-    gap: 10,
-    width: "100%"
-  },
-  gridRowCenter: {
-    flexDirection: "row",
-    justifyContent: "center",
-    width: "100%"
   },
   gridItem: {
     borderRadius: 18,
@@ -863,27 +881,6 @@ const expandedStyles = StyleSheet.create({
     width: "100%",
     height: "100%"
   },
-  recipeDashedBtn: {
-    alignItems: "center",
-    gap: 6,
-    marginTop: 4
-  },
-  recipeDashedCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    borderColor: colors.muted,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.6)"
-  },
-  recipeDashedLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: 12,
-    color: colors.muted
-  },
   authorChip: {
     alignSelf: "center",
     maxWidth: "86%",
@@ -894,7 +891,7 @@ const expandedStyles = StyleSheet.create({
     paddingLeft: 4,
     paddingRight: 14,
     paddingVertical: 4,
-    borderRadius: 14,
+    borderRadius: 24,
     marginTop: 4
   },
   authorAvatar: {
@@ -920,6 +917,89 @@ const expandedStyles = StyleSheet.create({
     color: colors.white,
     fontFamily: fonts.semibold,
     fontSize: 15
+  },
+  overlayBadge: {
+    position: "absolute",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 10
+  },
+  overlayBadgeText: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.black,
+    maxWidth: 140
+  },
+  captionCardBlock: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+    minHeight: 50
+  },
+  captionCardBlockText: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.black,
+    flex: 1
+  },
+  recipeOverlayBtn: {
+    position: "absolute",
+    left: 14,
+    bottom: 14,
+    zIndex: 10
+  },
+  recipeDashedCircleMini: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: colors.muted,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 18
+  },
+  recipeMiniLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.muted
+  },
+  recipeGridCard: {
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: colors.muted,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  recipeDashedCircleGrid: {
+    alignItems: "center",
+    gap: 6
+  },
+  recipeDashedLabelGrid: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.muted
   }
 });
 

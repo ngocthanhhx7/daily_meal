@@ -10,7 +10,7 @@ import { colors } from "../theme/colors";
 import type { AdminDashboard, AdminUserDetail, AdminUserSummary } from "../types/api";
 
 function formatDate(value?: string) {
-  return value ? new Date(value).toLocaleString() : "—";
+  return value ? new Date(value).toLocaleString() : "";
 }
 
 function StatCard({ label, value }: { label: string; value: number }) {
@@ -35,7 +35,7 @@ export function AdminLoginScreen() {
     try {
       await signInAdmin(email.trim(), password);
     } catch (err: any) {
-      setError(err?.message ?? "Đăng nhập admin thất bại");
+      setError(err?.message ?? "ng nhp admin tht bi");
     } finally {
       setSubmitting(false);
     }
@@ -44,11 +44,11 @@ export function AdminLoginScreen() {
   return (
     <AppScreen scroll scrollProps={{ contentContainerStyle: styles.loginWrap }}>
       <AppText variant="title">Admin Daily Meal</AppText>
-      <AppText muted>Đăng nhập bằng credential admin được cấu hình trong server.</AppText>
+      <AppText muted>ng nhp bng credential admin c cu hnh trong server.</AppText>
       <TextField label="Email admin" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
-      <TextField label="Mật khẩu" secureTextEntry value={password} onChangeText={setPassword} />
+      <TextField label="Mt khu" secureTextEntry value={password} onChangeText={setPassword} />
       {error ? <AppText style={styles.error}>{error}</AppText> : null}
-      <AppButton label={submitting ? "Đang đăng nhập..." : "Đăng nhập admin"} onPress={submit} disabled={submitting} />
+      <AppButton label={submitting ? "ang ng nhp..." : "ng nhp admin"} onPress={submit} disabled={submitting} />
     </AppScreen>
   );
 }
@@ -63,7 +63,7 @@ export function AdminDashboardScreen({ navigation }: any) {
     if (!adminToken) return;
     api.adminDashboard(adminToken)
       .then(setDashboard)
-      .catch((err) => setError(err?.message ?? "Không tải được dashboard"))
+      .catch((err) => setError(err?.message ?? "Khng ti c dashboard"))
       .finally(() => setLoading(false));
   }, [adminToken]);
 
@@ -80,22 +80,22 @@ export function AdminDashboardScreen({ navigation }: any) {
       <View style={styles.headerRow}>
         <View>
           <AppText variant="title">Dashboard</AppText>
-          <AppText muted>Số liệu tổng quan hệ thống</AppText>
+          <AppText muted>S liu tng quan h thng</AppText>
         </View>
-        <AppButton label="Đăng xuất" size="sm" variant="ghost" onPress={signOut} />
+        <AppButton label="ng xut" size="sm" variant="ghost" onPress={signOut} />
       </View>
       {error ? <AppText style={styles.error}>{error}</AppText> : null}
       {dashboard ? (
         <>
           <View style={styles.grid}>
-            <StatCard label="Tổng user" value={dashboard.totals.users} />
-            <StatCard label="Tổng bài đăng" value={dashboard.totals.posts} />
-            <StatCard label="User mới hôm nay" value={dashboard.today.users} />
-            <StatCard label="Bài đăng hôm nay" value={dashboard.today.posts} />
-            <StatCard label="Tương tác hôm nay" value={dashboard.today.interactions} />
+            <StatCard label="Tng user" value={dashboard.totals.users} />
+            <StatCard label="Tng bi ng" value={dashboard.totals.posts} />
+            <StatCard label="User mi hm nay" value={dashboard.today.users} />
+            <StatCard label="Bi ng hm nay" value={dashboard.today.posts} />
+            <StatCard label="Tng tc hm nay" value={dashboard.today.interactions} />
             <StatCard label="Like / Save / Comment" value={dashboard.today.likes + dashboard.today.saves + dashboard.today.comments} />
           </View>
-          <AppButton label="Quản lý user" onPress={() => navigation.navigate("AdminUsers")} />
+          <AppButton label="Qun l user" onPress={() => navigation.navigate("AdminUsers")} />
         </>
       ) : null}
     </AppScreen>
@@ -126,14 +126,14 @@ export function AdminUsersScreen({ navigation }: any) {
   return (
     <AppScreen style={styles.wrap}>
       <View style={styles.headerRow}>
-        <AppText variant="title">Quản lý user</AppText>
+        <AppText variant="title">Qun l user</AppText>
         <AppButton label="Dashboard" size="sm" variant="ghost" onPress={() => navigation.navigate("AdminDashboard")} />
       </View>
       <View style={styles.searchRow}>
         <View style={styles.searchInput}>
-          <TextField label="Tìm kiếm" value={query} onChangeText={setQuery} placeholder="Tên, email, SĐT" />
+          <TextField label="Tm kim" value={query} onChangeText={setQuery} placeholder="Tn, email, ST" />
         </View>
-        <AppButton label="Tìm" size="sm" onPress={load} disabled={loading} />
+        <AppButton label="Tm" size="sm" onPress={load} disabled={loading} />
       </View>
       {loading ? <ActivityIndicator color={colors.green} /> : null}
       <FlatList
@@ -151,10 +151,10 @@ export function AdminUsersScreen({ navigation }: any) {
               </AppText>
             </View>
             <AppText muted>
-              Posts {item.stats.posts} · Followers {item.stats.followers} · Following {item.stats.following} · Reports {item.stats.reports}
+              Posts {item.stats.posts}  Followers {item.stats.followers}  Following {item.stats.following}  Reports {item.stats.reports}
             </AppText>
             <AppText variant="caption" muted>
-              Tạo: {formatDate(item.createdAt)}
+              To: {formatDate(item.createdAt)}
             </AppText>
           </Pressable>
         )}
@@ -184,36 +184,36 @@ export function AdminUserDetailScreen({ route, navigation }: any) {
     <AppScreen scroll scrollProps={{ contentContainerStyle: styles.wrap }}>
       <View style={styles.headerRow}>
         <AppText variant="title">{user.displayName}</AppText>
-        <AppButton label="Quay l?i" size="sm" variant="ghost" onPress={() => navigation.goBack()} />
+        <AppButton label="Quay lại" size="sm" variant="ghost" onPress={() => navigation.goBack()} />
       </View>
       <AppText muted>{user.email || user.phone || user.id}</AppText>
       <View style={styles.grid}>
-        <StatCard label="Bài đăng" value={user.stats.posts} />
+        <StatCard label="Bi ng" value={user.stats.posts} />
         <StatCard label="Follower" value={user.stats.followers} />
         <StatCard label="Following" value={user.stats.following} />
         <StatCard label="Report" value={user.stats.reports} />
       </View>
       <View style={styles.card}>
-        <AppText variant="subtitle">Thông tin</AppText>
-        <AppText>Premium: {user.isPremium ? "Có" : "Không"}</AppText>
-        <AppText>Bio: {user.bio || "—"}</AppText>
-        <AppText>Tạo: {formatDate(user.createdAt)}</AppText>
-        <AppText>Cập nhật: {formatDate(user.updatedAt)}</AppText>
+        <AppText variant="subtitle">Thng tin</AppText>
+        <AppText>Premium: {user.isPremium ? "C" : "Khng"}</AppText>
+        <AppText>Bio: {user.bio || ""}</AppText>
+        <AppText>To: {formatDate(user.createdAt)}</AppText>
+        <AppText>Cp nht: {formatDate(user.updatedAt)}</AppText>
       </View>
       <View style={styles.card}>
-        <AppText variant="subtitle">Bài đăng gần đây</AppText>
+        <AppText variant="subtitle">Bi ng gn y</AppText>
         {user.recentPosts.map((post) => (
-          <AppText key={post.id}>• {post.caption || "(Không caption)"} · {formatDate(post.createdAt)}</AppText>
+          <AppText key={post.id}>" {post.caption || "(Khng caption)"}  {formatDate(post.createdAt)}</AppText>
         ))}
       </View>
       <View style={styles.card}>
-        <AppText variant="subtitle">Tương tác admin cần chú ý</AppText>
+        <AppText variant="subtitle">Tng tc admin cn ch </AppText>
         {user.interactions.length ? (
           user.interactions.map((interaction) => (
-            <AppText key={interaction.id}>• {interaction.type}: {interaction.note || "—"}</AppText>
+            <AppText key={interaction.id}>" {interaction.type}: {interaction.note || ""}</AppText>
           ))
         ) : (
-          <AppText muted>Không có dữ liệu.</AppText>
+          <AppText muted>Khng c d liu.</AppText>
         )}
       </View>
     </AppScreen>

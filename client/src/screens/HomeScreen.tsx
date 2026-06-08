@@ -884,14 +884,13 @@ const expandedStyles = StyleSheet.create({
   authorChip: {
     alignSelf: "center",
     maxWidth: "86%",
-    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingLeft: 4,
-    paddingRight: 14,
-    paddingVertical: 4,
-    borderRadius: 24,
+    paddingLeft: 6,
+    paddingRight: 18,
+    paddingVertical: 6,
+    borderRadius: 9999,
     marginTop: 4
   },
   authorAvatar: {
@@ -915,7 +914,7 @@ const expandedStyles = StyleSheet.create({
   authorName: {
     flex: 1,
     color: colors.white,
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.bold,
     fontSize: 15
   },
   overlayBadge: {
@@ -1329,15 +1328,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
     alignSelf: "center",
     maxWidth: "86%",
-    minHeight: 46,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     backgroundColor: colors.green,
-    paddingLeft: 4,
-    paddingRight: 16,
-    paddingVertical: 4,
-    borderRadius: 14,
+    paddingLeft: 6,
+    paddingRight: 20,
+    paddingVertical: 6,
+    borderRadius: 9999,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.16,
@@ -1365,7 +1363,7 @@ const styles = StyleSheet.create({
   authorName: {
     flex: 1,
     color: colors.white,
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.bold,
     fontSize: 16,
     lineHeight: 20
   },

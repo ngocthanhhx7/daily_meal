@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
 import * as AuthSession from "expo-auth-session";
+import * as WebBrowser from "expo-web-browser";
 
 // Expo Metro bundler injector: các biến EXPO_PUBLIC_ phải được dùng TRỰC TIẾP
 // (không thể dùng qua biến trung gian hay spread)
@@ -44,13 +45,12 @@ async function getWebGoogleIdToken() {
     `&scope=${encodeURIComponent("openid email profile")}` +
     `&nonce=${encodeURIComponent(nonce)}`;
 
-  const result = await AuthSession.startAsync({
-    authUrl,
-    returnUrl: redirectUri
-  });
+  const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
 
-  if (result.type === "success") {
-    const idToken = result.params.id_token || result.params.credential;
+  if (result.type === "success" && result.url) {
+    const urlObj = new URL(result.url);
+    const params = new URLSearchParams(urlObj.hash.substring(1) || urlObj.search);
+    const idToken = params.get("id_token") || params.get("credential");
     if (idToken) {
       return idToken;
     }

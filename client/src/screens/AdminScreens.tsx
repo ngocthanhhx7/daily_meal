@@ -22,7 +22,7 @@ function StatCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-export function AdminLoginScreen() {
+export function AdminLoginScreen({ navigation }: any) {
   const { signInAdmin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,7 +43,10 @@ export function AdminLoginScreen() {
 
   return (
     <AppScreen scroll scrollProps={{ contentContainerStyle: styles.loginWrap }}>
-      <AppText variant="title">Admin Daily Meal</AppText>
+      <View style={styles.headerRow}>
+        <AppText variant="title">Admin Daily Meal</AppText>
+        <AppButton label="Quay lai" size="sm" variant="ghost" onPress={() => navigation.goBack()} />
+      </View>
       <AppText muted>Đăng nhập bằng credential admin được cấu hình trong server.</AppText>
       <TextField label="Email admin" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
       <TextField label="Mật khẩu" secureTextEntry value={password} onChangeText={setPassword} />

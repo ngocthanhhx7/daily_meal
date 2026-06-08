@@ -1,36 +1,11 @@
 import { Platform } from "react-native";
 import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
+import * as AuthSession from "expo-auth-session";
 
 // Expo Metro bundler injector: các biến EXPO_PUBLIC_ phải được dùng TRỰC TIẾP
 // (không thể dùng qua biến trung gian hay spread)
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-
-type GoogleCredentialResponse = {
-  credential?: string;
-};
-
-type GooglePromptNotification = {
-  isNotDisplayed?: () => boolean;
-  isSkippedMoment?: () => boolean;
-};
-
-declare global {
-  interface Window {
-    google?: {
-      accounts?: {
-        id?: {
-          initialize: (config: {
-            client_id: string;
-            callback: (response: GoogleCredentialResponse) => void;
-          }) => void;
-          renderButton: (parent: HTMLElement, options: Record<string, unknown>) => void;
-          prompt: (callback?: (notification: GooglePromptNotification) => void) => void;
-        };
-      };
-    };
-  }
-}
 
 let configured = false;
 
@@ -52,38 +27,6 @@ function configureNativeGoogle() {
   configured = true;
 }
 
-function loadGoogleScript() {
-  return new Promise<void>((resolve, reject) => {
-    if (typeof window === "undefined" || typeof document === "undefined") {
-      reject(new Error("Google login is not available in this environment."));
-      return;
-    }
-
-    if (window.google?.accounts?.id) {
-      resolve();
-      return;
-    }
-
-    const existing = document.querySelector<HTMLScriptElement>("script[data-daily-meal-google]");
-    if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Could not load Google login.")), {
-        once: true
-      });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.dataset.dailyMealGoogle = "true";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Could not load Google login."));
-    document.head.appendChild(script);
-  });
-}
-
 async function getWebGoogleIdToken() {
   if (!WEB_CLIENT_ID) {
     throw new Error(
@@ -91,61 +34,33 @@ async function getWebGoogleIdToken() {
     );
   }
 
-  await loadGoogleScript();
+  const redirectUri = AuthSession.makeRedirectUri();
+  const nonce = Math.random().toString(36).substring(2, 15);
 
-  return new Promise<string>((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      const button = document.getElementById("daily-meal-google-signin-button");
-      if (button) button.remove();
-      reject(new Error("Google login timed out."));
-    }, 60000);
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    `client_id=${encodeURIComponent(WEB_CLIENT_ID)}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&response_type=id_token` +
+    `&scope=${encodeURIComponent("openid email profile")}` +
+    `&nonce=${encodeURIComponent(nonce)}`;
 
-    window.google?.accounts?.id?.initialize({
-      client_id: WEB_CLIENT_ID,
-      callback: (response) => {
-        window.clearTimeout(timeout);
-        const button = document.getElementById("daily-meal-google-signin-button");
-        if (button) button.remove();
-
-        if (!response.credential) {
-          reject(new Error("Google did not return an ID token."));
-          return;
-        }
-        resolve(response.credential);
-      }
-    });
-
-    let button = document.getElementById("daily-meal-google-signin-button") as HTMLDivElement | null;
-    if (!button) {
-      button = document.createElement("div");
-      button.id = "daily-meal-google-signin-button";
-      button.style.position = "fixed";
-      button.style.left = "50%";
-      button.style.top = "50%";
-      button.style.transform = "translate(-50%, -50%)";
-      button.style.zIndex = "2147483647";
-      button.style.background = "#fff";
-      button.style.padding = "16px";
-      button.style.borderRadius = "12px";
-      button.style.boxShadow = "0 12px 32px rgba(0,0,0,0.24)";
-      document.body.appendChild(button);
-    }
-    button.innerHTML = "";
-
-    window.google?.accounts?.id?.renderButton(button, {
-      type: "standard",
-      theme: "outline",
-      size: "large",
-      text: "signin_with",
-      shape: "pill"
-    });
-
-    window.google?.accounts?.id?.prompt((notification) => {
-      if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) {
-        // The rendered button remains visible as a fallback because One Tap is often blocked.
-      }
-    });
+  const result = await AuthSession.startAsync({
+    authUrl,
+    returnUrl: redirectUri
   });
+
+  if (result.type === "success") {
+    const idToken = result.params.id_token || result.params.credential;
+    if (idToken) {
+      return idToken;
+    }
+  }
+
+  if (result.type === "cancel") {
+    throw new Error("Đăng nhập bằng Google đã bị hủy.");
+  }
+
+  throw new Error("Không thể đăng nhập bằng Google.");
 }
 
 export async function getGoogleIdToken() {

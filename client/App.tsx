@@ -3,6 +3,10 @@ import { useFonts } from "expo-font";
 import React from "react";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import * as WebBrowser from "expo-web-browser";
+
+WebBrowser.maybeCompleteAuthSession();
+
 import { AuthProvider } from "./src/context/AuthContext";
 import { SocketProvider } from "./src/context/SocketContext";
 import { NotificationProvider } from "./src/context/NotificationContext";

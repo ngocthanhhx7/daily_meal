@@ -683,7 +683,7 @@ function PremiumTrialMascot({ onPress, disabled }: { onPress: () => void; disabl
     };
   }, [bubblePulse, mascotFloat, mascotWobble, step, walk]);
 
-  const translateX = walk.interpolate({ inputRange: [0, 1], outputRange: [-96, 96] });
+  const translateX = walk.interpolate({ inputRange: [0, 1], outputRange: [-18, 18] });
   const bobY = step.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
   const bodyRotate = step.interpolate({ inputRange: [0, 1], outputRange: ["-3deg", "3deg"] });
   const faceDirection = walk.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1, -1] });
@@ -694,11 +694,11 @@ function PremiumTrialMascot({ onPress, disabled }: { onPress: () => void; disabl
   return (
     <Animated.View style={[styles.trialMascotRail, { transform: [{ translateX }] }]} pointerEvents="box-none">
       <Pressable style={styles.trialMascotButton} onPress={onPress} disabled={disabled} hitSlop={{ top: 18, bottom: 18, left: 28, right: 28 }}>
-        <Animated.View style={[styles.trialSpeechBubble, { transform: [{ scale: bubbleScale }] }]}> 
+        <Animated.View style={[styles.trialSpeechBubble, { transform: [{ scale: bubbleScale }] }]}>
           <AppText style={styles.trialSpeechText}>{TRIAL_MASCOT_LINES[lineIndex]}</AppText>
           <View style={styles.trialSpeechTail} />
         </Animated.View>
-        <Animated.View style={[styles.trialModelWrap, { transform: [{ translateY: bobY }, { rotate: bodyRotate }, { scaleX: faceDirection }, { translateY: floatLift }, { rotate: wobbleRotate }] }]}> 
+        <Animated.View style={[styles.trialModelWrap, { transform: [{ translateY: bobY }, { rotate: bodyRotate }, { scaleX: faceDirection }, { translateY: floatLift }, { rotate: wobbleRotate }] }]}>
           <Animated.View style={[styles.trialSpriteGlow, { opacity: bubblePulse.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.55] }) }]} />
           <Animated.Image
             source={require("../../assets/stickers/b76f47fb-cc9c-41e7-ada3-39fc570671c9-cutout.png")}
@@ -929,7 +929,7 @@ function ExpandedPostModal({
       return (
         <View style={expandedStyles.singleImageWrap}>
           <Image source={imageSource(post!, 0)} style={expandedStyles.singleImage} resizeMode="cover" />
-          
+
           {/* Caption Overlay - Top Left */}
           <View style={[expandedStyles.overlayBadge, { left: 14, top: 14 }]}>
             <Ionicons name="location" size={15} color={colors.black} />
@@ -1041,11 +1041,11 @@ function ExpandedPostModal({
       <Pressable style={expandedStyles.overlay} onPress={onClose}>
         <Pressable style={expandedStyles.container} onPress={() => { }}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={expandedStyles.scrollContent}>
-            
+
             {/* Image grid and Sticker wrapper */}
             <View style={{ position: "relative", width: availableWidth, marginTop: 12 }}>
               {renderImageGrid()}
-              
+
               {/* Sticker overlay using absolute placement */}
               {stickerSource ? (
                 <Wiggle
@@ -1658,39 +1658,39 @@ const styles = StyleSheet.create({
   trialMascotRail: {
     position: "absolute",
     left: "50%",
-    bottom: 78,
+    bottom: 82,
     zIndex: 120,
     alignItems: "center"
   },
   trialMascotButton: {
-    marginLeft: -95,
-    width: 190,
-    minHeight: 240,
+    marginLeft: -34,
+    width: 68,
+    minHeight: 78,
     alignItems: "center",
     justifyContent: "flex-start"
   },
   trialSpeechBubble: {
-    minWidth: 142,
-    maxWidth: 168,
-    borderRadius: 18,
+    minWidth: 96,
+    maxWidth: 116,
+    borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.97)",
-    paddingHorizontal: 11,
-    paddingVertical: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
     borderWidth: 1,
     borderColor: "rgba(139,165,138,0.35)",
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 3,
     alignItems: "center"
   },
   trialSpeechTail: {
     position: "absolute",
-    bottom: -6,
-    width: 12,
-    height: 12,
-    borderRadius: 3,
+    bottom: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 1.5,
     backgroundColor: "rgba(255,255,255,0.97)",
     transform: [{ rotate: "45deg" }],
     borderRightWidth: 1,
@@ -1700,8 +1700,8 @@ const styles = StyleSheet.create({
   trialSpeechText: {
     color: colors.black,
     fontFamily: fonts.semibold,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 8.5,
+    lineHeight: 11,
     textAlign: "center"
   },
   trialOfferOverlay: {
@@ -1806,49 +1806,49 @@ const styles = StyleSheet.create({
     fontSize: 14
   },
   trialModelWrap: {
-    width: 170,
-    height: 186,
+    width: 68,
+    height: 75,
     marginTop: 2,
     alignItems: "center",
     justifyContent: "center"
   },
   trialSpriteGlow: {
     position: "absolute",
-    width: 152,
-    height: 160,
-    borderRadius: 80,
+    width: 60,
+    height: 64,
+    borderRadius: 30,
     backgroundColor: "rgba(203,231,162,0.18)",
     shadowColor: "#DFF2A1",
     shadowOpacity: 0.5,
-    shadowRadius: 20,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 0 }
   },
   trialMascotCutout: {
     position: "absolute",
-    width: 154,
-    height: 172,
-    top: 3,
-    borderRadius: 18
+    width: 62,
+    height: 69,
+    top: 1,
+    borderRadius: 14
   },
   trialSparkleLeft: {
     position: "absolute",
-    top: 35,
-    left: 0,
-    width: 13,
-    height: 13,
-    borderRadius: 2,
-    borderWidth: 2,
+    top: 16,
+    left: 1,
+    width: 5,
+    height: 5,
+    borderRadius: 1.5,
+    borderWidth: 1.5,
     borderColor: colors.yellow,
     transform: [{ rotate: "45deg" }]
   },
   trialSparkleRight: {
     position: "absolute",
-    top: 34,
-    right: 0,
-    width: 13,
-    height: 13,
-    borderRadius: 2,
-    borderWidth: 2,
+    top: 15,
+    right: 1,
+    width: 5,
+    height: 5,
+    borderRadius: 1.5,
+    borderWidth: 1.5,
     borderColor: colors.yellow,
     transform: [{ rotate: "45deg" }]
   },

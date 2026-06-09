@@ -246,7 +246,13 @@ export const api = {
       token,
       body: { body }
     }),
-  feed: (token: string) => request<{ posts: Post[] }>("/api/posts/feed", { token }),
+  feed: (token: string, page?: number, limit?: number) => {
+    const search = new URLSearchParams();
+    if (page) search.set("page", String(page));
+    if (limit) search.set("limit", String(limit));
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<{ posts: Post[] }>(`/api/posts/feed${suffix}`, { token });
+  },
   search: (token: string, query: string) =>
     request<{ posts: Post[] }>(`/api/posts/search?q=${encodeURIComponent(query)}`, { token }),
   createPost: (token: string, body: Record<string, unknown>) =>

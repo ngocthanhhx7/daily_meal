@@ -114,6 +114,9 @@ export function HomeScreen({ navigation, route }: any) {
   const [showTrialOfferModal, setShowTrialOfferModal] = useState(false);
   const [expandedPost, setExpandedPost] = useState<Post | null>(null);
   const [nutritionPost, setNutritionPost] = useState<Post | null>(null);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const flatRef = useRef<FlatList>(null);
   const isInitialMount = useRef(true);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
@@ -163,7 +166,7 @@ export function HomeScreen({ navigation, route }: any) {
   const load = useCallback(async (jumpToTop = false, targetPostId?: string, targetPost?: Post) => {
     if (!token) return;
     try {
-      const result = await api.feed(token);
+      const result = await api.feed(token, 1, 20);
       let feedPosts = result.posts.length ? result.posts : demoPosts;
 
       if (targetPostId) {
@@ -174,6 +177,8 @@ export function HomeScreen({ navigation, route }: any) {
       }
 
       setPosts(feedPosts);
+      setPage(1);
+      setHasMore(result.posts.length >= 20);
 
       // Populate liked and saved sets from database viewerState on page load
       const initialLikes = new Set<string>();
@@ -197,8 +202,55 @@ export function HomeScreen({ navigation, route }: any) {
       }
     } catch {
       setPosts(demoPosts);
+      setHasMore(false);
     }
   }, [token]);
+
+  const loadMore = useCallback(async () => {
+    if (!token || loadingMore || !hasMore || posts === demoPosts) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const result = await api.feed(token, nextPage, 20);
+      if (result.posts.length > 0) {
+        setPosts((prevPosts) => {
+          const existingIds = new Set(prevPosts.map((p) => p._id));
+          const newPosts = result.posts.filter((p) => !existingIds.has(p._id));
+          return [...prevPosts, ...newPosts];
+        });
+
+        // Update liked and saved sets from database viewerState for new posts
+        setLikedSet((current) => {
+          const next = new Set(current);
+          result.posts.forEach((post) => {
+            if (post.viewerState?.liked) {
+              next.add(post._id);
+            }
+          });
+          return next;
+        });
+
+        setSavedSet((current) => {
+          const next = new Set(current);
+          result.posts.forEach((post) => {
+            if (post.viewerState?.saved) {
+              next.add(post._id);
+            }
+          });
+          return next;
+        });
+
+        setPage(nextPage);
+        setHasMore(result.posts.length >= 20);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error("Failed to load more posts:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [token, page, loadingMore, hasMore, posts]);
 
   useFocusEffect(
     useCallback(() => {
@@ -439,6 +491,8 @@ export function HomeScreen({ navigation, route }: any) {
               decelerationRate="fast"
               disableIntervalMomentum
               extraData={currentIndex}
+              onEndReached={loadMore}
+              onEndReachedThreshold={0.5}
             />
           ) : null}
         </View>

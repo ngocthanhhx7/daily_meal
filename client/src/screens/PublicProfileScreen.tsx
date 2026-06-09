@@ -397,9 +397,10 @@ function ProfileActionButton({
 
 function StatItem({ label, value, onPress }: { label: string; value: number; onPress?: () => void }) {
   const Container = onPress ? Pressable : View;
+  const displayValue = Math.max(0, value);
   return (
     <Container style={styles.statItem} onPress={onPress}>
-      <AppText style={styles.statValue}>{formatCount(value)}</AppText>
+      <AppText style={styles.statValue}>{formatCount(displayValue)}</AppText>
       <AppText style={styles.statLabel} numberOfLines={1}>
         {label}
       </AppText>

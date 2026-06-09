@@ -1,4 +1,4 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
@@ -97,7 +97,14 @@ async function publicUserDto(user: any, viewerId?: string) {
     isPremium: hasActivePremium(user),
     ...premiumTrialDto(user),
     themeColor: user.themeColor,
-    counts: user.counts,
+    counts: user.counts
+      ? {
+          posts: Math.max(0, user.counts.posts ?? 0),
+          followers: Math.max(0, user.counts.followers ?? 0),
+          following: Math.max(0, user.counts.following ?? 0),
+          friends: Math.max(0, user.counts.friends ?? 0)
+        }
+      : { posts: 0, followers: 0, following: 0, friends: 0 },
     relationship: relation,
     viewerInteraction: {
       restricted: interactionTypes.has("restrict"),
@@ -426,14 +433,31 @@ usersRouter.post("/:id/follow", requireAuth, async (req, res, next) => {
       const followsMe = await Follow.exists({ follower: targetId, following: req.user?.id });
       const friendInc = followsMe ? 1 : 0;
 
-      await Promise.all([
+      const [u1, u2] = await Promise.all([
         User.findByIdAndUpdate(req.user?.id, {
           $inc: { "counts.following": 1, "counts.friends": friendInc }
-        }),
+        }, { new: true }),
         User.findByIdAndUpdate(targetId, {
           $inc: { "counts.followers": 1, "counts.friends": friendInc }
-        })
+        }, { new: true })
       ]);
+
+      if (u1) {
+        const updateObj: Record<string, number> = {};
+        if ((u1.counts?.following ?? 0) < 0) updateObj["counts.following"] = 1;
+        if ((u1.counts?.friends ?? 0) < 0) updateObj["counts.friends"] = friendInc;
+        if (Object.keys(updateObj).length > 0) {
+          await User.findByIdAndUpdate(req.user?.id, { $set: updateObj });
+        }
+      }
+      if (u2) {
+        const updateObj: Record<string, number> = {};
+        if ((u2.counts?.followers ?? 0) < 0) updateObj["counts.followers"] = 1;
+        if ((u2.counts?.friends ?? 0) < 0) updateObj["counts.friends"] = friendInc;
+        if (Object.keys(updateObj).length > 0) {
+          await User.findByIdAndUpdate(targetId, { $set: updateObj });
+        }
+      }
 
       // Trigger follow notification
       const sender = await User.findById(req.user?.id).select("displayName").lean();
@@ -482,14 +506,31 @@ usersRouter.delete("/:id/follow", requireAuth, async (req, res, next) => {
       const followsMe = await Follow.exists({ follower: targetId, following: req.user?.id });
       const friendInc = followsMe ? -1 : 0;
 
-      await Promise.all([
+      const [u1, u2] = await Promise.all([
         User.findByIdAndUpdate(req.user?.id, {
           $inc: { "counts.following": -1, "counts.friends": friendInc }
-        }),
+        }, { new: true }),
         User.findByIdAndUpdate(targetId, {
           $inc: { "counts.followers": -1, "counts.friends": friendInc }
-        })
+        }, { new: true })
       ]);
+
+      if (u1) {
+        const updateObj: Record<string, number> = {};
+        if ((u1.counts?.following ?? 0) < 0) updateObj["counts.following"] = 0;
+        if ((u1.counts?.friends ?? 0) < 0) updateObj["counts.friends"] = 0;
+        if (Object.keys(updateObj).length > 0) {
+          await User.findByIdAndUpdate(req.user?.id, { $set: updateObj });
+        }
+      }
+      if (u2) {
+        const updateObj: Record<string, number> = {};
+        if ((u2.counts?.followers ?? 0) < 0) updateObj["counts.followers"] = 0;
+        if ((u2.counts?.friends ?? 0) < 0) updateObj["counts.friends"] = 0;
+        if (Object.keys(updateObj).length > 0) {
+          await User.findByIdAndUpdate(targetId, { $set: updateObj });
+        }
+      }
     }
 
     const updatedTarget = await User.findById(targetId).lean();

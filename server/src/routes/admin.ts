@@ -82,12 +82,19 @@ function adminUserSummary(user: any, extra?: { posts?: number; followers?: numbe
     avatarUrl: user.avatarUrl,
     isPremium: hasActivePremium(user),
     ...premiumTrialDto(user),
-    counts: user.counts,
+    counts: user.counts
+      ? {
+          posts: Math.max(0, user.counts.posts ?? 0),
+          followers: Math.max(0, user.counts.followers ?? 0),
+          following: Math.max(0, user.counts.following ?? 0),
+          friends: Math.max(0, user.counts.friends ?? 0)
+        }
+      : { posts: 0, followers: 0, following: 0, friends: 0 },
     stats: {
-      posts: extra?.posts ?? user.counts?.posts ?? 0,
-      followers: extra?.followers ?? user.counts?.followers ?? 0,
-      following: extra?.following ?? user.counts?.following ?? 0,
-      reports: extra?.reports ?? 0
+      posts: Math.max(0, extra?.posts ?? user.counts?.posts ?? 0),
+      followers: Math.max(0, extra?.followers ?? user.counts?.followers ?? 0),
+      following: Math.max(0, extra?.following ?? user.counts?.following ?? 0),
+      reports: Math.max(0, extra?.reports ?? 0)
     },
     createdAt: user.createdAt?.toISOString?.(),
     updatedAt: user.updatedAt?.toISOString?.()

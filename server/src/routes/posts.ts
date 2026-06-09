@@ -314,7 +314,10 @@ postsRouter.post("/", requireAuth, async (req, res, next) => {
       tags: normalizeTags(body.tags),
       author: req.user?.id
     });
-    await User.findByIdAndUpdate(req.user?.id, { $inc: { "counts.posts": 1 } });
+    const updatedUser = await User.findByIdAndUpdate(req.user?.id, { $inc: { "counts.posts": 1 } }, { new: true });
+    if (updatedUser && (updatedUser.counts?.posts ?? 0) < 0) {
+      await User.findByIdAndUpdate(req.user?.id, { $set: { "counts.posts": 1 } });
+    }
 
     const populated = await Post.findById(post._id)
       .populate("author", "displayName avatarUrl isPremium themeColor")
@@ -379,8 +382,10 @@ postsRouter.delete("/:id", requireAuth, async (req, res, next) => {
     await post.deleteOne();
     await Comment.deleteMany({ post: post._id });
     await PostLike.deleteMany({ post: post._id });
-    await PostSave.deleteMany({ post: post._id });
-    await User.findByIdAndUpdate(req.user?.id, { $inc: { "counts.posts": -1 } });
+    const updatedUser = await User.findByIdAndUpdate(req.user?.id, { $inc: { "counts.posts": -1 } }, { new: true });
+    if (updatedUser && (updatedUser.counts?.posts ?? 0) < 0) {
+      await User.findByIdAndUpdate(req.user?.id, { $set: { "counts.posts": 0 } });
+    }
 
     res.status(204).send();
   } catch (error) {
@@ -395,10 +400,16 @@ postsRouter.post("/:id/like", requireAuth, async (req, res, next) => {
 
     if (existing) {
       await existing.deleteOne();
-      await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.likes": -1 } });
+      const updated = await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.likes": -1 } }, { new: true });
+      if (updated && (updated.stats?.likes ?? 0) < 0) {
+        await Post.findByIdAndUpdate(req.params.id, { $set: { "stats.likes": 0 } });
+      }
     } else {
       await PostLike.create({ post: req.params.id, user: req.user?.id });
-      await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.likes": 1 } });
+      const updated = await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.likes": 1 } }, { new: true });
+      if (updated && (updated.stats?.likes ?? 0) < 0) {
+        await Post.findByIdAndUpdate(req.params.id, { $set: { "stats.likes": 1 } });
+      }
     }
 
     const post = await Post.findById(req.params.id).select("stats author").lean();
@@ -462,10 +473,16 @@ postsRouter.post("/:id/save", requireAuth, async (req, res, next) => {
 
     if (existing) {
       await existing.deleteOne();
-      await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.saves": -1 } });
+      const updated = await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.saves": -1 } }, { new: true });
+      if (updated && (updated.stats?.saves ?? 0) < 0) {
+        await Post.findByIdAndUpdate(req.params.id, { $set: { "stats.saves": 0 } });
+      }
     } else {
       await PostSave.create({ post: req.params.id, user: req.user?.id });
-      await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.saves": 1 } });
+      const updated = await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.saves": 1 } }, { new: true });
+      if (updated && (updated.stats?.saves ?? 0) < 0) {
+        await Post.findByIdAndUpdate(req.params.id, { $set: { "stats.saves": 1 } });
+      }
     }
 
     const post = await Post.findById(req.params.id).select("stats").lean();
@@ -501,14 +518,17 @@ postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
       author: req.user?.id,
       body: body.body
     });
-    await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.comments": 1 } });
+    const updatedPost = await Post.findByIdAndUpdate(req.params.id, { $inc: { "stats.comments": 1 } }, { new: true });
+    if (updatedPost && (updatedPost.stats?.comments ?? 0) < 0) {
+      await Post.findByIdAndUpdate(req.params.id, { $set: { "stats.comments": 1 } });
+    }
 
     // Fetch updated stats and broadcast globally in real-time
-    const updatedPost = await Post.findById(req.params.id).select("stats").lean();
-    if (updatedPost) {
+    const updatedPostStats = await Post.findById(req.params.id).select("stats").lean();
+    if (updatedPostStats) {
       broadcastGlobal("post:stats-updated", {
         postId: req.params.id,
-        stats: updatedPost.stats
+        stats: updatedPostStats.stats
       });
     }
 

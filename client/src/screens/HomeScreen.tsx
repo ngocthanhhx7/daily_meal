@@ -748,9 +748,9 @@ function PostSlide({
           ) : null}
 
           <View style={styles.statsChip}>
-            <AppText style={styles.statsNum}>{post.stats?.comments ?? 0}</AppText>
+            <AppText style={styles.statsNum}>{Math.max(0, post.stats?.comments ?? 0)}</AppText>
             <Ionicons name="chatbubble-outline" size={15} color={colors.black} />
-            <AppText style={styles.statsNum}>{post.stats?.likes ?? 0}</AppText>
+            <AppText style={styles.statsNum}>{Math.max(0, post.stats?.likes ?? 0)}</AppText>
             <Ionicons name="heart" size={15} color={colors.red} />
           </View>
 
@@ -940,9 +940,9 @@ function ExpandedPostModal({
 
           {/* Stats Overlay - Top Right */}
           <View style={[expandedStyles.overlayBadge, { right: 14, top: 14 }]}>
-            <AppText style={expandedStyles.statsNum}>{post!.stats?.comments ?? 0}</AppText>
+            <AppText style={expandedStyles.statsNum}>{Math.max(0, post!.stats?.comments ?? 0)}</AppText>
             <Ionicons name="chatbubble-outline" size={14} color={colors.black} />
-            <AppText style={expandedStyles.statsNum}>{post!.stats?.likes ?? 0}</AppText>
+            <AppText style={expandedStyles.statsNum}>{Math.max(0, post!.stats?.likes ?? 0)}</AppText>
             <Ionicons name="heart" size={14} color={colors.red} />
           </View>
 
@@ -1015,9 +1015,9 @@ function ExpandedPostModal({
 
             {/* Stats Overlay on Image 2 */}
             <View style={[expandedStyles.overlayBadge, { right: 10, top: 10 }]}>
-              <AppText style={expandedStyles.statsNum}>{post!.stats?.comments ?? 0}</AppText>
+              <AppText style={expandedStyles.statsNum}>{Math.max(0, post!.stats?.comments ?? 0)}</AppText>
               <Ionicons name="chatbubble-outline" size={13} color={colors.black} />
-              <AppText style={expandedStyles.statsNum}>{post!.stats?.likes ?? 0}</AppText>
+              <AppText style={expandedStyles.statsNum}>{Math.max(0, post!.stats?.likes ?? 0)}</AppText>
               <Ionicons name="heart" size={13} color={colors.red} />
             </View>
           </View>

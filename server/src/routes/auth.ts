@@ -1,4 +1,4 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { z } from "zod";
 import crypto from "node:crypto";
 import { User } from "../models/User.js";
@@ -83,6 +83,13 @@ function userDto(user: any) {
     isPremium: hasActivePremium(user),
     ...premiumTrialDto(user),
     counts: user.counts
+      ? {
+          posts: Math.max(0, user.counts.posts ?? 0),
+          followers: Math.max(0, user.counts.followers ?? 0),
+          following: Math.max(0, user.counts.following ?? 0),
+          friends: Math.max(0, user.counts.friends ?? 0)
+        }
+      : { posts: 0, followers: 0, following: 0, friends: 0 }
   };
 }
 

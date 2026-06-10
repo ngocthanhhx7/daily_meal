@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
+import { analytics } from "../services/analytics";
 import { colors } from "../theme/colors";
 
 // Screens
@@ -55,14 +56,44 @@ function LoadingScreen() {
 }
 
 export function AppNavigator() {
-  const { isLoading, user, isAdmin } = useAuth();
+  const { isLoading, token, user, isAdmin } = useAuth();
+  const routeNameRef = useRef<string | undefined>(undefined);
+  const navigationRef = useRef<any>(null);
+
+  useEffect(() => {
+    analytics.setAuthToken(token);
+  }, [token]);
 
   if (isLoading) {
     return <LoadingScreen />;
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        const routeName = navigationRef.current?.getCurrentRoute()?.name;
+        routeNameRef.current = routeName;
+        analytics.setCurrentScreen(routeName);
+        if (routeName) {
+          analytics.track("screen_view", { screen: routeName });
+        }
+      }}
+      onStateChange={() => {
+        const previousRouteName = routeNameRef.current;
+        const currentRouteName = navigationRef.current?.getCurrentRoute()?.name;
+
+        if (currentRouteName && previousRouteName !== currentRouteName) {
+          analytics.setCurrentScreen(currentRouteName);
+          analytics.track("screen_view", {
+            screen: currentRouteName,
+            referrer: previousRouteName
+          });
+        }
+
+        routeNameRef.current = currentRouteName;
+      }}
+    >
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

@@ -1,7 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
-import React from "react";
-import { ActivityIndicator, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { ActivityIndicator, AppState, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 
@@ -15,15 +15,75 @@ import { IosInstallGate } from "./src/pwa/IosInstallGate";
 import { PwaRuntime } from "./src/pwa/PwaRuntime";
 import { WebMobileShell } from "./src/pwa/WebMobileShell";
 import { shouldShowIosInstallGate } from "./src/pwa/platform";
+import { analytics, setupAnalyticsRuntime } from "./src/services/analytics";
 import { colors } from "./src/theme/colors";
 
 export default function App() {
+  const sessionEndedRef = useRef(false);
   const [fontsLoaded] = useFonts({
     "WorkSans-Regular": require("./assets/fonts/WorkSans-Regular.ttf"),
     "WorkSans-Medium": require("./assets/fonts/WorkSans-Medium.ttf"),
     "WorkSans-Semibold": require("./assets/fonts/WorkSans-SemiBold.ttf"),
     "WorkSans-Bold": require("./assets/fonts/WorkSans-Bold.ttf")
   });
+
+  useEffect(() => {
+    const cleanupRuntime = setupAnalyticsRuntime();
+
+    analytics.startSession();
+    sessionEndedRef.current = false;
+
+    const endSession = (reason: string) => {
+      if (sessionEndedRef.current) {
+        return;
+      }
+
+      sessionEndedRef.current = true;
+      analytics.endSession(reason);
+    };
+
+    const resumeSession = () => {
+      if (!sessionEndedRef.current) {
+        return;
+      }
+
+      analytics.startSession({ resumed: true });
+      sessionEndedRef.current = false;
+    };
+
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        resumeSession();
+      } else if (state === "background" || state === "inactive") {
+        endSession(state);
+      }
+    });
+
+    const handleVisibilityChange = () => {
+      if (Platform.OS !== "web" || typeof document === "undefined") {
+        return;
+      }
+
+      if (document.visibilityState === "visible") {
+        resumeSession();
+      } else {
+        endSession("hidden");
+      }
+    };
+
+    if (Platform.OS === "web" && typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+
+    return () => {
+      appStateSubscription.remove();
+      if (Platform.OS === "web" && typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
+      endSession("unmount");
+      cleanupRuntime();
+    };
+  }, []);
 
   if (!fontsLoaded) {
     return (

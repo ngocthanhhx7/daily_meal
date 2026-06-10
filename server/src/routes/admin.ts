@@ -10,6 +10,7 @@ import { PostLike } from "../models/PostLike.js";
 import { PostSave } from "../models/PostSave.js";
 import { User } from "../models/User.js";
 import { UserInteraction } from "../models/UserInteraction.js";
+import { buildAnalyticsSummary, parseAnalyticsSummaryQuery } from "./analytics.js";
 import { hasActivePremium, premiumTrialDto } from "../utils/premium.js";
 
 export const adminRouter = Router();
@@ -156,6 +157,15 @@ adminRouter.get("/dashboard", requireAdmin, async (_req, res, next) => {
         userInteractions: userInteractionsToday
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get("/analytics/summary", requireAdmin, async (req, res, next) => {
+  try {
+    const query = parseAnalyticsSummaryQuery(req.query);
+    res.json({ summary: await buildAnalyticsSummary(query) });
   } catch (error) {
     next(error);
   }

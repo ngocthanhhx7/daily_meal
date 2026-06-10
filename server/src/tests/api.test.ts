@@ -8,6 +8,7 @@ import { env } from "../config/env.js";
 import { seedDefaultStickers } from "../services/stickers.js";
 import { createPayosSignature } from "../services/payos.js";
 import { broadcastToRoom, emitToUser } from "../services/socket.js";
+import { AnalyticsEvent } from "../models/AnalyticsEvent.js";
 import { Comment } from "../models/Comment.js";
 import { Payment } from "../models/Payment.js";
 import { PostLike } from "../models/PostLike.js";
@@ -316,6 +317,306 @@ describe("Daily Meal API", () => {
     expect(detail.body.user.email).toBe("admin-alice@example.com");
     expect(detail.body.user.recentPosts[0].caption).toBe("Admin dashboard meal");
     expect(detail.body.user.interactions[0].type).toBe("report");
+  });
+
+  it("validates analytics ingestion batches", async () => {
+    await AnalyticsEvent.deleteMany({ sessionId: /^analytics-invalid-/ });
+
+    await request(app).post("/api/analytics/events").send({ events: [] }).expect(400);
+
+    await request(app)
+      .post("/api/analytics/events")
+      .send({
+        events: [
+          {
+            name: "Feed Impression",
+            sessionId: "analytics-invalid-session",
+            anonymousId: "analytics-invalid-anon"
+          }
+        ]
+      })
+      .expect(400);
+
+    await request(app)
+      .post("/api/analytics/events")
+      .send({
+        events: [
+          {
+            name: "feed_impression",
+            sessionId: "analytics-invalid-missing-anon"
+          }
+        ]
+      })
+      .expect(400);
+  });
+
+  it("ingests anonymous and authenticated analytics events", async () => {
+    await AnalyticsEvent.deleteMany({ sessionId: /^analytics-ingest-/ });
+    const session = await register("analytics-ingest@example.com");
+
+    const anonymous = await request(app)
+      .post("/api/analytics/events")
+      .send({
+        events: [
+          {
+            name: "feed_impression",
+            occurredAt: "2026-01-10T10:00:00.000Z",
+            sessionId: "analytics-ingest-anon-session",
+            anonymousId: "analytics-ingest-anon",
+            properties: { targetType: "post" }
+          }
+        ]
+      })
+      .expect(202);
+
+    expect(anonymous.body.accepted).toBe(1);
+
+    const authenticated = await request(app)
+      .post("/api/analytics/events")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({
+        events: [
+          {
+            name: "post_create_completed",
+            occurredAt: "2026-01-10T10:01:00.000Z",
+            sessionId: "analytics-ingest-user-session",
+            properties: { step: "publish" }
+          }
+        ]
+      })
+      .expect(202);
+
+    expect(authenticated.body.accepted).toBe(1);
+
+    const events = await AnalyticsEvent.find({ sessionId: /^analytics-ingest-/ }).sort({ occurredAt: 1 }).lean();
+    expect(events).toHaveLength(2);
+    expect(events[0]?.subjectKey).toBe("anon:analytics-ingest-anon");
+    expect(events[0]?.user).toBeUndefined();
+    expect(events[1]?.subjectKey).toBe(`user:${session.user.id}`);
+    expect(events[1]?.user?.toString()).toBe(session.user.id);
+  });
+
+  it("returns an admin analytics measurement summary", async () => {
+    Object.assign(env, { ADMIN_EMAIL: "analytics-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    await AnalyticsEvent.deleteMany({ sessionId: /^analytics-summary-/ });
+    await AnalyticsEvent.deleteMany({ subjectKey: /^analytics-summary-/ });
+
+    const one = "analytics-summary-user-one";
+    const two = "analytics-summary-user-two";
+    const anon = "analytics-summary-anon-three";
+    const at = (iso: string) => new Date(iso);
+    const base = {
+      receivedAt: at("2026-02-10T12:10:00.000Z"),
+      source: "client" as const
+    };
+
+    await AnalyticsEvent.create([
+      {
+        ...base,
+        name: "app_open",
+        occurredAt: at("2026-01-20T12:00:00.000Z"),
+        sessionId: "analytics-summary-before",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "session_start",
+        occurredAt: at("2026-02-10T12:00:00.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "feed_impression",
+        occurredAt: at("2026-02-10T12:00:05.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "feed_click",
+        occurredAt: at("2026-02-10T12:00:10.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "scroll_depth",
+        occurredAt: at("2026-02-10T12:00:15.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one,
+        properties: { scrollDepthPercent: 80 }
+      },
+      {
+        ...base,
+        name: "creator_signup_started",
+        occurredAt: at("2026-02-10T12:00:20.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "creator_signup_completed",
+        occurredAt: at("2026-02-10T12:00:21.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "post_create_started",
+        occurredAt: at("2026-02-10T12:00:25.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "post_create_completed",
+        occurredAt: at("2026-02-10T12:00:30.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "meal_analysis_started",
+        occurredAt: at("2026-02-10T12:00:35.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "meal_analysis_completed",
+        occurredAt: at("2026-02-10T12:00:40.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "premium_viewed",
+        occurredAt: at("2026-02-10T12:00:45.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "premium_checkout_started",
+        occurredAt: at("2026-02-10T12:00:46.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "payment_started",
+        occurredAt: at("2026-02-10T12:00:47.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "payment_completed",
+        occurredAt: at("2026-02-10T12:00:48.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one
+      },
+      {
+        ...base,
+        name: "session_end",
+        occurredAt: at("2026-02-10T12:01:00.000Z"),
+        sessionId: "analytics-summary-s1",
+        subjectKey: one,
+        properties: { durationMs: 60000 }
+      },
+      {
+        ...base,
+        name: "session_start",
+        occurredAt: at("2026-02-10T13:00:00.000Z"),
+        sessionId: "analytics-summary-s2",
+        subjectKey: two
+      },
+      {
+        ...base,
+        name: "creator_signup_started",
+        occurredAt: at("2026-02-10T14:00:01.500Z"),
+        sessionId: "analytics-summary-s3",
+        subjectKey: anon,
+        anonymousId: anon
+      },
+      {
+        ...base,
+        name: "session_start",
+        occurredAt: at("2026-02-10T14:00:00.000Z"),
+        sessionId: "analytics-summary-s3",
+        subjectKey: anon,
+        anonymousId: anon
+      },
+      {
+        ...base,
+        name: "feed_impression",
+        occurredAt: at("2026-02-10T14:00:01.000Z"),
+        sessionId: "analytics-summary-s3",
+        subjectKey: anon,
+        anonymousId: anon
+      },
+      {
+        ...base,
+        name: "scroll_depth",
+        occurredAt: at("2026-02-10T14:00:02.000Z"),
+        sessionId: "analytics-summary-s3",
+        subjectKey: anon,
+        anonymousId: anon,
+        properties: { scrollDepthPercent: 30 }
+      },
+      {
+        ...base,
+        name: "early_exit",
+        occurredAt: at("2026-02-10T14:00:03.000Z"),
+        sessionId: "analytics-summary-s3",
+        subjectKey: anon,
+        anonymousId: anon
+      },
+      {
+        ...base,
+        name: "session_end",
+        occurredAt: at("2026-02-10T14:00:05.000Z"),
+        sessionId: "analytics-summary-s3",
+        subjectKey: anon,
+        anonymousId: anon,
+        properties: { durationMs: 5000 }
+      }
+    ]);
+
+    const login = await request(app)
+      .post("/api/admin/login")
+      .send({ email: "analytics-admin@example.com", password: "admin-secret" })
+      .expect(200);
+
+    const response = await request(app)
+      .get("/api/admin/analytics/summary?start=2026-02-01T00:00:00.000Z&end=2026-02-11T00:00:00.000Z")
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+
+    expect(response.body.summary.activeUsers).toMatchObject({ dau: 3, wau: 3, mau: 3, returning: 1 });
+    expect(response.body.summary.sessions.total).toBe(3);
+    expect(response.body.summary.sessions.bounces).toBe(1);
+    expect(response.body.summary.sessions.earlyExits).toBe(1);
+    expect(response.body.summary.feed).toMatchObject({
+      impressions: 2,
+      clicks: 1,
+      ctr: 0.5,
+      averageScrollDepth: 55,
+      maxScrollDepth: 80
+    });
+    expect(response.body.summary.creatorConversion).toMatchObject({ started: 2, completed: 1, rate: 0.5 });
+    expect(response.body.summary.postCreation).toMatchObject({ started: 1, completed: 1, completionRate: 1 });
+    expect(response.body.summary.mealAnalysis).toMatchObject({ started: 1, completed: 1, completionRate: 1 });
+    expect(response.body.summary.premiumFunnel).toMatchObject({
+      viewed: 1,
+      checkoutStarted: 1,
+      paymentStarted: 1,
+      paymentCompleted: 1,
+      paymentFailed: 0,
+      checkoutStartRate: 1,
+      paymentCompletionRate: 1
+    });
   });
   it("creates a PayOS checkout link for a selected Premium plan", async () => {
     Object.assign(env, {

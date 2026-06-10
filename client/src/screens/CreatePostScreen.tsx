@@ -8,6 +8,7 @@ import { AppText } from "../components/AppText";
 import { NutritionCard } from "../components/NutritionCard";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
+import { analytics } from "../services/analytics";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type {
@@ -150,6 +151,25 @@ export function CreatePostScreen({ navigation, route }: any) {
   }, [recentUris, localGalleryImages]);
 
   useEffect(() => {
+    analytics.track("create_post_started", {
+      screen: "Create",
+      properties: {
+        entrySource: route?.params?.meal ? "meal_history" : "direct"
+      }
+    });
+  }, [route?.params?.meal]);
+
+  useEffect(() => {
+    analytics.track("create_post_step_view", {
+      screen: "Create",
+      properties: {
+        step,
+        imageCount: images.length
+      }
+    });
+  }, [step, images.length]);
+
+  useEffect(() => {
     // Automatically select the first recent photo on mount if selection is empty
     if (images.length === 0 && recentUris.length > 0) {
       setImages([recentUris[0]]);
@@ -206,6 +226,15 @@ export function CreatePostScreen({ navigation, route }: any) {
       const accepted = unique.slice(0, openSlots);
 
       if (unique.length > openSlots) {
+        analytics.track("create_post_image_limit_hit", {
+          screen: "Create",
+          value: maxImagesLimit,
+          properties: {
+            attemptedCount: current.length + unique.length,
+            acceptedCount: current.length + accepted.length,
+            isPremium
+          }
+        });
         Alert.alert("Giới hạn ảnh", isPremium ? `Tài khoản VIP chỉ có thể chọn tối đa 3 ảnh.` : `Tài khoản miễn phí chỉ được đăng tối đa 1 ảnh. Hãy nâng cấp VIP để đăng tới 3 ảnh!`);
       }
 
@@ -274,13 +303,26 @@ export function CreatePostScreen({ navigation, route }: any) {
 
   async function captureImage() {
     if (images.length >= maxImagesLimit) {
+      analytics.track("create_post_image_limit_hit", {
+        screen: "Create",
+        value: maxImagesLimit,
+        properties: { source: "camera", isPremium }
+      });
       Alert.alert("Đã đủ ảnh", isPremium ? `Bài đăng tối đa 3 ảnh cho tài khoản VIP.` : `Tài khoản miễn phí chỉ được đăng 1 ảnh mỗi bài viết. Hãy nâng cấp VIP để đăng tới 3 ảnh!`);
       return;
     }
 
+    analytics.track("create_post_photo_picker_opened", {
+      screen: "Create",
+      properties: { source: "camera" }
+    });
     const uri = await pickSingleImage("camera");
 
     if (uri) {
+      analytics.track("create_post_photo_selected", {
+        screen: "Create",
+        properties: { source: "camera" }
+      });
       // Prioritize recently captured image: prepend to the local gallery list
       setLocalGalleryImages((current) => [uri, ...current]);
       appendImages([uri]);
@@ -289,6 +331,7 @@ export function CreatePostScreen({ navigation, route }: any) {
 
   async function chooseFromLibrary() {
     if (!isPremium) {
+      analytics.track("create_post_library_blocked", { screen: "Create" });
       Alert.alert("Chỉ dành cho VIP", "Tài khoản free chỉ có thể chụp ảnh bằng camera.");
       return;
     }
@@ -298,12 +341,24 @@ export function CreatePostScreen({ navigation, route }: any) {
       return;
     }
 
+    analytics.track("create_post_photo_picker_opened", {
+      screen: "Create",
+      properties: { source: "library" }
+    });
     const uris = await pickMultipleImages(maxImagesLimit - images.length);
+    if (uris.length > 0) {
+      analytics.track("create_post_photo_selected", {
+        screen: "Create",
+        value: uris.length,
+        properties: { source: "library" }
+      });
+    }
     appendImages(uris);
   }
 
   async function handleUploadCustomSticker() {
     if (!isPremium) {
+      analytics.track("create_post_custom_sticker_blocked", { screen: "Create" });
       Alert.alert("Chỉ dành cho VIP", "Tính năng tự tải nhãn dán chỉ dành cho tài khoản VIP.");
       return;
     }
@@ -311,6 +366,7 @@ export function CreatePostScreen({ navigation, route }: any) {
     const uri = await pickSingleImage("library");
     if (uri) {
       setLoading(true);
+      analytics.track("create_post_custom_sticker_upload_started", { screen: "Create" });
       try {
         const uploadResult = await api.uploadImage(token!, uri, "sticker");
         const assetUrl = uploadResult.upload.url;
@@ -325,7 +381,18 @@ export function CreatePostScreen({ navigation, route }: any) {
         const newSticker = stickerResult.sticker;
         setCustomStickers((current) => [newSticker, ...current]);
         setSelectedSticker(newSticker._id);
+        analytics.track("create_post_custom_sticker_upload_succeeded", {
+          screen: "Create",
+          entityType: "sticker",
+          entityId: newSticker._id
+        });
       } catch (err) {
+        analytics.track("create_post_custom_sticker_upload_failed", {
+          screen: "Create",
+          properties: {
+            message: err instanceof Error ? err.message : "unknown"
+          }
+        });
         const msg = err instanceof Error ? err.message : "Thử lại sau";
         setError(msg);
         Alert.alert("Không thể tải lên nhãn dán", msg);
@@ -390,12 +457,21 @@ export function CreatePostScreen({ navigation, route }: any) {
 
   async function analyzeImages() {
     if (!token || !images.length) {
+      analytics.track("create_post_analysis_blocked", {
+        screen: "Create",
+        properties: { reason: "missing_image" }
+      });
       setError("Chụp hoặc chọn một ảnh món ăn trước.");
       Alert.alert("Chưa có ảnh", "Chụp hoặc chọn một ảnh món ăn trước.");
       return;
     }
     setError(null);
     setLoading(true);
+    const startedAt = Date.now();
+    analytics.track("create_post_analysis_started", {
+      screen: "Create",
+      value: images.length
+    });
     const analyzedDetails: NutritionDetail[] = [];
     try {
       for (let index = 0; index < images.length; index += 1) {
@@ -412,7 +488,19 @@ export function CreatePostScreen({ navigation, route }: any) {
           mealToNutritionDetail(result.meal, index)
         ]);
       }
+      analytics.track("create_post_analysis_succeeded", {
+        screen: "Create",
+        value: analyzedDetails.length,
+        durationMs: Date.now() - startedAt
+      });
     } catch (err) {
+      analytics.track("create_post_analysis_failed", {
+        screen: "Create",
+        durationMs: Date.now() - startedAt,
+        properties: {
+          message: err instanceof Error ? err.message : "unknown"
+        }
+      });
       const msg = err instanceof Error ? err.message : "Thử lại sau";
       setError(msg);
       Alert.alert("Không thể tính calo", msg);
@@ -429,17 +517,35 @@ export function CreatePostScreen({ navigation, route }: any) {
 
   async function publish() {
     if (!token || !images.length) {
+      analytics.track("create_post_publish_blocked", {
+        screen: "Create",
+        properties: { reason: "missing_image" }
+      });
       setError("Bài viết cần ít nhất một ảnh.");
       Alert.alert("Thiếu ảnh", "Bài viết cần ít nhất một ảnh.");
       return;
     }
     if (!isPremium && user?.counts?.posts !== undefined && user.counts.posts >= 6) {
+      analytics.track("create_post_publish_blocked", {
+        screen: "Create",
+        properties: { reason: "free_post_limit" }
+      });
       setError("Tài khoản miễn phí chỉ được đăng tối đa 6 bài viết. Hãy nâng cấp VIP để đăng bài không giới hạn!");
       Alert.alert("Đạt giới hạn bài đăng", "Tài khoản miễn phí chỉ được đăng tối đa 6 bài viết. Hãy nâng cấp VIP để đăng bài không giới hạn!");
       return;
     }
     setError(null);
     setLoading(true);
+    const startedAt = Date.now();
+    analytics.track("create_post_publish_started", {
+      screen: "Create",
+      value: images.length,
+      properties: {
+        visibility,
+        includeRecipe,
+        hasNutrition: nutritionDetails.some((detail) => detail.items.length > 0)
+      }
+    });
     try {
       const uploads: Upload[] = [];
       for (const uri of images) {
@@ -494,9 +600,25 @@ export function CreatePostScreen({ navigation, route }: any) {
         recipes,
         visibility
       });
+      analytics.track("create_post_publish_succeeded", {
+        screen: "Create",
+        durationMs: Date.now() - startedAt,
+        value: uploads.length,
+        properties: {
+          visibility,
+          recipeCount: recipes.length
+        }
+      });
       resetDraft();
       navigation.goBack();
     } catch (err) {
+      analytics.track("create_post_publish_failed", {
+        screen: "Create",
+        durationMs: Date.now() - startedAt,
+        properties: {
+          message: err instanceof Error ? err.message : "unknown"
+        }
+      });
       const msg = err instanceof Error ? err.message : "Thử lại sau";
       setError(msg);
       Alert.alert("Không thể đăng bài", msg);

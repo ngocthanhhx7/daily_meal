@@ -10,6 +10,7 @@ import { NutritionCard } from "../components/NutritionCard";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
 import { demoMeals } from "../data/sample";
+import { analytics } from "../services/analytics";
 import { colors } from "../theme/colors";
 import type { Meal } from "../types/api";
 import { getPendingPickedImageUri, pickSingleImage } from "../utils/imagePicker";
@@ -30,9 +31,17 @@ export function MealsScreen({ navigation }: any) {
   }, [token]);
 
   async function pick(camera = false) {
+    analytics.track("meal_analysis_photo_picker_opened", {
+      screen: "Meals",
+      properties: { source: camera ? "camera" : "library" }
+    });
     const uri = await pickSingleImage(camera ? "camera" : "library");
 
     if (uri) {
+      analytics.track("meal_analysis_photo_selected", {
+        screen: "Meals",
+        properties: { source: camera ? "camera" : "library" }
+      });
       setSelectedUri(uri);
     }
   }
@@ -55,10 +64,19 @@ export function MealsScreen({ navigation }: any) {
 
   async function analyze() {
     if (!token || !selectedUri) {
+      analytics.track("meal_analysis_blocked", {
+        screen: "Meals",
+        properties: { reason: !token ? "missing_token" : "missing_image" }
+      });
       Alert.alert("Chưa có ảnh", "Chụp hoặc chọn ảnh món ăn trước.");
       return;
     }
     setLoading(true);
+    const startedAt = Date.now();
+    analytics.track("meal_analysis_started", {
+      screen: "Meals",
+      properties: { hasHints: Boolean(aiHints.trim()) }
+    });
     try {
       const upload = await api.uploadImage(token, selectedUri, "meal");
       const ingredientsText = aiHints.trim();
@@ -70,7 +88,20 @@ export function MealsScreen({ navigation }: any) {
       setMeals((current) => [result.meal, ...current]);
       setSelectedUri(undefined);
       setAiHints("");
+      analytics.track("meal_analysis_succeeded", {
+        screen: "Meals",
+        entityType: "meal",
+        entityId: result.meal._id,
+        durationMs: Date.now() - startedAt
+      });
     } catch (error) {
+      analytics.track("meal_analysis_failed", {
+        screen: "Meals",
+        durationMs: Date.now() - startedAt,
+        properties: {
+          message: error instanceof Error ? error.message : "unknown"
+        }
+      });
       Alert.alert("Không thể tính calo", error instanceof Error ? error.message : "Thử lại sau");
     } finally {
       setLoading(false);
@@ -143,7 +174,14 @@ export function MealsScreen({ navigation }: any) {
           <Pressable
             key={meal._id}
             style={styles.mealCard}
-            onPress={() => navigation.navigate("Create", { meal })}
+            onPress={() => {
+              analytics.track("meal_to_create_post_click", {
+                screen: "Meals",
+                entityType: "meal",
+                entityId: meal._id
+              });
+              navigation.navigate("Create", { meal });
+            }}
           >
             <View style={styles.mealHeader}>
               {/* numberOfLines ngăn tên dài vỡ layout */}

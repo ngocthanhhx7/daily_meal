@@ -6,6 +6,7 @@ import path from "node:path";
 import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { adminRouter } from "./routes/admin.js";
+import { analyticsRouter } from "./routes/analytics.js";
 import { authRouter } from "./routes/auth.js";
 import { mealsRouter } from "./routes/meals.js";
 import { messagesRouter } from "./routes/messages.js";
@@ -37,6 +38,7 @@ export function createApp() {
   });
 
   app.use("/api/auth", authRouter);
+  app.use("/api/analytics", analyticsRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/messages", messagesRouter);
   app.use("/api/users", usersRouter);

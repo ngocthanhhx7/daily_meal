@@ -26,6 +26,7 @@ import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { useNotifications } from "../context/NotificationContext";
 import { demoPosts } from "../data/sample";
+import { analytics, createEventThrottle } from "../services/analytics";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post, PostLayout } from "../types/api";
@@ -117,9 +118,13 @@ export function HomeScreen({ navigation, route }: any) {
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const postsRef = useRef<Post[]>(posts);
   const flatRef = useRef<FlatList>(null);
   const isInitialMount = useRef(true);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
+  const impressedPostIds = useRef<Set<string>>(new Set());
+  const maxScrollDepthBucket = useRef(0);
+  const scrollDepthThrottle = useRef(createEventThrottle(1500)).current;
 
   // Animation refs
   const heartScale = useRef(new Animated.Value(1)).current;
@@ -136,6 +141,10 @@ export function HomeScreen({ navigation, route }: any) {
       Animated.spring(saveScale, { toValue: 1, friction: 3, tension: 200, useNativeDriver: true })
     ]).start();
   }
+
+  useEffect(() => {
+    postsRef.current = posts;
+  }, [posts]);
 
   // Real-time feed interaction updates
   useEffect(() => {
@@ -281,9 +290,49 @@ export function HomeScreen({ navigation, route }: any) {
   }, [listHeight, route?.params?.postId, posts, navigation]);
 
   const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const currentPosts = postsRef.current;
     const first = viewableItems[0];
-    if (first?.index != null) setCurrentIndex(first.index);
-  }, []);
+    if (first?.index != null) {
+      setCurrentIndex(first.index);
+
+      if (currentPosts.length > 0) {
+        const depth = Math.round(((first.index + 1) / currentPosts.length) * 100);
+        const bucket = Math.min(100, Math.max(25, Math.ceil(depth / 25) * 25));
+
+        if (bucket > maxScrollDepthBucket.current && scrollDepthThrottle.shouldTrack("home_feed")) {
+          maxScrollDepthBucket.current = bucket;
+          analytics.track("feed_scroll_depth", {
+            screen: "Home",
+            value: bucket,
+            properties: {
+              index: first.index,
+              totalPosts: currentPosts.length
+            }
+          });
+        }
+      }
+    }
+
+    viewableItems.forEach((item) => {
+      const post = item.item as Post | undefined;
+      if (!post || impressedPostIds.current.has(post._id)) {
+        return;
+      }
+
+      impressedPostIds.current.add(post._id);
+      analytics.track("feed_impression", {
+        screen: "Home",
+        entityType: "post",
+        entityId: post._id,
+        entityOwnerId: post.author?.id,
+        properties: {
+          index: item.index,
+          imageCount: post.images.length,
+          isDemo: post._id.startsWith("demo")
+        }
+      });
+    });
+  }, [scrollDepthThrottle]);
 
   const currentPost = posts[currentIndex];
   const isLiked = currentPost ? likedSet.has(currentPost._id) : false;
@@ -380,6 +429,12 @@ export function HomeScreen({ navigation, route }: any) {
 
   function handleComment() {
     if (!currentPost) return;
+    analytics.track("feed_comment_click", {
+      screen: "Home",
+      entityType: "post",
+      entityId: currentPost._id,
+      entityOwnerId: currentPost.author?.id
+    });
     navigation.navigate("Comments", { post: currentPost });
   }
 
@@ -391,13 +446,21 @@ export function HomeScreen({ navigation, route }: any) {
   );
 
   async function claimTrialOffer() {
+    analytics.track("premium_trial_accept", { screen: "Home" });
     try {
       setIsClaimingTrial(true);
       await claimPremiumTrial();
+      analytics.track("premium_trial_claimed", { screen: "Home" });
       setHideTrialMascot(true);
       setShowTrialOfferModal(false);
       Alert.alert("\u0110\u00e3 n\u00e2ng Premium!", "Premium mi\u1ec5n ph\u00ed 1 th\u00e1ng \u0111\u00e3 \u0111\u01b0\u1ee3c k\u00edch ho\u1ea1t cho b\u1ea1n.");
     } catch (error: any) {
+      analytics.track("premium_trial_failed", {
+        screen: "Home",
+        properties: {
+          message: error?.message ?? "unknown"
+        }
+      });
       Alert.alert("Ch\u01b0a nh\u1eadn \u0111\u01b0\u1ee3c qu\u00e0", error?.message || "Vui l\u00f2ng th\u1eed l\u1ea1i sau nh\u00e9.");
       await refreshUser();
     } finally {
@@ -411,9 +474,11 @@ export function HomeScreen({ navigation, route }: any) {
     }
 
     setShowTrialOfferModal(true);
+    analytics.track("premium_trial_offer_opened", { screen: "Home" });
   }
 
   function handleDeclineTrialOffer() {
+    analytics.track("premium_trial_declined", { screen: "Home" });
     setShowTrialOfferModal(false);
     setHideTrialMascot(true);
   }
@@ -426,7 +491,10 @@ export function HomeScreen({ navigation, route }: any) {
           <View style={styles.headerRight}>
             <Pressable
               style={styles.headerIconBtn}
-              onPress={() => navigation.navigate("Notifications")}
+              onPress={() => {
+                analytics.track("notification_click", { screen: "Home" });
+                navigation.navigate("Notifications");
+              }}
               hitSlop={8}
             >
               <Ionicons name="notifications" size={28} color={colors.black} />
@@ -438,7 +506,18 @@ export function HomeScreen({ navigation, route }: any) {
                 </View>
               )}
             </Pressable>
-            <Pressable style={styles.headerIconBtn} onPress={() => navigation.navigate("Profile")} hitSlop={8}>
+            <Pressable
+              style={styles.headerIconBtn}
+              onPress={() => {
+                analytics.track("profile_click", {
+                  screen: "Home",
+                  entityType: "user",
+                  entityId: user?.id
+                });
+                navigation.navigate("Profile");
+              }}
+              hitSlop={8}
+            >
               <Ionicons name="person" size={30} color={colors.black} />
             </Pressable>
           </View>
@@ -465,10 +544,46 @@ export function HomeScreen({ navigation, route }: any) {
                   index={index}
                   slideHeight={listHeight}
                   slideWidth={listWidth}
-                  onPress={() => setExpandedPost(item)}
-                  onNutritionPress={() => setNutritionPost(item)}
-                  onRecipePress={() => navigation.navigate("Recipe", { post: item })}
+                  onPress={() => {
+                    analytics.track("feed_detail_click", {
+                      screen: "Home",
+                      entityType: "post",
+                      entityId: item._id,
+                      entityOwnerId: item.author?.id,
+                      properties: { index }
+                    });
+                    setExpandedPost(item);
+                  }}
+                  onNutritionPress={() => {
+                    analytics.track("feed_nutrition_click", {
+                      screen: "Home",
+                      entityType: "post",
+                      entityId: item._id,
+                      entityOwnerId: item.author?.id,
+                      properties: { index }
+                    });
+                    setNutritionPost(item);
+                  }}
+                  onRecipePress={() => {
+                    analytics.track("feed_recipe_click", {
+                      screen: "Home",
+                      entityType: "post",
+                      entityId: item._id,
+                      entityOwnerId: item.author?.id,
+                      properties: { index }
+                    });
+                    navigation.navigate("Recipe", { post: item });
+                  }}
                   onAuthorPress={() => {
+                    analytics.track("profile_click", {
+                      screen: "Home",
+                      entityType: "user",
+                      entityId: item.author?.id,
+                      properties: {
+                        source: "feed_author",
+                        postId: item._id
+                      }
+                    });
                     if (!item._id.startsWith("demo") && item.author?.id) {
                       navigation.navigate("PublicProfile", { userId: item.author.id });
                     } else {
@@ -503,7 +618,14 @@ export function HomeScreen({ navigation, route }: any) {
 
         <FadeSlideIn delay={200} slideDistance={20} duration={500}>
           <View style={[styles.bottomBar, showDesktopFrame && styles.desktopBottomBar]}>
-            <BouncePress style={styles.squareBtn} onPress={() => setShowCategory(true)} hitSlop={6}>
+            <BouncePress
+              style={styles.squareBtn}
+              onPress={() => {
+                analytics.track("feed_category_menu_opened", { screen: "Home" });
+                setShowCategory(true);
+              }}
+              hitSlop={6}
+            >
               <CategoryIcon size={30} color={colors.black} />
             </BouncePress>
 
@@ -523,7 +645,17 @@ export function HomeScreen({ navigation, route }: any) {
               </Pressable>
             </View>
 
-            <BouncePress style={styles.squareBtn} onPress={() => navigation.navigate("Create")} hitSlop={6}>
+            <BouncePress
+              style={styles.squareBtn}
+              onPress={() => {
+                analytics.track("create_post_entry_click", {
+                  screen: "Home",
+                  properties: { source: "home_bottom_bar" }
+                });
+                navigation.navigate("Create");
+              }}
+              hitSlop={6}
+            >
               <CameraIcon size={30} color={colors.black} />
             </BouncePress>
           </View>
@@ -535,16 +667,41 @@ export function HomeScreen({ navigation, route }: any) {
           onRecipePress={() => {
             const post = expandedPost;
             setExpandedPost(null);
-            if (post) navigation.navigate("Recipe", { post });
+            if (post) {
+              analytics.track("detail_recipe_click", {
+                screen: "Home",
+                entityType: "post",
+                entityId: post._id,
+                entityOwnerId: post.author?.id
+              });
+              navigation.navigate("Recipe", { post });
+            }
           }}
           onCommentPress={() => {
             const post = expandedPost;
             setExpandedPost(null);
-            if (post) navigation.navigate("Comments", { post });
+            if (post) {
+              analytics.track("detail_comment_click", {
+                screen: "Home",
+                entityType: "post",
+                entityId: post._id,
+                entityOwnerId: post.author?.id
+              });
+              navigation.navigate("Comments", { post });
+            }
           }}
           onAuthorPress={() => {
             const post = expandedPost;
             setExpandedPost(null);
+            analytics.track("profile_click", {
+              screen: "Home",
+              entityType: "user",
+              entityId: post?.author?.id,
+              properties: {
+                source: "post_detail",
+                postId: post?._id
+              }
+            });
             if (post && !post._id.startsWith("demo") && post.author?.id) {
               navigation.navigate("PublicProfile", { userId: post.author.id });
             } else {
@@ -560,6 +717,10 @@ export function HomeScreen({ navigation, route }: any) {
           onClose={() => setShowCategory(false)}
           onNavigate={(screen) => {
             setShowCategory(false);
+            analytics.track("feed_category_nav_click", {
+              screen: "Home",
+              properties: { destination: screen }
+            });
             setTimeout(() => navigation.navigate(screen), 0);
           }}
         />
@@ -858,6 +1019,8 @@ function FeedArtwork({ post }: { post: Post }) {
   const layout = post.layout ?? "stack";
   const stickerSource = stickerImageSource(post.stickerId) ?? (post._id.startsWith("demo") ? DEMO_STICKER : null);
   const placement = post.stickerPlacement ?? { x: 0.78, y: 0.78, scale: 1, rotation: 0 };
+  const imageLoadStartedAt = useRef<Record<number, number>>({});
+  const reportedImageLoads = useRef<Set<number>>(new Set());
 
   return (
     <View style={styles.feedArtworkCanvas}>
@@ -886,7 +1049,46 @@ function FeedArtwork({ post }: { post: Post }) {
               }
             ]}
           >
-            <Image source={imageSource(post, index)} style={styles.feedImage} resizeMode="cover" />
+            <Image
+              source={imageSource(post, index)}
+              style={styles.feedImage}
+              resizeMode="cover"
+              onLoadStart={() => {
+                imageLoadStartedAt.current[index] = Date.now();
+              }}
+              onLoadEnd={() => {
+                if (reportedImageLoads.current.has(index)) {
+                  return;
+                }
+
+                reportedImageLoads.current.add(index);
+                analytics.track("image_load", {
+                  screen: "Home",
+                  entityType: "post_image",
+                  entityId: post.images[index]?.uploadId ?? `${post._id}:${index}`,
+                  entityOwnerId: post.author?.id,
+                  durationMs: Math.max(0, Date.now() - (imageLoadStartedAt.current[index] ?? Date.now())),
+                  properties: {
+                    postId: post._id,
+                    imageIndex: index,
+                    source: "feed"
+                  }
+                });
+              }}
+              onError={() => {
+                analytics.track("image_load_error", {
+                  screen: "Home",
+                  entityType: "post_image",
+                  entityId: post.images[index]?.uploadId ?? `${post._id}:${index}`,
+                  entityOwnerId: post.author?.id,
+                  properties: {
+                    postId: post._id,
+                    imageIndex: index,
+                    source: "feed"
+                  }
+                });
+              }}
+            />
           </View>
         );
       })}

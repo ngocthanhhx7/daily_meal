@@ -7,6 +7,7 @@ import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
+import { analytics } from "../services/analytics";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { PremiumPlan } from "../types/api";
@@ -89,6 +90,10 @@ export function PremiumBenefitsScreen({ navigation }: any) {
       return;
     }
 
+    analytics.track(paymentResult === "success" ? "premium_payment_return_success" : "premium_payment_return_cancel", {
+      screen: "PremiumBenefits",
+      properties: { result: paymentResult }
+    });
     setCheckingReturn(true);
     refreshUser()
       .then(() => {
@@ -108,16 +113,29 @@ export function PremiumBenefitsScreen({ navigation }: any) {
 
   async function handleUpgrade() {
     if (isPremium) {
+      analytics.track("premium_checkout_blocked", {
+        screen: "PremiumBenefits",
+        properties: { reason: "already_premium", planId: selectedPlan }
+      });
       Alert.alert("Daily Premium", "Tài khoản của bạn đã có quyền lợi Premium.");
       return;
     }
 
     if (!token) {
+      analytics.track("premium_checkout_blocked", {
+        screen: "PremiumBenefits",
+        properties: { reason: "missing_token", planId: selectedPlan }
+      });
       Alert.alert("Cần đăng nhập", "Vui lòng đăng nhập lại trước khi thanh toán.");
       return;
     }
 
     setLoading(true);
+    const startedAt = Date.now();
+    analytics.track("premium_checkout_started", {
+      screen: "PremiumBenefits",
+      properties: { planId: selectedPlan }
+    });
     try {
       const payment = await api.createPayosPremiumPayment(token, { planId: selectedPlan });
 
@@ -125,12 +143,40 @@ export function PremiumBenefitsScreen({ navigation }: any) {
         throw new Error("PayOS chưa trả về link thanh toán.");
       }
 
+      analytics.track("premium_checkout_created", {
+        screen: "PremiumBenefits",
+        entityType: "payment",
+        entityId: payment.id,
+        value: payment.amount,
+        durationMs: Date.now() - startedAt,
+        properties: {
+          planId: payment.planId,
+          orderCode: payment.orderCode
+        }
+      });
+
       if (Platform.OS === "web" && typeof window !== "undefined") {
+        analytics.track("premium_payment_redirect", {
+          screen: "PremiumBenefits",
+          entityType: "payment",
+          entityId: payment.id,
+          properties: { planId: payment.planId, platform: "web" }
+        });
+        void analytics.flushNow();
         window.location.href = payment.checkoutUrl;
         return;
       }
 
       const result = await WebBrowser.openBrowserAsync(payment.checkoutUrl);
+      analytics.track("premium_payment_browser_closed", {
+        screen: "PremiumBenefits",
+        entityType: "payment",
+        entityId: payment.id,
+        properties: {
+          planId: payment.planId,
+          resultType: result.type
+        }
+      });
       await refreshUser();
 
       Alert.alert(
@@ -138,6 +184,14 @@ export function PremiumBenefitsScreen({ navigation }: any) {
         "Nếu bạn đã thanh toán thành công, Daily Premium sẽ được kích hoạt sau khi PayOS gửi xác nhận về server. Bạn có thể mở lại màn này để làm mới trạng thái."
       );
     } catch (error) {
+      analytics.track("premium_checkout_failed", {
+        screen: "PremiumBenefits",
+        durationMs: Date.now() - startedAt,
+        properties: {
+          planId: selectedPlan,
+          message: error instanceof Error ? error.message : "unknown"
+        }
+      });
       Alert.alert("Không thể tạo thanh toán", error instanceof Error ? error.message : "Vui lòng thử lại sau.");
     } finally {
       setLoading(false);
@@ -214,7 +268,16 @@ export function PremiumBenefitsScreen({ navigation }: any) {
                 <Pressable
                   key={plan.id}
                   style={[styles.planCard, active && styles.planCardActive]}
-                  onPress={() => setSelectedPlan(plan.id)}
+                  onPress={() => {
+                    analytics.track("premium_plan_selected", {
+                      screen: "PremiumBenefits",
+                      properties: {
+                        planId: plan.id,
+                        price: plan.price
+                      }
+                    });
+                    setSelectedPlan(plan.id);
+                  }}
                 >
                   <View style={styles.planHeader}>
                     <AppText style={[styles.planName, active && styles.planTextActive]}>

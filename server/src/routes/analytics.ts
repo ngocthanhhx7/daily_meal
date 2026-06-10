@@ -1,0 +1,311 @@
+import { Router } from "express";
+import jwt from "jsonwebtoken";
+import { Types } from "mongoose";
+import { z } from "zod";
+import { env } from "../config/env.js";
+import { HttpError } from "../middleware/error.js";
+import { AnalyticsEvent } from "../models/AnalyticsEvent.js";
+import { User } from "../models/User.js";
+
+export const analyticsRouter = Router();
+
+const eventNameSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(80)
+  .regex(/^[a-z][a-z0-9_.:-]*$/, "Event names must be stable lowercase identifiers.");
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([z.string(), z.number().finite(), z.boolean(), z.null(), z.array(jsonValueSchema), z.record(jsonValueSchema)])
+);
+
+const propertiesSchema = z
+  .record(jsonValueSchema)
+  .default({})
+  .refine((value) => JSON.stringify(value).length <= 8192, "Event properties must be 8KB or smaller.");
+
+const eventSchema = z.object({
+  name: eventNameSchema,
+  occurredAt: z.coerce.date().optional(),
+  sessionId: z.string().trim().min(1).max(128),
+  anonymousId: z.string().trim().min(1).max(128).optional(),
+  source: z.enum(["client", "server", "system"]).default("client"),
+  platform: z.string().trim().min(1).max(40).optional(),
+  appVersion: z.string().trim().min(1).max(40).optional(),
+  screen: z.string().trim().min(1).max(80).optional(),
+  targetType: z.string().trim().min(1).max(80).optional(),
+  targetId: z.string().trim().min(1).max(160).optional(),
+  value: z.number().finite().optional(),
+  properties: propertiesSchema
+});
+
+const ingestSchema = z.object({
+  events: z.array(eventSchema).min(1).max(100)
+});
+
+const summaryQuerySchema = z.object({
+  start: z.coerce.date().optional(),
+  end: z.coerce.date().optional()
+});
+
+type JwtPayload = {
+  sub: string;
+};
+
+type SummaryOptions = {
+  start?: Date;
+  end?: Date;
+};
+
+function defaultSummaryRange() {
+  const end = new Date();
+  const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
+function rate(numerator: number, denominator: number) {
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
+function numberProperty(properties: unknown, keys: string[]) {
+  if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
+    return undefined;
+  }
+
+  const record = properties as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+async function authenticatedUserId(authorizationHeader: string | undefined) {
+  const token = authorizationHeader?.startsWith("Bearer ") ? authorizationHeader.slice(7) : undefined;
+
+  if (!token) {
+    return undefined;
+  }
+
+  try {
+    const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+    const user = await User.findById(payload.sub).select("_id").lean();
+
+    if (!user) {
+      throw new HttpError(401, "Invalid analytics session");
+    }
+
+    return user._id.toString();
+  } catch (error) {
+    if (error instanceof HttpError) {
+      throw error;
+    }
+
+    throw new HttpError(401, "Invalid analytics session");
+  }
+}
+
+export async function buildAnalyticsSummary(options: SummaryOptions = {}) {
+  const defaults = defaultSummaryRange();
+  const end = options.end ?? defaults.end;
+  const start = options.start ?? defaults.start;
+
+  if (start >= end) {
+    throw new HttpError(400, "Summary start must be before end.");
+  }
+
+  const baseFilter = { occurredAt: { $gte: start, $lt: end } };
+  const oneDayStart = new Date(Math.max(start.getTime(), end.getTime() - 24 * 60 * 60 * 1000));
+  const oneWeekStart = new Date(Math.max(start.getTime(), end.getTime() - 7 * 24 * 60 * 60 * 1000));
+  const oneMonthStart = new Date(Math.max(start.getTime(), end.getTime() - 30 * 24 * 60 * 60 * 1000));
+
+  const countByName = (name: string) => AnalyticsEvent.countDocuments({ ...baseFilter, name });
+  const distinctSubjects = (from: Date) =>
+    AnalyticsEvent.distinct("subjectKey", { occurredAt: { $gte: from, $lt: end } });
+
+  const [
+    dauSubjects,
+    wauSubjects,
+    mauSubjects,
+    activeSubjects,
+    feedImpressions,
+    feedClicks,
+    creatorStarted,
+    creatorCompleted,
+    postCreateStarted,
+    postCreateCompleted,
+    mealAnalysisStarted,
+    mealAnalysisCompleted,
+    premiumViewed,
+    premiumCheckoutStarted,
+    paymentStarted,
+    paymentCompleted,
+    paymentFailed,
+    earlyExitEvents,
+    sessionGroups,
+    scrollEvents
+  ] = await Promise.all([
+    distinctSubjects(oneDayStart),
+    distinctSubjects(oneWeekStart),
+    distinctSubjects(oneMonthStart),
+    AnalyticsEvent.distinct("subjectKey", baseFilter),
+    countByName("feed_impression"),
+    countByName("feed_click"),
+    countByName("creator_signup_started"),
+    countByName("creator_signup_completed"),
+    countByName("post_create_started"),
+    countByName("post_create_completed"),
+    countByName("meal_analysis_started"),
+    countByName("meal_analysis_completed"),
+    countByName("premium_viewed"),
+    countByName("premium_checkout_started"),
+    countByName("payment_started"),
+    countByName("payment_completed"),
+    countByName("payment_failed"),
+    countByName("early_exit"),
+    AnalyticsEvent.aggregate<{
+      _id: string;
+      startedAt: Date;
+      endedAt: Date;
+      eventCount: number;
+      explicitDurationMs?: number;
+    }>([
+      { $match: baseFilter },
+      {
+        $group: {
+          _id: "$sessionId",
+          startedAt: { $min: "$occurredAt" },
+          endedAt: { $max: "$occurredAt" },
+          eventCount: { $sum: 1 },
+          explicitDurationMs: {
+            $max: {
+              $cond: [{ $eq: ["$name", "session_end"] }, "$properties.durationMs", null]
+            }
+          }
+        }
+      }
+    ]),
+    AnalyticsEvent.find({ ...baseFilter, name: "scroll_depth" }).select("properties").lean()
+  ]);
+
+  const returningSubjects =
+    activeSubjects.length > 0
+      ? await AnalyticsEvent.distinct("subjectKey", {
+          subjectKey: { $in: activeSubjects },
+          occurredAt: { $lt: start }
+        })
+      : [];
+
+  const sessionDurations = sessionGroups.map((session) => {
+    if (typeof session.explicitDurationMs === "number" && Number.isFinite(session.explicitDurationMs)) {
+      return Math.max(0, session.explicitDurationMs);
+    }
+
+    return Math.max(0, session.endedAt.getTime() - session.startedAt.getTime());
+  });
+  const sessions = sessionGroups.length;
+  const averageSessionDurationMs =
+    sessionDurations.length > 0
+      ? sessionDurations.reduce((total, duration) => total + duration, 0) / sessionDurations.length
+      : 0;
+  const bounces = sessionGroups.filter((session) => session.eventCount <= 1).length;
+  const durationEarlyExits = sessionDurations.filter((duration, index) => {
+    const session = sessionGroups[index];
+    return !!session && session.eventCount > 1 && duration > 0 && duration < 10_000;
+  }).length;
+  const earlyExits = Math.max(earlyExitEvents, durationEarlyExits);
+
+  const scrollDepths = scrollEvents
+    .map((event) => numberProperty(event.properties, ["scrollDepthPercent", "scrollDepth"]))
+    .filter((value): value is number => value !== undefined);
+  const averageScrollDepth =
+    scrollDepths.length > 0 ? scrollDepths.reduce((total, value) => total + value, 0) / scrollDepths.length : 0;
+  const maxScrollDepth = scrollDepths.length > 0 ? Math.max(...scrollDepths) : 0;
+
+  return {
+    range: { start: start.toISOString(), end: end.toISOString() },
+    activeUsers: {
+      dau: dauSubjects.length,
+      wau: wauSubjects.length,
+      mau: mauSubjects.length,
+      returning: returningSubjects.length
+    },
+    sessions: {
+      total: sessions,
+      averageDurationMs: averageSessionDurationMs,
+      bounces,
+      bounceRate: rate(bounces, sessions),
+      earlyExits,
+      earlyExitRate: rate(earlyExits, sessions)
+    },
+    feed: {
+      impressions: feedImpressions,
+      clicks: feedClicks,
+      ctr: rate(feedClicks, feedImpressions),
+      averageScrollDepth,
+      maxScrollDepth
+    },
+    creatorConversion: {
+      started: creatorStarted,
+      completed: creatorCompleted,
+      rate: rate(creatorCompleted, creatorStarted)
+    },
+    postCreation: {
+      started: postCreateStarted,
+      completed: postCreateCompleted,
+      completionRate: rate(postCreateCompleted, postCreateStarted)
+    },
+    mealAnalysis: {
+      started: mealAnalysisStarted,
+      completed: mealAnalysisCompleted,
+      completionRate: rate(mealAnalysisCompleted, mealAnalysisStarted)
+    },
+    premiumFunnel: {
+      viewed: premiumViewed,
+      checkoutStarted: premiumCheckoutStarted,
+      paymentStarted,
+      paymentCompleted,
+      paymentFailed,
+      checkoutStartRate: rate(premiumCheckoutStarted, premiumViewed),
+      paymentCompletionRate: rate(paymentCompleted, paymentStarted)
+    }
+  };
+}
+
+analyticsRouter.post("/events", async (req, res, next) => {
+  try {
+    const userId = await authenticatedUserId(req.header("authorization"));
+    const body = ingestSchema.parse(req.body);
+    const now = new Date();
+
+    const documents = body.events.map((event) => {
+      if (!userId && !event.anonymousId) {
+        throw new HttpError(400, "anonymousId is required for signed-out analytics events.");
+      }
+
+      return {
+        ...event,
+        occurredAt: event.occurredAt ?? now,
+        receivedAt: now,
+        user: userId ? new Types.ObjectId(userId) : undefined,
+        subjectKey: userId ? `user:${userId}` : `anon:${event.anonymousId}`
+      };
+    });
+
+    await AnalyticsEvent.insertMany(documents, { ordered: true });
+
+    res.status(202).json({ accepted: documents.length });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export function parseAnalyticsSummaryQuery(query: unknown) {
+  return summaryQuerySchema.parse(query);
+}

@@ -12,7 +12,10 @@
     "dev:server": "npm --workspace server run dev",
     "build": "npm --workspace server run build",
     "typecheck": "npm --workspace server run typecheck && npm --workspace client run typecheck",
-    "test": "npm --workspace server run test"
+    "test": "npm --workspace server run test",
+    "measurement:scan": "node scripts/scan-mojibake.mjs",
+    "measurement:test": "node scripts/test-mojibake-scanner.mjs",
+    "measurement:report": "node scripts/generate-measurement-report.mjs"
   },
   "engines": {
     "node": ">=20"

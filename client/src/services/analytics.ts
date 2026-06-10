@@ -8,6 +8,16 @@ type StorageLike = {
   setItem: (key: string, value: string) => void;
 };
 
+type GoogleAnalyticsValue = string | number | boolean;
+type GoogleAnalyticsParams = Record<string, GoogleAnalyticsValue>;
+
+declare global {
+  interface Window {
+    dataLayer?: unknown[];
+    gtag?: (command: string, eventName: string | Date, params?: GoogleAnalyticsParams) => void;
+  }
+}
+
 export type AnalyticsEntityFields = {
   entityType?: string;
   entityId?: string;
@@ -73,6 +83,7 @@ const ANONYMOUS_ID_KEY = "daily_meal_anonymous_id";
 const DEFAULT_BATCH_SIZE = 20;
 const DEFAULT_FLUSH_INTERVAL_MS = 2500;
 const DEFAULT_MAX_QUEUE_SIZE = 200;
+const GOOGLE_ANALYTICS_MAX_STRING_LENGTH = 100;
 
 const EVENT_NAME_ALIASES: Record<string, string> = {
   feed_scroll_depth: "scroll_depth",
@@ -96,6 +107,23 @@ const EVENT_NAME_ALIASES: Record<string, string> = {
   meal_analysis_succeeded: "meal_analysis_completed",
   meal_analysis_failed: "meal_analysis_failed"
 };
+
+const GOOGLE_ANALYTICS_EVENT_NAMES = new Set([
+  "meal_analysis_started",
+  "meal_analysis_completed",
+  "meal_analysis_failed",
+  "post_create_started",
+  "post_create_completed",
+  "premium_viewed",
+  "payment_started",
+  "payment_completed",
+  "payment_failed",
+  "feed_click",
+  "scroll_depth"
+]);
+
+const GOOGLE_ANALYTICS_SENSITIVE_PARAM_PATTERN =
+  /(auth|authorization|avatar|content|email|id|image|message|password|photo|secret|stack|text|token|user)/i;
 
 function randomId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
@@ -192,6 +220,156 @@ function toTransportEvent(event: AnalyticsEvent): AnalyticsTransportEvent {
   };
 }
 
+function googleAnalyticsParamName(key: string) {
+  const normalized = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, 40);
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  return /^[a-z]/.test(normalized) ? normalized : `param_${normalized}`;
+}
+
+function googleAnalyticsValue(value: unknown): GoogleAnalyticsValue | undefined {
+  if (typeof value === "string") {
+    return value.slice(0, GOOGLE_ANALYTICS_MAX_STRING_LENGTH);
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  return undefined;
+}
+
+function googleAnalyticsReferrer(referrer?: string) {
+  if (!referrer) {
+    return undefined;
+  }
+
+  try {
+    const baseUrl =
+      typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://dailymeal.local";
+    const url = new URL(referrer, baseUrl);
+
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      return `${url.origin}${url.pathname}`;
+    }
+  } catch {
+    // Fall back to route-name style referrers below.
+  }
+
+  if (/[?&#=]/.test(referrer)) {
+    return undefined;
+  }
+
+  return referrer;
+}
+
+function setGoogleAnalyticsParam(params: GoogleAnalyticsParams, key: string, value: unknown) {
+  const normalizedKey = googleAnalyticsParamName(key);
+  const normalizedValue = googleAnalyticsValue(value);
+
+  if (
+    !normalizedKey ||
+    normalizedValue === undefined ||
+    GOOGLE_ANALYTICS_SENSITIVE_PARAM_PATTERN.test(key) ||
+    GOOGLE_ANALYTICS_SENSITIVE_PARAM_PATTERN.test(normalizedKey)
+  ) {
+    return;
+  }
+
+  params[normalizedKey] = normalizedValue;
+}
+
+function googleAnalyticsPagePath(screen?: string) {
+  if (!screen) {
+    return typeof window !== "undefined" ? window.location.pathname || "/" : "/";
+  }
+
+  return `/${screen.replace(/[^a-zA-Z0-9_-]+/g, "-")}`;
+}
+
+function addGoogleAnalyticsCommonParams(params: GoogleAnalyticsParams, event: AnalyticsEvent) {
+  setGoogleAnalyticsParam(params, "screen_name", event.screen);
+  setGoogleAnalyticsParam(params, "value", event.value);
+  setGoogleAnalyticsParam(params, "duration_ms", event.durationMs);
+  setGoogleAnalyticsParam(params, "target_type", event.entityType);
+  setGoogleAnalyticsParam(params, "referrer", googleAnalyticsReferrer(event.referrer));
+
+  if (event.utm) {
+    for (const [key, value] of Object.entries(event.utm)) {
+      setGoogleAnalyticsParam(params, key, value);
+    }
+  }
+}
+
+function addGoogleAnalyticsSafeProperties(params: GoogleAnalyticsParams, properties?: Record<string, unknown>) {
+  if (!properties) {
+    return;
+  }
+
+  for (const [key, value] of Object.entries(properties)) {
+    setGoogleAnalyticsParam(params, key, value);
+  }
+}
+
+function trackGoogleAnalyticsEvent(event: AnalyticsEvent) {
+  if (Platform.OS !== "web" || typeof window === "undefined" || typeof window.gtag !== "function") {
+    return;
+  }
+
+  try {
+    if (event.eventName === "screen_view") {
+      const pagePath = googleAnalyticsPagePath(event.screen);
+      const pageLocation = window.location.origin ? `${window.location.origin}${pagePath}` : pagePath;
+      const pageTitle = event.screen
+        ? `Daily Meal - ${event.screen}`
+        : typeof document !== "undefined"
+          ? document.title
+          : "Daily Meal";
+      const params: GoogleAnalyticsParams = {};
+
+      setGoogleAnalyticsParam(params, "screen_name", event.screen);
+      setGoogleAnalyticsParam(params, "page_title", pageTitle);
+      setGoogleAnalyticsParam(params, "page_path", pagePath);
+      setGoogleAnalyticsParam(params, "page_location", pageLocation);
+      setGoogleAnalyticsParam(params, "referrer", googleAnalyticsReferrer(event.referrer));
+
+      window.gtag("event", "screen_view", params);
+      return;
+    }
+
+    const googleAnalyticsEventName = transportName(event.eventName);
+    if (!GOOGLE_ANALYTICS_EVENT_NAMES.has(googleAnalyticsEventName)) {
+      return;
+    }
+
+    const params: GoogleAnalyticsParams = {};
+    addGoogleAnalyticsCommonParams(params, event);
+    addGoogleAnalyticsSafeProperties(params, event.properties);
+    setGoogleAnalyticsParam(params, "original_event_name", event.eventName);
+
+    if (event.eventName === "feed_scroll_depth") {
+      setGoogleAnalyticsParam(params, "scroll_depth_percent", event.value);
+    }
+
+    window.gtag("event", googleAnalyticsEventName, params);
+  } catch {
+    // Google Analytics should never interfere with the app's internal analytics pipeline.
+  }
+}
+
 export function createEventThrottle(windowMs: number, now: () => number = () => Date.now()) {
   const lastByKey = new Map<string, number>();
 
@@ -279,6 +457,7 @@ export function createAnalyticsClient(options: AnalyticsClientOptions) {
 
   function track(eventName: string, input: AnalyticsEventInput = {}) {
     const event = shapeEvent(eventName, input);
+    trackGoogleAnalyticsEvent(event);
 
     if (queue.length >= maxQueueSize) {
       queue.shift();

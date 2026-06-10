@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => ({
   Platform: { OS: "web" }
@@ -9,6 +9,25 @@ vi.mock("../api/client", () => ({
 }));
 
 import { createAnalyticsClient, createEventThrottle } from "./analytics";
+
+function stubWebRuntime(gtag?: ReturnType<typeof vi.fn>) {
+  vi.stubGlobal("window", {
+    gtag,
+    location: {
+      origin: "https://daily.test",
+      pathname: "/",
+      search: ""
+    }
+  });
+  vi.stubGlobal("document", {
+    referrer: "https://referrer.test/",
+    title: "Daily Meal"
+  });
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("analytics client", () => {
   it("serializes events for the backend analytics contract", async () => {
@@ -82,6 +101,100 @@ describe("analytics client", () => {
 
     await expect(client.flushNow()).resolves.toBeUndefined();
     expect(client.getQueueLength()).toBe(1);
+  });
+
+  it("sends screen views and allowed key events to Google Analytics on web", () => {
+    const gtag = vi.fn();
+    stubWebRuntime(gtag);
+    const client = createAnalyticsClient({
+      baseUrl: "https://api.test",
+      fetcher: vi.fn(async () => ({ ok: true })),
+      now: () => Date.parse("2026-06-10T12:00:00.000Z"),
+      storage: null,
+      flushIntervalMs: 60_000
+    });
+
+    client.track("screen_view", { screen: "Home", referrer: "Login" });
+    client.track("meal_analysis_succeeded", {
+      screen: "Create",
+      value: 450,
+      durationMs: 1234,
+      referrer: "https://source.test/campaign?token=secret#invite",
+      properties: {
+        foodCount: 2,
+        cached: false,
+        email: "hidden@example.com",
+        imageUri: "file:///private/meal.jpg"
+      }
+    });
+
+    expect(gtag).toHaveBeenNthCalledWith(
+      1,
+      "event",
+      "screen_view",
+      expect.objectContaining({
+        screen_name: "Home",
+        page_title: "Daily Meal - Home",
+        page_path: "/Home",
+        page_location: "https://daily.test/Home",
+        referrer: "https://daily.test/Login"
+      })
+    );
+    expect(gtag).toHaveBeenNthCalledWith(
+      2,
+      "event",
+      "meal_analysis_completed",
+      expect.objectContaining({
+        screen_name: "Create",
+        value: 450,
+        duration_ms: 1234,
+        referrer: "https://source.test/campaign",
+        food_count: 2,
+        cached: false,
+        original_event_name: "meal_analysis_succeeded"
+      })
+    );
+    expect(gtag.mock.calls[1][2]).not.toHaveProperty("email");
+    expect(gtag.mock.calls[1][2]).not.toHaveProperty("image_uri");
+  });
+
+  it("does not send non-allowlisted events to Google Analytics", () => {
+    const gtag = vi.fn();
+    stubWebRuntime(gtag);
+    const client = createAnalyticsClient({
+      baseUrl: "https://api.test",
+      fetcher: vi.fn(async () => ({ ok: true })),
+      storage: null,
+      flushIntervalMs: 60_000
+    });
+
+    client.track("runtime_error", {
+      screen: "Home",
+      properties: {
+        message: "hidden",
+        stack: "hidden"
+      }
+    });
+
+    expect(gtag).not.toHaveBeenCalled();
+    expect(client.getQueueLength()).toBe(1);
+  });
+
+  it("keeps internal analytics working when Google Analytics is unavailable", async () => {
+    stubWebRuntime();
+    const fetcher = vi.fn(async (_input: string, _init?: RequestInit) => ({ ok: true }));
+    const client = createAnalyticsClient({
+      baseUrl: "https://api.test",
+      fetcher,
+      storage: null,
+      flushIntervalMs: 60_000
+    });
+
+    expect(() => client.track("meal_analysis_started", { screen: "Create" })).not.toThrow();
+    expect(client.getQueueLength()).toBe(1);
+
+    await client.flushNow();
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
 

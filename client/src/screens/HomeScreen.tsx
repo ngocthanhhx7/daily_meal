@@ -558,7 +558,10 @@ export function HomeScreen({ navigation, route }: any) {
         <CategoryModal
           visible={showCategory}
           onClose={() => setShowCategory(false)}
-          onNavigate={(screen) => navigation.navigate(screen)}
+          onNavigate={(screen) => {
+            setShowCategory(false);
+            setTimeout(() => navigation.navigate(screen), 0);
+          }}
         />
 
         <PremiumTrialOfferModal
@@ -1349,10 +1352,7 @@ function CategoryModal({
               <Pressable
                 key={item.label}
                 style={styles.categoryItem}
-                onPress={() => {
-                  onClose();
-                  onNavigate(item.screen);
-                }}
+                onPress={() => onNavigate(item.screen)}
               >
                 <View style={styles.categoryIconWrap}>
                   <Ionicons name={item.icon} size={24} color={colors.black} />

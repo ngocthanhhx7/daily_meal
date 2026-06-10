@@ -15,7 +15,7 @@ async function bootstrap() {
 
   const app = createApp();
   const httpServer = createServer(app);
-  
+
   // Initialize socket.io service
   initSocket(httpServer);
 

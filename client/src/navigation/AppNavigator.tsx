@@ -30,6 +30,7 @@ import { SupportScreen } from "../screens/SupportScreen";
 import { ShareAccountScreen } from "../screens/ShareAccountScreen";
 import { PremiumBenefitsScreen } from "../screens/PremiumBenefitsScreen";
 import { FollowsScreen } from "../screens/FollowsScreen";
+import { ProgressScreen } from "../screens/ProgressScreen";
 import { AdminDashboardScreen, AdminLoginScreen, AdminUserDetailScreen, AdminUsersScreen } from "../screens/AdminScreens";
 
 // NOTE: MealsScreen removed – calo analysis is now in CreatePostScreen
@@ -125,6 +126,7 @@ export function AppNavigator() {
             <Stack.Screen name="Support" component={SupportScreen} />
             <Stack.Screen name="ShareAccount" component={ShareAccountScreen} />
             <Stack.Screen name="PremiumBenefits" component={PremiumBenefitsScreen} />
+            <Stack.Screen name="Progress" component={ProgressScreen} />
           </>
         )}
       </Stack.Navigator>

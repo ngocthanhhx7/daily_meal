@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { Image, Modal, Pressable, Share, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, Modal, Pressable, Share, StyleSheet, View } from "react-native";
 import { api } from "../api/client";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
@@ -9,6 +9,9 @@ import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post, User } from "../types/api";
+import { getListContentState } from "../utils/contentState";
+import { getProfilePostTarget } from "../utils/postNavigation";
+import { getPostPreviewImageIndexes } from "../utils/postPreviewImages";
 
 type ProfileTab = "posts" | "saved";
 
@@ -41,8 +44,8 @@ function mediaSource(url?: string) {
   return { uri: `${api.baseUrl}${url}` };
 }
 
-function postImageSource(post: Post) {
-  return mediaSource(post.images[0]?.url) ?? require("../../assets/figma-snapshots/image3.png");
+function postImageSource(post: Post, imageIndex = 0) {
+  return mediaSource(post.images[imageIndex]?.url) ?? require("../../assets/figma-snapshots/image3.png");
 }
 
 function profileHandle(user: User | null) {
@@ -70,21 +73,25 @@ export function ProfileScreen({ navigation }: any) {
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [tab, setTab] = useState<ProfileTab>("posts");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loadingPosts, setLoadingPosts] = useState(true);
 
   useEffect(() => {
     if (!token || !user?.id) {
       return;
     }
 
+    setLoadingPosts(true);
     Promise.all([api.getUserPosts(token, user.id), api.getUserSavedPosts(token, user.id)])
       .then(([postsResult, savedResult]) => {
         setPosts(postsResult.posts);
         setSavedPosts(savedResult.posts);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => setLoadingPosts(false));
   }, [token, user?.id]);
 
   const currentPosts = tab === "posts" ? posts : savedPosts;
+  const contentState = getListContentState(loadingPosts, currentPosts.length);
 
   function shareProfile() {
     Share.share({
@@ -184,19 +191,22 @@ export function ProfileScreen({ navigation }: any) {
         <ProfileTabButton active={tab === "saved"} icon="bookmark" onPress={() => setTab("saved")} />
       </View>
 
-      {currentPosts.length ? (
+      {contentState === "loading" ? (
+        <View style={styles.loadingGrid}>
+          <ActivityIndicator color={colors.green} />
+        </View>
+      ) : contentState === "content" ? (
         <View style={styles.grid}>
           {currentPosts.map((post, index) => (
             <Pressable
               key={post._id}
               style={styles.gridItem}
-              onPress={() =>
-                tab === "posts"
-                  ? navigation.navigate("EditPost", { post })
-                  : navigation.navigate("Recipe", { post })
-              }
+              onPress={() => {
+                const target = getProfilePostTarget(tab, post);
+                navigation.navigate(target.screen, target.params);
+              }}
             >
-              <Image source={postImageSource(post)} style={styles.gridImage} />
+              <ProfilePostImageStack post={post} />
               <View style={[styles.gridCaption, index % 2 === 0 ? { left: 8 } : { right: 8 }]}>
                 <AppText variant="caption" numberOfLines={1}>
                   {post.caption || post.recipe?.title || "Bữa ăn"}
@@ -224,6 +234,31 @@ export function ProfileScreen({ navigation }: any) {
         onSignOut={signOutFromMenu}
       />
     </AppScreen>
+  );
+}
+
+function ProfilePostImageStack({ post }: { post: Post }) {
+  const imageIndexes = getPostPreviewImageIndexes(post);
+
+  return (
+    <View style={styles.gridImageStack} pointerEvents="none">
+      {imageIndexes
+        .slice()
+        .reverse()
+        .map((imageIndex) => (
+          <Image
+            key={`${post._id}-${imageIndex}`}
+            source={postImageSource(post, imageIndex)}
+            style={[
+              styles.gridImageLayer,
+              imageIndex === 0 && styles.gridImageFront,
+              imageIndex === 1 && styles.gridImageSecond,
+              imageIndex === 2 && styles.gridImageThird
+            ]}
+            resizeMode="cover"
+          />
+        ))}
+    </View>
   );
 }
 
@@ -532,25 +567,56 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
     paddingBottom: 24
   },
+  loadingGrid: {
+    minHeight: 220,
+    alignItems: "center",
+    justifyContent: "center"
+  },
   gridItem: {
     width: "47.5%",
     borderRadius: 14,
-    backgroundColor: colors.surface,
+    backgroundColor: "transparent",
+    overflow: "visible"
+  },
+  gridImageStack: {
+    width: "100%",
+    aspectRatio: 0.78,
+    position: "relative"
+  },
+  gridImageLayer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: 14,
+    backgroundColor: colors.canvasStrong
+  },
+  gridImageFront: {
+    zIndex: 3,
     shadowColor: colors.black,
     shadowOpacity: 0.18,
     shadowOffset: { width: 0, height: 6 },
     shadowRadius: 10,
-    elevation: 5,
-    overflow: "visible"
+    elevation: 5
   },
-  gridImage: {
-    width: "100%",
-    aspectRatio: 0.78,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-    backgroundColor: colors.canvasStrong
+  gridImageSecond: {
+    zIndex: 2,
+    top: -8,
+    right: -10,
+    bottom: 8,
+    left: 10,
+    opacity: 0.58,
+    transform: [{ rotate: "4deg" }]
+  },
+  gridImageThird: {
+    zIndex: 1,
+    top: -14,
+    right: -18,
+    bottom: 14,
+    left: 18,
+    opacity: 0.36,
+    transform: [{ rotate: "7deg" }]
   },
   gridCaption: {
     position: "absolute",
@@ -559,7 +625,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.92)",
     paddingHorizontal: 11,
-    paddingVertical: 5
+    paddingVertical: 5,
+    zIndex: 4
   },
   modalBackdrop: {
     flex: 1,

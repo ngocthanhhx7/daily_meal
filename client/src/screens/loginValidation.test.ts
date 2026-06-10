@@ -100,20 +100,20 @@ describe("validateLoginForm", () => {
 describe("validateForgotPasswordForm", () => {
   it("requires a valid email before requesting reset OTP", () => {
     expect(validateForgotPasswordForm({ email: "", otp: "", otpSent: false })).toEqual({
-      title: "Thiáº¿u email",
-      message: "Vui lÃ²ng nháº­p email Ä‘á»ƒ nháº­n mÃ£ OTP."
+      title: "Thiếu email",
+      message: "Vui lòng nhập email để nhận mã OTP."
     });
 
     expect(validateForgotPasswordForm({ email: "daily-meal", otp: "", otpSent: false })).toEqual({
-      title: "Email khÃ´ng há»£p lá»‡",
-      message: "Vui lÃ²ng nháº­p Ä‘Ãºng Ä‘á»‹nh dáº¡ng email."
+      title: "Email không hợp lệ",
+      message: "Vui lòng nhập đúng định dạng email."
     });
   });
 
   it("requires a 6-digit OTP and valid new password before resetting password", () => {
     expect(validateForgotPasswordForm({ email: "user@example.com", otp: "12", otpSent: true, newPassword: "short" })).toEqual({
-      title: "MÃ£ OTP khÃ´ng há»£p lá»‡",
-      message: "Vui lÃ²ng nháº­p mÃ£ OTP gá»“m 6 chá»¯ sá»‘."
+      title: "Mã OTP không hợp lệ",
+      message: "Vui lòng nhập mã OTP gồm 6 chữ số."
     });
 
     expect(validateForgotPasswordForm({ email: "user@example.com", otp: "123456", otpSent: true, newPassword: "short" })).toEqual({

@@ -99,11 +99,11 @@ async function publicUserDto(user: any, viewerId?: string) {
     themeColor: user.themeColor,
     counts: user.counts
       ? {
-          posts: Math.max(0, user.counts.posts ?? 0),
-          followers: Math.max(0, user.counts.followers ?? 0),
-          following: Math.max(0, user.counts.following ?? 0),
-          friends: Math.max(0, user.counts.friends ?? 0)
-        }
+        posts: Math.max(0, user.counts.posts ?? 0),
+        followers: Math.max(0, user.counts.followers ?? 0),
+        following: Math.max(0, user.counts.following ?? 0),
+        friends: Math.max(0, user.counts.friends ?? 0)
+      }
       : { posts: 0, followers: 0, following: 0, friends: 0 },
     relationship: relation,
     viewerInteraction: {
@@ -127,9 +127,9 @@ function serializePost(post: any, likedPostIds: Set<string>, savedPostIds: Set<s
   const id = post._id.toString();
   const author = post.author
     ? {
-        ...post.author,
-        id: post.author._id?.toString?.() ?? post.author.id
-      }
+      ...post.author,
+      id: post.author._id?.toString?.() ?? post.author.id
+    }
     : post.author;
 
   return {
@@ -248,7 +248,7 @@ usersRouter.post("/me/premium-trial", requireAuth, async (req, res, next) => {
     );
 
     if (!user) {
-      throw new HttpError(409, "Ban da su dung uu dai Premium mien phi roi.");
+      throw new HttpError(409, "Bạn đã sử dụng ưu đãi Premium miễn phí rồi.");
     }
 
     res.json({ user: await publicUserDto(user, req.user?.id) });
@@ -461,13 +461,13 @@ usersRouter.post("/:id/follow", requireAuth, async (req, res, next) => {
 
       // Trigger follow notification
       const sender = await User.findById(req.user?.id).select("displayName").lean();
-      const senderName = sender?.displayName || "Ai Ä‘Ã³";
+      const senderName = sender?.displayName || "Ai đó";
 
       const notification = await Notification.create({
         user: targetId,
         sender: req.user?.id,
         type: "follow",
-        body: `Ä‘Ã£ báº¯t Ä‘áº§u theo dÃµi báº¡n.`
+        body: `đã bắt đầu theo dõi bạn.`
       });
 
       const populatedNotification = await Notification.findById(notification._id)
@@ -475,12 +475,12 @@ usersRouter.post("/:id/follow", requireAuth, async (req, res, next) => {
         .lean();
 
       emitToUser(targetId || "", "notification:created", populatedNotification);
-      
+
       // Trigger Push Notification
       sendPushNotification(
         targetId || "",
-        "NgÆ°á»i theo dÃµi má»›i ðŸ‘¤",
-        `${senderName} Ä‘Ã£ báº¯t Ä‘áº§u theo dÃµi báº¡n.`,
+        "Người theo dõi mới 👤",
+        `${senderName} đã bắt đầu theo dõi bạn.`,
         { type: "follow", senderId: req.user?.id }
       );
     }

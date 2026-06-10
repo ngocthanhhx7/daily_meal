@@ -88,23 +88,23 @@ export function validateForgotPasswordForm(input: ForgotPasswordValidationInput)
 
   if (!email) {
     return {
-      title: "Thiáº¿u email",
-      message: "Vui lÃ²ng nháº­p email Ä‘á»ƒ nháº­n mÃ£ OTP."
+      title: "Thiếu email",
+      message: "Vui lòng nhập email để nhận mã OTP."
     };
   }
 
   if (!emailPattern.test(email)) {
     return {
-      title: "Email khÃ´ng há»£p lá»‡",
-      message: "Vui lÃ²ng nháº­p Ä‘Ãºng Ä‘á»‹nh dáº¡ng email."
+      title: "Email không hợp lệ",
+      message: "Vui lòng nhập đúng định dạng email."
     };
   }
 
   if (input.otpSent) {
     if (!/^\d{6}$/.test(otp)) {
       return {
-        title: "MÃ£ OTP khÃ´ng há»£p lá»‡",
-        message: "Vui lÃ²ng nháº­p mÃ£ OTP gá»“m 6 chá»¯ sá»‘."
+        title: "Mã OTP không hợp lệ",
+        message: "Vui lòng nhập mã OTP gồm 6 chữ số."
       };
     }
     if (input.newPassword !== undefined && input.newPassword.trim().length < 8) {

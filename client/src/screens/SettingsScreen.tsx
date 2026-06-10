@@ -73,7 +73,8 @@ export function SettingsScreen({ navigation }: any) {
         <Pressable style={styles.row} onPress={() => navigation.navigate("Notifications")}>
           <AppText style={styles.rowText}>Thông báo</AppText>
         </Pressable>
-        <Pressable style={styles.row} onPress={() => Alert.alert("Theo dõi tiến độ", "Hệ thống sẽ tự động nhắc nhở khi đến giờ đăng bài ăn uống hàng ngày!")}>
+        <Pressable style={styles.row} onPress={() => navigation.navigate("Progress")}>
+          <Ionicons name="bar-chart" size={18} color={colors.black} />
           <AppText style={styles.rowText}>Theo dõi tiến độ đăng bài</AppText>
         </Pressable>
         <Pressable style={styles.row} onPress={() => navigation.navigate("Blocked")}>

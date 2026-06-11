@@ -7,6 +7,7 @@ import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
 import { analytics } from "../services/analytics";
 import { colors } from "../theme/colors";
+import { setGlobalRoute } from "../pwa/WebMobileShell";
 
 // Screens
 import { ChangePasswordScreen } from "../screens/ChangePasswordScreen";
@@ -74,6 +75,9 @@ export function AppNavigator() {
       onReady={() => {
         const routeName = navigationRef.current?.getCurrentRoute()?.name;
         routeNameRef.current = routeName;
+        if (routeName) {
+          setGlobalRoute(routeName);
+        }
         analytics.setCurrentScreen(routeName);
         if (routeName) {
           analytics.track("screen_view", { screen: routeName });
@@ -82,6 +86,10 @@ export function AppNavigator() {
       onStateChange={() => {
         const previousRouteName = routeNameRef.current;
         const currentRouteName = navigationRef.current?.getCurrentRoute()?.name;
+
+        if (currentRouteName) {
+          setGlobalRoute(currentRouteName);
+        }
 
         if (currentRouteName && previousRouteName !== currentRouteName) {
           analytics.setCurrentScreen(currentRouteName);

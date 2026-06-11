@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, useWindowDimensions, View, ScrollView, Image } from "react-native";
 import { api } from "../api/client";
 import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
@@ -8,6 +8,7 @@ import { AppText } from "../components/AppText";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
+import { fonts } from "../theme/typography";
 import type {
   AdminDashboard,
   AdminPayment,
@@ -39,12 +40,37 @@ const rangeOptions: Array<{ key: AdminRange; label: string }> = [
   { key: "all", label: "Tất cả" }
 ];
 
+const metricIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
+  "Người dùng trong khoảng": "people-outline",
+  "Bài đăng trong khoảng": "images-outline",
+  "Tương tác trong khoảng": "chatbubble-ellipses-outline",
+  "Doanh thu trong khoảng": "cash-outline",
+  "Báo cáo mở": "warning-outline",
+  "AI meal trong khoảng": "restaurant-outline",
+  "DAU / WAU / MAU": "stats-chart-outline",
+  "Phiên trung bình": "time-outline",
+  "Tỷ lệ bấm bảng tin": "locate-outline",
+  "Phản hồi API": "server-outline",
+  "Tải ảnh": "image-outline",
+  "Lỗi runtime": "bug-outline",
+  "Chuyển đổi creator": "trending-up-outline",
+  "Hoàn tất đăng bài": "checkmark-circle-outline",
+  "Hoàn tất AI món ăn": "analytics-outline",
+  "Thanh toán premium": "card-outline"
+};
+
 function rangeParams(range: AdminRange) {
   return { range };
 }
 
 function formatDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "-";
+}
+
+function formatNumberCompact(val: number) {
+  if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
+  if (val >= 1000) return `${(val / 1000).toFixed(1)}k`;
+  return `${val}`;
 }
 
 function formatNumber(value?: number) {
@@ -61,7 +87,7 @@ function formatPercent(value?: number) {
 
 function metricStatus(value?: string) {
   if (!value || value === "not_instrumented") return "Chưa đo";
-  if (value === "available_no_errors") return "Đã đo, không có lỗi";
+  if (value === "available_no_errors") return "Đã đo, không lỗi";
   return "Đã có dữ liệu";
 }
 
@@ -92,15 +118,23 @@ function Card({ children, style }: { children: React.ReactNode; style?: object }
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-function MetricCard({ label, value, note }: { label: string; value: string | number; note?: string }) {
+function MetricCard({ label, value, note, isDesktop }: { label: string; value: string | number; note?: string; isDesktop?: boolean }) {
+  const iconName = metricIcons[label] || "stats-chart-outline";
   return (
-    <Card style={styles.metricCard}>
-      <AppText variant="caption" muted>
-        {label}
+    <Card style={[styles.metricCard, { width: isDesktop ? "31%" : "47%" }]}>
+      <View style={styles.metricHeader}>
+        <AppText variant="caption" muted style={styles.metricLabel}>
+          {label}
+        </AppText>
+        <View style={styles.metricIconContainer}>
+          <Ionicons name={iconName} size={15} color={colors.greenDark} />
+        </View>
+      </View>
+      <AppText variant="title" style={styles.metricValue}>
+        {typeof value === "number" ? formatNumber(value) : value}
       </AppText>
-      <AppText variant="title">{typeof value === "number" ? formatNumber(value) : value}</AppText>
       {note ? (
-        <AppText variant="caption" muted>
+        <AppText variant="caption" muted style={styles.metricNote}>
           {note}
         </AppText>
       ) : null}
@@ -112,8 +146,8 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
   return (
     <View style={styles.sectionHeader}>
       <View style={styles.flex}>
-        <AppText variant="subtitle">{title}</AppText>
-        {subtitle ? <AppText muted>{subtitle}</AppText> : null}
+        <AppText variant="subtitle" style={styles.sectionTitle}>{title}</AppText>
+        {subtitle ? <AppText muted variant="caption">{subtitle}</AppText> : null}
       </View>
     </View>
   );
@@ -127,7 +161,8 @@ function Pill({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "
         styles.pill,
         tone === "good" && styles.pillGood,
         tone === "warn" && styles.pillWarn,
-        tone === "bad" && styles.pillBad
+        tone === "bad" && styles.pillBad,
+        tone === "neutral" && styles.pillNeutral
       ]}
     >
       {label}
@@ -137,14 +172,20 @@ function Pill({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <Card>
-      <AppText muted>{label}</AppText>
+    <Card style={styles.emptyStateCard}>
+      <Ionicons name="information-circle-outline" size={24} color={colors.muted} />
+      <AppText muted style={{ textAlign: "center" }}>{label}</AppText>
     </Card>
   );
 }
 
 function ErrorText({ message }: { message?: string | null }) {
-  return message ? <AppText style={styles.error}>{message}</AppText> : null;
+  return message ? (
+    <View style={styles.errorContainer}>
+      <Ionicons name="alert-circle" size={16} color={colors.red} />
+      <AppText style={styles.error}>{message}</AppText>
+    </View>
+  ) : null;
 }
 
 function RangeSelector({ value, onChange }: { value: AdminRange; onChange: (range: AdminRange) => void }) {
@@ -154,7 +195,7 @@ function RangeSelector({ value, onChange }: { value: AdminRange; onChange: (rang
         const active = item.key === value;
         return (
           <Pressable key={item.key} onPress={() => onChange(item.key)} style={[styles.rangeButton, active && styles.rangeButtonActive]}>
-            <AppText variant="caption" style={active && styles.rangeTextActive}>
+            <AppText variant="caption" style={[styles.rangeText, active && styles.rangeTextActive]}>
               {item.label}
             </AppText>
           </Pressable>
@@ -171,8 +212,8 @@ function AdminTabs({ activeTab, onChange }: { activeTab: AdminTab; onChange: (ta
         const active = tab.key === activeTab;
         return (
           <Pressable key={tab.key} onPress={() => onChange(tab.key)} style={[styles.tab, active && styles.tabActive]}>
-            <Ionicons name={tab.icon} size={16} color={active ? colors.white : colors.ink} />
-            <AppText variant="caption" style={active && styles.tabTextActive}>
+            <Ionicons name={tab.icon} size={15} color={active ? colors.white : colors.ink} />
+            <AppText variant="caption" style={[styles.tabText, active && styles.tabTextActive]}>
               {tab.label}
             </AppText>
           </Pressable>
@@ -182,7 +223,7 @@ function AdminTabs({ activeTab, onChange }: { activeTab: AdminTab; onChange: (ta
   );
 }
 
-function MiniBarChart({
+function DetailedChart({
   data,
   field,
   label,
@@ -193,50 +234,123 @@ function MiniBarChart({
   label: string;
   color: string;
 }) {
-  const max = Math.max(1, ...data.map((item) => Number(item[field] ?? 0)));
+  const isRevenue = field === "revenue";
   const compactData = data.slice(-14);
+
+  const values = compactData.map((item) => Number(item[field] ?? 0));
+  const max = Math.max(1, ...values);
+  const total = values.reduce((sum, v) => sum + v, 0);
+  const avg = values.length ? total / values.length : 0;
+  const peak = Math.max(0, ...values);
+  const peakIndex = values.indexOf(peak);
+  const peakDate = peakIndex !== -1 ? compactData[peakIndex].date : "";
+
+  function formatVal(val: number) {
+    if (isRevenue) {
+      if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
+      if (val >= 1000) return `${(val / 1000).toFixed(0)}K`;
+      return `${val}`;
+    }
+    return formatNumberCompact(val);
+  }
+
+  function formatFullValue(val: number) {
+    return isRevenue ? formatCurrency(val) : formatNumber(val);
+  }
 
   return (
     <Card style={styles.chartCard}>
-      <View style={styles.headerRow}>
-        <AppText variant="subtitle">{label}</AppText>
-        <AppText variant="caption" muted>
-          {compactData.length} mốc gần nhất
-        </AppText>
+      <View style={styles.chartHeader}>
+        <View style={styles.flex}>
+          <AppText variant="subtitle" style={styles.chartTitle}>{label}</AppText>
+          <AppText variant="caption" muted>14 mốc gần nhất</AppText>
+        </View>
+        <View style={styles.chartStatsRow}>
+          <View style={styles.chartStatBox}>
+            <AppText variant="caption" style={styles.chartStatTitle} muted>Tổng cộng</AppText>
+            <AppText variant="button" style={[styles.chartStatValue, { color }]}>{formatFullValue(total)}</AppText>
+          </View>
+          <View style={styles.chartStatBox}>
+            <AppText variant="caption" style={styles.chartStatTitle} muted>Trung bình</AppText>
+            <AppText variant="button" style={styles.chartStatValue}>{formatFullValue(avg)}</AppText>
+          </View>
+          <View style={styles.chartStatBox}>
+            <AppText variant="caption" style={styles.chartStatTitle} muted>Đỉnh cao</AppText>
+            <AppText variant="button" style={[styles.chartStatValue, { color: colors.red }]}>{formatFullValue(peak)}</AppText>
+            {peakDate ? <AppText variant="caption" style={styles.chartStatDate} muted>{peakDate.slice(5)}</AppText> : null}
+          </View>
+        </View>
       </View>
-      <View style={styles.barChart}>
-        {compactData.map((item) => {
-          const value = Number(item[field] ?? 0);
-          return (
-            <View key={`${field}-${item.date}`} style={styles.barColumn}>
-              <View style={styles.barTrack}>
-                <View style={[styles.barFill, { height: `${Math.max(4, (value / max) * 100)}%`, backgroundColor: color }]} />
-              </View>
-              <AppText variant="caption" muted numberOfLines={1}>
-                {item.date.slice(5)}
+
+      <View style={styles.chartBody}>
+        <View style={styles.chartGrid}>
+          {[0.25, 0.5, 0.75, 1].map((ratio) => (
+            <View key={ratio} style={[styles.chartGridLine, { bottom: `${ratio * 100}%` }]}>
+              <AppText variant="caption" style={styles.chartGridLabel} muted>
+                {formatVal(max * ratio)}
               </AppText>
             </View>
-          );
-        })}
+          ))}
+        </View>
+        <View style={styles.barChart}>
+          {compactData.map((item) => {
+            const value = Number(item[field] ?? 0);
+            const heightPercent = (value / max) * 100;
+            return (
+              <View key={`${field}-${item.date}`} style={styles.barColumn}>
+                <AppText variant="caption" style={styles.chartBarValue} numberOfLines={1}>
+                  {value > 0 ? formatVal(value) : ""}
+                </AppText>
+                <View style={styles.barTrack}>
+                  <View style={[styles.barFill, { height: `${Math.max(4, heightPercent)}%`, backgroundColor: color }]} />
+                </View>
+                <AppText variant="caption" style={styles.chartDateLabel} muted numberOfLines={1}>
+                  {item.date.slice(5)}
+                </AppText>
+              </View>
+            );
+          })}
+        </View>
       </View>
     </Card>
   );
 }
 
-function BreakdownList({ title, data }: { title: string; data: AdminDashboard["breakdowns"]["usersByPremium"] }) {
+function BreakdownList({ title, data }: { title: string; data: Array<{ _id: string; count: number }> }) {
+  const totalCount = data.reduce((sum, item) => sum + item.count, 0) || 1;
   return (
-    <Card>
-      <AppText variant="subtitle">{title}</AppText>
-      {data.length ? (
-        data.map((item) => (
-          <View key={`${title}-${item._id}`} style={styles.inlineRow}>
-            <AppText>{statusLabel(item._id)}</AppText>
-            <AppText variant="button">{formatNumber(item.count)}</AppText>
-          </View>
-        ))
-      ) : (
-        <AppText muted>Chưa có dữ liệu.</AppText>
-      )}
+    <Card style={styles.breakdownCard}>
+      <AppText variant="subtitle" style={styles.breakdownTitle}>{title}</AppText>
+      <View style={styles.breakdownContainer}>
+        {data.length ? (
+          data.map((item) => {
+            const percent = (item.count / totalCount) * 100;
+            return (
+              <View key={`${title}-${item._id}`} style={styles.breakdownRow}>
+                <View style={styles.breakdownHeaderRow}>
+                  <AppText variant="body" style={styles.breakdownLabel}>{statusLabel(item._id)}</AppText>
+                  <AppText variant="button" style={styles.breakdownValue}>
+                    {formatNumber(item.count)} <AppText variant="caption" muted>({percent.toFixed(0)}%)</AppText>
+                  </AppText>
+                </View>
+                <View style={styles.breakdownBarTrack}>
+                  <View
+                    style={[
+                      styles.breakdownBarFill,
+                      {
+                        width: `${percent}%`,
+                        backgroundColor: item._id === "premium" || item._id === "visible" || item._id === "PAID" ? colors.greenDark : colors.blue
+                      }
+                    ]}
+                  />
+                </View>
+              </View>
+            );
+          })
+        ) : (
+          <AppText muted>Chưa có dữ liệu.</AppText>
+        )}
+      </View>
     </Card>
   );
 }
@@ -258,18 +372,222 @@ function ReportOutput({ generatedReport }: { generatedReport: AdminReport | null
   ];
 
   return (
-    <Card>
-      <AppText variant="subtitle">{generatedReport.report.title}</AppText>
-      <AppText muted>
-        Tạo lúc {formatDate(generatedReport.generatedAt)} · {formatDate(generatedReport.range.start)} - {formatDate(generatedReport.range.end)}
-      </AppText>
+    <Card style={styles.reportCard}>
+      <View style={styles.reportHeader}>
+        <Ionicons name="sparkles" size={20} color={colors.greenDark} />
+        <View style={styles.flex}>
+          <AppText variant="subtitle" style={styles.reportTitle}>{generatedReport.report.title}</AppText>
+          <AppText variant="caption" muted>
+            Tạo lúc {formatDate(generatedReport.generatedAt)} · {formatDate(generatedReport.range.start)} - {formatDate(generatedReport.range.end)}
+          </AppText>
+        </View>
+      </View>
+      <View style={styles.reportDivider} />
       {sections.map(([title, items]) => (
         <View key={title} style={styles.reportSection}>
-          <AppText variant="button">{title}</AppText>
-          {items.length ? items.map((item, index) => <AppText key={`${title}-${index}`}>- {item}</AppText>) : <AppText muted>Không có nhận định.</AppText>}
+          <AppText variant="button" style={styles.reportSectionTitle}>{title}</AppText>
+          {items.length ? (
+            items.map((item, index) => (
+              <View key={`${title}-${index}`} style={styles.reportItemRow}>
+                <AppText style={styles.reportBullet}>•</AppText>
+                <AppText style={styles.reportItemText}>{item}</AppText>
+              </View>
+            ))
+          ) : (
+            <AppText muted variant="caption" style={{ paddingLeft: 12 }}>Không có nhận định.</AppText>
+          )}
         </View>
       ))}
     </Card>
+  );
+}
+
+function HeaderIconButton({
+  icon,
+  onPress,
+  variant = "default",
+  disabled
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+  variant?: "default" | "danger" | "success" | "primary";
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.headerIconBtn,
+        variant === "danger" && styles.headerIconBtnDanger,
+        variant === "success" && styles.headerIconBtnSuccess,
+        variant === "primary" && styles.headerIconBtnPrimary,
+        pressed && styles.pressed,
+        disabled && styles.disabled
+      ]}
+    >
+      <Ionicons
+        name={icon}
+        size={18}
+        color={
+          variant === "danger"
+            ? colors.white
+            : variant === "success"
+            ? colors.white
+            : variant === "primary"
+            ? colors.white
+            : colors.ink
+        }
+      />
+    </Pressable>
+  );
+}
+
+function Sidebar({
+  navigation,
+  activeTab,
+  onTabChange,
+  currentScreen,
+  loading,
+  onRefresh,
+  handleSignOut,
+  busyAction
+}: {
+  navigation: any;
+  activeTab?: AdminTab;
+  onTabChange?: (tab: AdminTab) => void;
+  currentScreen: "dashboard" | "users" | "user-detail";
+  loading?: boolean;
+  onRefresh?: () => void;
+  handleSignOut: () => void;
+  busyAction?: string | null;
+}) {
+  const tabsList: Array<{ key: AdminTab; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+    { key: "overview", label: "Tổng quan", icon: "grid-outline" },
+    { key: "analytics", label: "KPI", icon: "analytics-outline" },
+    { key: "posts", label: "Bài đăng", icon: "images-outline" },
+    { key: "reports", label: "Báo cáo", icon: "shield-checkmark-outline" },
+    { key: "payments", label: "Thanh toán", icon: "card-outline" },
+    { key: "ai", label: "Báo cáo AI", icon: "sparkles-outline" }
+  ];
+
+  function handleTabPress(tabKey: AdminTab) {
+    if (currentScreen === "dashboard") {
+      onTabChange?.(tabKey);
+    } else {
+      navigation.navigate("AdminDashboard", { tab: tabKey });
+    }
+  }
+
+  return (
+    <View style={styles.sidebar}>
+      <View style={styles.sidebarBrand}>
+        <Image
+          source={require("../../assets/logo/logo.png")}
+          style={{ width: 32, height: 32, borderRadius: 8, marginRight: 8 }}
+        />
+        <View style={styles.flex}>
+          <AppText variant="subtitle" style={styles.brandTitle}>Daily Meal</AppText>
+          <AppText variant="caption" style={styles.brandSubtitle}>Bộ quản trị</AppText>
+        </View>
+      </View>
+
+      <View style={styles.sidebarDivider} />
+
+      <AppText variant="label" style={styles.sidebarGroupTitle}>Bảng điều khiển</AppText>
+      <View style={styles.sidebarNav}>
+        {tabsList.map((tab) => {
+          const isActive = currentScreen === "dashboard" && activeTab === tab.key;
+          return (
+            <Pressable
+              key={tab.key}
+              onPress={() => handleTabPress(tab.key)}
+              style={({ pressed }) => [
+                styles.sidebarNavItem,
+                isActive && styles.sidebarNavItemActive,
+                pressed && styles.pressed
+              ]}
+            >
+              <Ionicons
+                name={tab.icon}
+                size={16}
+                color={isActive ? colors.white : "rgba(255,255,255,0.6)"}
+              />
+              <AppText
+                variant="body"
+                style={[
+                  styles.sidebarNavLabel,
+                  isActive && styles.sidebarNavLabelActive
+                ]}
+              >
+                {tab.label}
+              </AppText>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.sidebarDivider} />
+
+      <AppText variant="label" style={styles.sidebarGroupTitle}>Hệ thống</AppText>
+      <View style={styles.sidebarNav}>
+        <Pressable
+          onPress={() => navigation.navigate("AdminUsers")}
+          style={({ pressed }) => [
+            styles.sidebarNavItem,
+            currentScreen === "users" && styles.sidebarNavItemActive,
+            pressed && styles.pressed
+          ]}
+        >
+          <Ionicons
+            name="people-outline"
+            size={16}
+            color={currentScreen === "users" ? colors.white : "rgba(255,255,255,0.6)"}
+          />
+          <AppText
+            variant="body"
+            style={[
+              styles.sidebarNavLabel,
+              currentScreen === "users" && styles.sidebarNavLabelActive
+            ]}
+          >
+            Người dùng
+          </AppText>
+        </Pressable>
+      </View>
+
+      <View style={{ flex: 1 }} />
+
+      <View style={styles.sidebarFooter}>
+        {onRefresh && (
+          <Pressable
+            onPress={onRefresh}
+            disabled={loading}
+            style={({ pressed }) => [styles.sidebarActionBtn, pressed && styles.pressed]}
+          >
+            <Ionicons name="refresh-outline" size={15} color={colors.white} />
+            <AppText variant="caption" style={styles.sidebarActionText}>
+              {loading ? "Đang tải..." : "Làm mới"}
+            </AppText>
+          </Pressable>
+        )}
+
+        <Pressable
+          onPress={handleSignOut}
+          disabled={busyAction === "sign-out"}
+          style={({ pressed }) => [
+            styles.sidebarActionBtn,
+            styles.sidebarActionBtnDanger,
+            pressed && styles.pressed
+          ]}
+        >
+          <Ionicons name="log-out-outline" size={15} color={colors.white} />
+          <AppText variant="caption" style={styles.sidebarActionTextDanger}>
+            {busyAction === "sign-out" ? "Thoát..." : "Đăng xuất"}
+          </AppText>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -293,21 +611,31 @@ export function AdminLoginScreen({ navigation }: any) {
   }
 
   return (
-    <AppScreen scroll scrollProps={{ contentContainerStyle: styles.loginWrap }}>
-      <View style={styles.headerRow}>
-        <AppText variant="title">Daily Meal Admin</AppText>
-        <AppButton label="Quay lại" size="sm" variant="ghost" onPress={() => navigation.goBack()} />
+    <AppScreen scroll scrollProps={{ contentContainerStyle: styles.loginWrap }} noBackground>
+      <View style={styles.loginCard}>
+        <Image
+          source={require("../../assets/logo/logo.png")}
+          style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 8 }}
+        />
+        <AppText variant="title" style={styles.loginTitle}>Daily Meal Admin</AppText>
+        <AppText muted style={styles.loginSubtitle}>
+          Đăng nhập bằng tài khoản quản trị đã cấu hình trên server.
+        </AppText>
+        <View style={{ width: "100%", gap: 14, marginVertical: 12 }}>
+          <TextField label="Email admin" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
+          <TextField label="Mật khẩu" secureTextEntry value={password} onChangeText={setPassword} />
+        </View>
+        <ErrorText message={error} />
+        <AppButton style={{ width: "100%", marginTop: 8 }} label={submitting ? "Đang đăng nhập..." : "Đăng nhập admin"} onPress={submit} disabled={submitting} />
+        <Pressable onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
+          <AppText muted variant="caption">Quay lại trang chính</AppText>
+        </Pressable>
       </View>
-      <AppText muted>Đăng nhập bằng tài khoản admin đã cấu hình trên server.</AppText>
-      <TextField label="Email admin" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
-      <TextField label="Mật khẩu" secureTextEntry value={password} onChangeText={setPassword} />
-      <ErrorText message={error} />
-      <AppButton label={submitting ? "Đang đăng nhập..." : "Đăng nhập admin"} onPress={submit} disabled={submitting} />
     </AppScreen>
   );
 }
 
-export function AdminDashboardScreen({ navigation }: any) {
+export function AdminDashboardScreen({ route, navigation }: any) {
   const { adminToken, signOut } = useAuth();
   const { width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
@@ -321,8 +649,9 @@ export function AdminDashboardScreen({ navigation }: any) {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const isDesktop = width >= 992;
   const compactHeader = width < 760;
-  const isWide = width >= 900;
 
   const loadDashboard = useCallback(async () => {
     if (!adminToken) return;
@@ -345,6 +674,12 @@ export function AdminDashboardScreen({ navigation }: any) {
       setLoading(false);
     }
   }, [adminToken, range]);
+
+  useEffect(() => {
+    if (route?.params?.tab) {
+      setActiveTab(route.params.tab);
+    }
+  }, [route?.params?.tab]);
 
   useEffect(() => {
     setGeneratedReport(null);
@@ -429,179 +764,257 @@ export function AdminDashboardScreen({ navigation }: any) {
 
   if (loading && !dashboard) {
     return (
-      <AppScreen>
-        <ActivityIndicator color={colors.green} />
+      <AppScreen scroll={false}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.greenDark} />
+          <AppText muted style={{ marginTop: 12 }}>Đang tải dữ liệu dashboard...</AppText>
+        </View>
+      </AppScreen>
+    );
+  }
+
+  const dashboardContent = dashboard ? (
+    <View style={styles.workspaceBody}>
+      {activeTab === "overview" && (
+        <>
+          <View style={isDesktop ? styles.desktopGrid3 : styles.grid}>
+            {overviewMetrics.map(([label, value, note]) => (
+              <MetricCard key={label} label={label} value={value} note={note} isDesktop={isDesktop} />
+            ))}
+          </View>
+          <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
+            <DetailedChart data={dashboard.charts.daily} field="users" label="Người dùng mới" color={colors.greenDark} />
+            <DetailedChart data={dashboard.charts.daily} field="interactions" label="Tương tác" color={colors.blue} />
+          </View>
+          <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
+            <BreakdownList title="Người dùng" data={dashboard.breakdowns.usersByPremium} />
+            <BreakdownList title="Bài đăng theo trạng thái" data={dashboard.breakdowns.postsByModeration} />
+          </View>
+          <SectionHeader title="Nhật ký hệ thống (Audit logs)" />
+          <View style={styles.auditList}>
+            {dashboard.recent.audit.length ? (
+              dashboard.recent.audit.map((item) => (
+                <View key={item.id} style={styles.auditItem}>
+                  <View style={styles.auditIconCol}>
+                    <View style={styles.auditIconBg}>
+                      <Ionicons name="shield-checkmark" size={14} color={colors.greenDark} />
+                    </View>
+                    <View style={styles.auditLine} />
+                  </View>
+                  <View style={styles.auditContentCol}>
+                    <View style={styles.auditHeader}>
+                      <AppText variant="button" style={styles.auditActionText}>{item.action}</AppText>
+                      <AppText variant="caption" muted>{formatDate(item.createdAt)}</AppText>
+                    </View>
+                    <AppText variant="body" muted style={styles.auditDetails}>
+                      Đối tượng: <AppText variant="body" style={{ color: colors.ink }}>{item.targetType}</AppText> (ID: {item.targetId})
+                    </AppText>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <EmptyState label="Chưa có audit action." />
+            )}
+          </View>
+        </>
+      )}
+
+      {activeTab === "analytics" && (
+        <>
+          <View style={isDesktop ? styles.desktopGrid3 : styles.grid}>
+            <MetricCard label="DAU / WAU / MAU" value={`${dashboard.analytics.activeUsers.dau} / ${dashboard.analytics.activeUsers.wau} / ${dashboard.analytics.activeUsers.mau}`} note={`${dashboard.analytics.activeUsers.returning} user quay lại`} isDesktop={isDesktop} />
+            <MetricCard label="Phiên trung bình" value={`${Math.round(dashboard.analytics.sessions.averageDurationMs / 1000)}s`} note={`Thoát nhanh ${formatPercent(dashboard.analytics.sessions.bounceRate)}`} isDesktop={isDesktop} />
+            <MetricCard label="Tỷ lệ bấm bảng tin" value={formatPercent(dashboard.analytics.feed.ctr)} note={`Độ sâu cuộn TB ${formatNumber(dashboard.analytics.feed.averageScrollDepth)}%`} isDesktop={isDesktop} />
+            <MetricCard label="Phản hồi API" value={`${Math.round(dashboard.analytics.technical.averageApiResponseMs)}ms`} note={metricStatus(dashboard.analytics.technical.instrumentation.apiResponseTime)} isDesktop={isDesktop} />
+            <MetricCard label="Tải ảnh" value={`${Math.round(dashboard.analytics.technical.averageImageLoadMs)}ms`} note={metricStatus(dashboard.analytics.technical.instrumentation.imageLoadSpeed)} isDesktop={isDesktop} />
+            <MetricCard label="Lỗi runtime" value={dashboard.analytics.technical.runtimeErrors} note={`Tỷ lệ lỗi ${formatPercent(dashboard.analytics.technical.crashRate)}`} isDesktop={isDesktop} />
+          </View>
+          <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
+            <DetailedChart data={dashboard.charts.daily} field="posts" label="Bài đăng mới" color={colors.green} />
+            <DetailedChart data={dashboard.charts.daily} field="apiErrors" label="Lỗi runtime/API" color={colors.red} />
+          </View>
+          <View style={isDesktop ? styles.desktopGrid4 : styles.grid}>
+            <MetricCard label="Chuyển đổi creator" value={formatPercent(dashboard.analytics.creatorConversion.rate)} note={`${dashboard.analytics.creatorConversion.completed}/${dashboard.analytics.creatorConversion.started}`} isDesktop={isDesktop} />
+            <MetricCard label="Hoàn tất đăng bài" value={formatPercent(dashboard.analytics.postCreation.completionRate)} note={`${dashboard.analytics.postCreation.completed}/${dashboard.analytics.postCreation.started}`} isDesktop={isDesktop} />
+            <MetricCard label="Hoàn tất AI món ăn" value={formatPercent(dashboard.analytics.mealAnalysis.completionRate)} note={`${dashboard.analytics.mealAnalysis.completed}/${dashboard.analytics.mealAnalysis.started}`} isDesktop={isDesktop} />
+            <MetricCard label="Thanh toán premium" value={formatPercent(dashboard.analytics.premiumFunnel.paymentCompletionRate)} note={`${dashboard.analytics.premiumFunnel.paymentCompleted}/${dashboard.analytics.premiumFunnel.paymentStarted}`} isDesktop={isDesktop} />
+          </View>
+        </>
+      )}
+
+      {activeTab === "posts" && (
+        <View style={{ gap: 14 }}>
+          <SectionHeader title="Quản lý bài đăng" subtitle="Kiểm duyệt mềm: ẩn, đưa vào review hoặc khôi phục." />
+          {posts.length ? posts.map((post) => (
+            <Card key={post.id} style={styles.itemCard}>
+              <View style={styles.headerRow}>
+                <View style={styles.flex}>
+                  <AppText variant="subtitle" numberOfLines={1} style={styles.itemCardTitle}>
+                    {post.caption || "(Không có caption)"}
+                  </AppText>
+                  <AppText muted variant="caption">
+                    {post.author?.displayName || "Không rõ"} · {formatDate(post.createdAt)} · {post.imageCount} ảnh · {statusLabel(post.visibility)}
+                  </AppText>
+                </View>
+                <Pill label={statusLabel(post.moderationStatus)} tone={post.moderationStatus === "hidden" ? "bad" : post.moderationStatus === "review" ? "warn" : "good"} />
+              </View>
+              <AppText muted variant="caption" style={{ marginVertical: 6 }}>
+                Lượt thích {post.stats.likes} · Bình luận {post.stats.comments} · Lưu {post.stats.saves}
+              </AppText>
+              <View style={styles.actionRow}>
+                <AppButton label="Ẩn" size="sm" variant="danger" onPress={() => moderatePost(post, "hidden")} disabled={busyAction === `post-${post.id}`} />
+                <AppButton label="Cần xem lại" size="sm" variant="ghost" onPress={() => moderatePost(post, "review")} disabled={busyAction === `post-${post.id}`} />
+                <AppButton label="Khôi phục" size="sm" variant="secondary" onPress={() => moderatePost(post, "visible")} disabled={busyAction === `post-${post.id}`} />
+              </View>
+            </Card>
+          )) : <EmptyState label="Chưa có bài đăng." />}
+        </View>
+      )}
+
+      {activeTab === "reports" && (
+        <View style={{ gap: 14 }}>
+          <SectionHeader title="Hàng đợi báo cáo" subtitle="Mặc định hiển thị các báo cáo đang mở." />
+          {reports.length ? reports.map((report) => (
+            <Card key={report.id} style={styles.itemCard}>
+              <View style={styles.headerRow}>
+                <View style={styles.flex}>
+                  <AppText variant="subtitle" style={styles.itemCardTitle}>
+                    Đối tượng: {report.target?.displayName || "Người dùng bị báo cáo"}
+                  </AppText>
+                  <AppText muted variant="caption">
+                    Người báo cáo: {report.actor?.displayName || "Không rõ"} · {formatDate(report.createdAt)}
+                  </AppText>
+                </View>
+                <Pill label={statusLabel(report.status)} tone={report.status === "open" ? "warn" : "good"} />
+              </View>
+              <AppText style={{ marginVertical: 6 }}>{report.note || "Không có ghi chú."}</AppText>
+              <View style={styles.actionRow}>
+                <AppButton label="Đã xử lý" size="sm" variant="secondary" onPress={() => updateReport(report, "resolved")} disabled={busyAction === `report-${report.id}`} />
+                <AppButton label="Bỏ qua" size="sm" variant="ghost" onPress={() => updateReport(report, "dismissed")} disabled={busyAction === `report-${report.id}`} />
+              </View>
+            </Card>
+          )) : <EmptyState label="Không có báo cáo đang mở." />}
+        </View>
+      )}
+
+      {activeTab === "payments" && (
+        <View style={{ gap: 14 }}>
+          <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
+            <DetailedChart data={dashboard.charts.daily} field="payments" label="Thanh toán thành công" color={colors.yellow} />
+            <DetailedChart data={dashboard.charts.daily} field="revenue" label="Doanh thu" color={colors.greenDark} />
+          </View>
+          <BreakdownList title="Trạng thái thanh toán" data={dashboard.breakdowns.paymentsByStatus} />
+          <SectionHeader title="Giao dịch gần đây" />
+          {payments.length ? payments.map((payment) => (
+            <Card key={payment.id} style={styles.itemCard}>
+              <View style={styles.headerRow}>
+                <View style={styles.flex}>
+                  <AppText variant="subtitle" style={styles.itemCardTitle}>{payment.planId}</AppText>
+                  <AppText muted variant="caption">{payment.user?.email || payment.user?.displayName || "Không rõ người dùng"}</AppText>
+                </View>
+                <Pill label={statusLabel(payment.status)} tone={payment.status === "PAID" ? "good" : payment.status === "PENDING" ? "warn" : "neutral"} />
+              </View>
+              <AppText style={{ marginVertical: 6, fontFamily: fonts.semibold }}>
+                {formatCurrency(payment.amount)} <AppText muted variant="caption">· Mã đơn: {payment.orderCode}</AppText>
+              </AppText>
+              <AppText variant="caption" muted>
+                Tạo lúc: {formatDate(payment.createdAt)} {payment.paidAt ? `· Thanh toán lúc: ${formatDate(payment.paidAt)}` : ""}
+              </AppText>
+            </Card>
+          )) : <EmptyState label="Chưa có thanh toán." />}
+        </View>
+      )}
+
+      {activeTab === "ai" && (
+        <View style={{ gap: 14 }}>
+          <Card style={styles.aiGenerateCard}>
+            <View style={styles.aiGenerateHeader}>
+              <View style={styles.flex}>
+                <AppText variant="subtitle" style={{ color: colors.white, fontFamily: fonts.semibold }}>Báo cáo AI theo tài liệu KPI</AppText>
+                <AppText style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, marginTop: 4 }}>
+                  Hệ thống AI sẽ tự động phân tích kỹ thuật, hành vi, lưu lượng, chuyển đổi và phát hiện rủi ro từ dashboard hiện tại.
+                </AppText>
+              </View>
+              <AppButton
+                label={busyAction === "ai-report" ? "Đang tạo..." : "Tạo báo cáo"}
+                size="sm"
+                variant="secondary"
+                onPress={generateReport}
+                disabled={busyAction === "ai-report"}
+              />
+            </View>
+          </Card>
+          <ReportOutput generatedReport={generatedReport} />
+        </View>
+      )}
+    </View>
+  ) : null;
+
+  if (isDesktop) {
+    return (
+      <AppScreen scroll={false} style={styles.flatScreen} noBackground>
+        <View style={styles.desktopContainer}>
+          <Sidebar
+            navigation={navigation}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            currentScreen="dashboard"
+            loading={loading}
+            onRefresh={loadDashboard}
+            handleSignOut={handleSignOut}
+            busyAction={busyAction}
+          />
+          <View style={styles.workspace}>
+            <View style={styles.desktopTopBar}>
+              <View style={styles.flex}>
+                <AppText variant="title" style={styles.workspaceTitle}>
+                  {tabs.find((t) => t.key === activeTab)?.label}
+                </AppText>
+                <AppText muted variant="caption">Hệ thống giám sát và vận hành Daily Meal</AppText>
+              </View>
+              <View style={styles.desktopTopActions}>
+                <RangeSelector value={range} onChange={setRange} />
+              </View>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.workspaceContent}>
+              <ErrorText message={error || actionError} />
+              {dashboardContent}
+            </ScrollView>
+          </View>
+        </View>
       </AppScreen>
     );
   }
 
   return (
-    <AppScreen scroll scrollProps={{ contentContainerStyle: styles.wrap }}>
-      <View style={[styles.adminHeader, compactHeader && styles.adminHeaderCompact]}>
-        <View style={styles.headerTitle}>
-          <AppText variant="title">Bộ quản trị</AppText>
-          <AppText muted>Tổng quan, kiểm duyệt, thanh toán và báo cáo AI</AppText>
+    <AppScreen scroll={false} style={styles.flatScreen}>
+      <View style={styles.mobileWrap}>
+        <View style={styles.mobileHeader}>
+          <View style={styles.flex}>
+            <AppText variant="title" style={styles.mobileHeaderTitle}>Bộ quản trị</AppText>
+            <AppText muted variant="caption">Hệ thống giám sát toàn diện</AppText>
+          </View>
+          <View style={styles.mobileHeaderActions}>
+            <HeaderIconButton icon="people-outline" onPress={() => navigation.navigate("AdminUsers")} />
+            <HeaderIconButton icon="refresh-outline" onPress={loadDashboard} disabled={loading} />
+            <HeaderIconButton icon="log-out-outline" onPress={handleSignOut} variant="danger" disabled={busyAction === "sign-out"} />
+          </View>
         </View>
-        <View style={[styles.headerActions, compactHeader && styles.headerActionsCompact]}>
-          <AppButton label="Người dùng" size="sm" variant="ghost" onPress={() => navigation.navigate("AdminUsers")} />
-          <AppButton label="Làm mới" size="sm" variant="ghost" onPress={loadDashboard} disabled={loading} />
-          <AppButton label={busyAction === "sign-out" ? "Đang thoát..." : "Đăng xuất"} size="sm" variant="danger" onPress={handleSignOut} disabled={busyAction === "sign-out"} />
-        </View>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mobileScrollContent}>
+          <RangeSelector value={range} onChange={setRange} />
+          <ErrorText message={error || actionError} />
+          <AdminTabs activeTab={activeTab} onChange={setActiveTab} />
+          {dashboardContent}
+        </ScrollView>
       </View>
-
-      <RangeSelector value={range} onChange={setRange} />
-      <ErrorText message={error || actionError} />
-      <AdminTabs activeTab={activeTab} onChange={setActiveTab} />
-
-      {dashboard ? (
-        <>
-          {activeTab === "overview" ? (
-            <>
-              <View style={styles.grid}>
-                {overviewMetrics.map(([label, value, note]) => (
-                  <MetricCard key={label} label={label} value={value} note={note} />
-                ))}
-              </View>
-              <View style={[styles.twoColumn, !isWide && styles.stackColumn]}>
-                <MiniBarChart data={dashboard.charts.daily} field="users" label="Người dùng mới" color={colors.greenDark} />
-                <MiniBarChart data={dashboard.charts.daily} field="interactions" label="Tương tác" color={colors.blue} />
-              </View>
-              <View style={[styles.twoColumn, !isWide && styles.stackColumn]}>
-                <BreakdownList title="Người dùng" data={dashboard.breakdowns.usersByPremium} />
-                <BreakdownList title="Bài đăng theo trạng thái" data={dashboard.breakdowns.postsByModeration} />
-              </View>
-              <SectionHeader title="Audit gần đây" />
-              {dashboard.recent.audit.length ? (
-                dashboard.recent.audit.map((item) => (
-                  <Card key={item.id}>
-                    <View style={styles.headerRow}>
-                      <AppText variant="button">{item.action}</AppText>
-                      <AppText variant="caption" muted>{formatDate(item.createdAt)}</AppText>
-                    </View>
-                    <AppText muted>{item.targetType}: {item.targetId}</AppText>
-                  </Card>
-                ))
-              ) : (
-                <EmptyState label="Chưa có audit action." />
-              )}
-            </>
-          ) : null}
-
-          {activeTab === "analytics" ? (
-            <>
-              <View style={styles.grid}>
-                <MetricCard label="DAU / WAU / MAU" value={`${dashboard.analytics.activeUsers.dau} / ${dashboard.analytics.activeUsers.wau} / ${dashboard.analytics.activeUsers.mau}`} note={`${dashboard.analytics.activeUsers.returning} user quay lại`} />
-                <MetricCard label="Phiên trung bình" value={`${Math.round(dashboard.analytics.sessions.averageDurationMs / 1000)}s`} note={`Thoát nhanh ${formatPercent(dashboard.analytics.sessions.bounceRate)}`} />
-                <MetricCard label="Tỷ lệ bấm bảng tin" value={formatPercent(dashboard.analytics.feed.ctr)} note={`Độ sâu cuộn TB ${formatNumber(dashboard.analytics.feed.averageScrollDepth)}%`} />
-                <MetricCard label="Phản hồi API" value={`${Math.round(dashboard.analytics.technical.averageApiResponseMs)}ms`} note={metricStatus(dashboard.analytics.technical.instrumentation.apiResponseTime)} />
-                <MetricCard label="Tải ảnh" value={`${Math.round(dashboard.analytics.technical.averageImageLoadMs)}ms`} note={metricStatus(dashboard.analytics.technical.instrumentation.imageLoadSpeed)} />
-                <MetricCard label="Lỗi runtime" value={dashboard.analytics.technical.runtimeErrors} note={`Tỷ lệ lỗi ${formatPercent(dashboard.analytics.technical.crashRate)}`} />
-              </View>
-              <View style={[styles.twoColumn, !isWide && styles.stackColumn]}>
-                <MiniBarChart data={dashboard.charts.daily} field="posts" label="Bài đăng mới" color={colors.green} />
-                <MiniBarChart data={dashboard.charts.daily} field="apiErrors" label="Lỗi runtime/API" color={colors.red} />
-              </View>
-              <View style={styles.grid}>
-                <MetricCard label="Chuyển đổi creator" value={formatPercent(dashboard.analytics.creatorConversion.rate)} note={`${dashboard.analytics.creatorConversion.completed}/${dashboard.analytics.creatorConversion.started}`} />
-                <MetricCard label="Hoàn tất đăng bài" value={formatPercent(dashboard.analytics.postCreation.completionRate)} note={`${dashboard.analytics.postCreation.completed}/${dashboard.analytics.postCreation.started}`} />
-                <MetricCard label="Hoàn tất AI món ăn" value={formatPercent(dashboard.analytics.mealAnalysis.completionRate)} note={`${dashboard.analytics.mealAnalysis.completed}/${dashboard.analytics.mealAnalysis.started}`} />
-                <MetricCard label="Thanh toán premium" value={formatPercent(dashboard.analytics.premiumFunnel.paymentCompletionRate)} note={`${dashboard.analytics.premiumFunnel.paymentCompleted}/${dashboard.analytics.premiumFunnel.paymentStarted}`} />
-              </View>
-            </>
-          ) : null}
-
-          {activeTab === "posts" ? (
-            <>
-              <SectionHeader title="Quản lý bài đăng" subtitle="Kiểm duyệt mềm: ẩn, đưa vào review hoặc khôi phục." />
-              {posts.length ? posts.map((post) => (
-                <Card key={post.id}>
-                  <View style={styles.headerRow}>
-                    <View style={styles.flex}>
-                      <AppText variant="subtitle" numberOfLines={1}>{post.caption || "(Không có caption)"}</AppText>
-                    <AppText muted>{post.author?.displayName || "Không rõ"} · {formatDate(post.createdAt)} · {post.imageCount} ảnh · {statusLabel(post.visibility)}</AppText>
-                    </View>
-                    <Pill label={statusLabel(post.moderationStatus)} tone={post.moderationStatus === "hidden" ? "bad" : post.moderationStatus === "review" ? "warn" : "good"} />
-                  </View>
-                  <AppText muted>Lượt thích {post.stats.likes} · Bình luận {post.stats.comments} · Lưu {post.stats.saves}</AppText>
-                  <View style={styles.actionRow}>
-                    <AppButton label="Ẩn" size="sm" variant="danger" onPress={() => moderatePost(post, "hidden")} disabled={busyAction === `post-${post.id}`} />
-                    <AppButton label="Cần xem lại" size="sm" variant="ghost" onPress={() => moderatePost(post, "review")} disabled={busyAction === `post-${post.id}`} />
-                    <AppButton label="Khôi phục" size="sm" variant="secondary" onPress={() => moderatePost(post, "visible")} disabled={busyAction === `post-${post.id}`} />
-                  </View>
-                </Card>
-              )) : <EmptyState label="Chưa có bài đăng." />}
-            </>
-          ) : null}
-
-          {activeTab === "reports" ? (
-            <>
-              <SectionHeader title="Hàng đợi báo cáo" subtitle="Mặc định hiển thị các báo cáo đang mở." />
-              {reports.length ? reports.map((report) => (
-                <Card key={report.id}>
-                  <View style={styles.headerRow}>
-                    <View style={styles.flex}>
-                      <AppText variant="subtitle">{report.target?.displayName || "Người dùng bị báo cáo"}</AppText>
-                      <AppText muted>Người báo cáo: {report.actor?.displayName || "Không rõ"} · {formatDate(report.createdAt)}</AppText>
-                    </View>
-                    <Pill label={statusLabel(report.status)} tone={report.status === "open" ? "warn" : "good"} />
-                  </View>
-                  <AppText>{report.note || "Không có ghi chú."}</AppText>
-                  <View style={styles.actionRow}>
-                    <AppButton label="Đã xử lý" size="sm" variant="secondary" onPress={() => updateReport(report, "resolved")} disabled={busyAction === `report-${report.id}`} />
-                    <AppButton label="Bỏ qua" size="sm" variant="ghost" onPress={() => updateReport(report, "dismissed")} disabled={busyAction === `report-${report.id}`} />
-                  </View>
-                </Card>
-              )) : <EmptyState label="Không có báo cáo đang mở." />}
-            </>
-          ) : null}
-
-          {activeTab === "payments" ? (
-            <>
-              <View style={[styles.twoColumn, !isWide && styles.stackColumn]}>
-                <MiniBarChart data={dashboard.charts.daily} field="payments" label="Thanh toán thành công" color={colors.yellow} />
-                <MiniBarChart data={dashboard.charts.daily} field="revenue" label="Doanh thu" color={colors.greenDark} />
-              </View>
-              <BreakdownList title="Trạng thái thanh toán" data={dashboard.breakdowns.paymentsByStatus} />
-              {payments.length ? payments.map((payment) => (
-                <Card key={payment.id}>
-                  <View style={styles.headerRow}>
-                    <View>
-                      <AppText variant="subtitle">{payment.planId}</AppText>
-                      <AppText muted>{payment.user?.email || payment.user?.displayName || "Không rõ người dùng"}</AppText>
-                    </View>
-                    <Pill label={statusLabel(payment.status)} tone={payment.status === "PAID" ? "good" : payment.status === "PENDING" ? "warn" : "neutral"} />
-                  </View>
-                  <AppText>{formatCurrency(payment.amount)} · Mã đơn {payment.orderCode}</AppText>
-                  <AppText variant="caption" muted>Tạo: {formatDate(payment.createdAt)} · Thanh toán: {formatDate(payment.paidAt)}</AppText>
-                </Card>
-              )) : <EmptyState label="Chưa có thanh toán." />}
-            </>
-          ) : null}
-
-          {activeTab === "ai" ? (
-            <>
-              <Card>
-                <View style={[styles.headerRow, compactHeader && styles.headerRowWrap]}>
-                  <View style={styles.flex}>
-                    <AppText variant="subtitle">Báo cáo AI theo tài liệu KPI</AppText>
-                    <AppText muted>AI tổng hợp kỹ thuật, hành vi, lưu lượng, chuyển đổi, bất thường và hành động ưu tiên.</AppText>
-                  </View>
-                  <AppButton label={busyAction === "ai-report" ? "Đang tạo..." : "Tạo báo cáo"} size="sm" onPress={generateReport} disabled={busyAction === "ai-report"} />
-                </View>
-              </Card>
-              <ReportOutput generatedReport={generatedReport} />
-            </>
-          ) : null}
-        </>
-      ) : null}
     </AppScreen>
   );
 }
 
 export function AdminUsersScreen({ navigation }: any) {
-  const { adminToken } = useAuth();
+  const { adminToken, signOut } = useAuth();
   const { width } = useWindowDimensions();
-  const compactHeader = width < 760;
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [pagination, setPagination] = useState<AdminPagination | null>(null);
@@ -610,6 +1023,12 @@ export function AdminUsersScreen({ navigation }: any) {
   const [loadingAll, setLoadingAll] = useState(false);
   const [busyUser, setBusyUser] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+
+  const isDesktop = width >= 992;
+  const compactHeader = width < 760;
+
+  const numColumns = isDesktop && width >= 1150 ? 2 : 1;
 
   function mergeUsers(current: AdminUserSummary[], next: AdminUserSummary[]) {
     const map = new Map(current.map((item) => [item.id, item]));
@@ -690,84 +1109,169 @@ export function AdminUsersScreen({ navigation }: any) {
     }
   }
 
-  const header = (
-    <View style={styles.listHeader}>
-      <View style={[styles.adminHeader, compactHeader && styles.adminHeaderCompact]}>
-        <View style={styles.headerTitle}>
-          <AppText variant="title">Quản lý người dùng</AppText>
-          <AppText muted>Tìm kiếm, xem chi tiết và cập nhật premium thủ công.</AppText>
-        </View>
-        <View style={[styles.headerActions, compactHeader && styles.headerActionsCompact]}>
-          <AppButton label="Dashboard" size="sm" variant="ghost" onPress={() => navigation.navigate("AdminDashboard")} />
-        </View>
-      </View>
+  async function handleSignOut() {
+    setBusyAction("sign-out");
+    try {
+      await signOut();
+    } catch (err: any) {
+      setError(err?.message ?? "Không đăng xuất được. Vui lòng thử lại.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  const headerControls = (
+    <View style={styles.usersHeaderControls}>
       <View style={[styles.searchRow, compactHeader && styles.searchRowCompact]}>
         <View style={styles.searchInput}>
-          <TextField label="Tìm kiếm" value={query} onChangeText={setQuery} placeholder="Tên, email, SĐT" />
+          <TextField label="Từ khóa tìm kiếm" value={query} onChangeText={setQuery} placeholder="Tên, email hoặc SĐT..." />
         </View>
-        <AppButton label="Tìm" size="sm" onPress={() => loadUsers({ page: 1, append: false })} disabled={loading} />
+        <AppButton label="Tìm kiếm" size="sm" style={styles.searchButton} onPress={() => loadUsers({ page: 1, append: false })} disabled={loading} />
       </View>
       <ErrorText message={error} />
       {pagination ? (
-        <AppText muted>Đã tải {formatNumber(users.length)} / {formatNumber(pagination.total)} người dùng</AppText>
+        <View style={styles.usersCountRow}>
+          <Ionicons name="people" size={16} color={colors.greenDark} />
+          <AppText muted variant="caption" style={{ fontFamily: fonts.semibold }}>
+            Đã tải {formatNumber(users.length)} / {formatNumber(pagination.total)} người dùng
+          </AppText>
+        </View>
       ) : null}
     </View>
   );
 
-  const footer = (
+  const footerControls = (
     <View style={styles.listFooter}>
-      {loading || loadingMore || loadingAll ? <ActivityIndicator color={colors.green} /> : null}
+      {loading || loadingMore || loadingAll ? <ActivityIndicator color={colors.greenDark} /> : null}
       {pagination && pagination.page < pagination.pages ? (
         <View style={styles.actionRow}>
           <AppButton label={loadingMore ? "Đang tải..." : "Tải thêm"} size="sm" variant="ghost" onPress={loadMore} disabled={loadingMore || loadingAll} />
           <AppButton label={loadingAll ? "Đang tải tất cả..." : "Tải tất cả"} size="sm" onPress={loadAll} disabled={loadingMore || loadingAll} />
         </View>
       ) : pagination ? (
-        <AppText muted>Đã tải toàn bộ người dùng phù hợp.</AppText>
+        <AppText muted variant="caption" style={{ textAlign: "center", marginVertical: 12 }}>Đã tải toàn bộ người dùng phù hợp.</AppText>
       ) : null}
     </View>
   );
 
+  function renderUserItem({ item }: { item: AdminUserSummary }) {
+    const initials = item.displayName ? item.displayName.slice(0, 2).toUpperCase() : "US";
+    return (
+      <Pressable style={styles.userCard} onPress={() => navigation.navigate("AdminUserDetail", { id: item.id })}>
+        <View style={styles.userCardTop}>
+          <View style={styles.avatarCircle}>
+            <AppText style={styles.avatarText}>{initials}</AppText>
+          </View>
+          <View style={styles.flex}>
+            <AppText variant="subtitle" style={styles.userCardName} numberOfLines={1}>{item.displayName}</AppText>
+            <AppText muted variant="caption" numberOfLines={1}>{item.email || item.phone || item.id}</AppText>
+          </View>
+          <Pill label={item.isPremium ? "Premium" : "Miễn phí"} tone={item.isPremium ? "good" : "neutral"} />
+        </View>
+        <View style={styles.userCardStats}>
+          <View style={styles.userStatMini}>
+            <Ionicons name="images-outline" size={12} color={colors.muted} />
+            <AppText variant="caption" muted>{item.stats.posts} bài</AppText>
+          </View>
+          <View style={styles.userStatMini}>
+            <Ionicons name="people-outline" size={12} color={colors.muted} />
+            <AppText variant="caption" muted>{item.stats.followers} fl</AppText>
+          </View>
+          <View style={styles.userStatMini}>
+            <Ionicons name="warning-outline" size={12} color={colors.muted} />
+            <AppText variant="caption" style={{ color: item.stats.reports > 0 ? colors.red : colors.muted }}>{item.stats.reports} báo cáo</AppText>
+          </View>
+        </View>
+        <View style={styles.userCardActions}>
+          <AppButton label={item.isPremium ? "Tắt prem..." : "Bật prem..."} size="sm" variant="ghost" style={{ flex: 1 }} onPress={() => togglePremium(item)} disabled={busyUser === item.id} />
+          <AppButton label="Chi tiết" size="sm" style={{ flex: 1 }} onPress={() => navigation.navigate("AdminUserDetail", { id: item.id })} />
+        </View>
+      </Pressable>
+    );
+  }
+
+  if (isDesktop) {
+    return (
+      <AppScreen scroll={false} style={styles.flatScreen} noBackground>
+        <View style={styles.desktopContainer}>
+          <Sidebar
+            navigation={navigation}
+            currentScreen="users"
+            loading={loading}
+            onRefresh={() => loadUsers({ page: 1, append: false })}
+            handleSignOut={handleSignOut}
+            busyAction={busyAction}
+          />
+          <View style={styles.workspace}>
+            <View style={styles.desktopTopBar}>
+              <View style={styles.flex}>
+                <AppText variant="title" style={styles.workspaceTitle}>Quản lý người dùng</AppText>
+                <AppText muted variant="caption">Tìm kiếm, cập nhật tài khoản và phân quyền Premium thủ công.</AppText>
+              </View>
+              <View style={styles.desktopTopActions}>
+                <HeaderIconButton icon="grid-outline" onPress={() => navigation.navigate("AdminDashboard")} />
+              </View>
+            </View>
+
+            <View style={styles.workspaceUsersContent}>
+              {headerControls}
+              <FlatList
+                key={numColumns}
+                numColumns={numColumns}
+                columnWrapperStyle={numColumns > 1 ? { gap: 16, marginBottom: 16 } : undefined}
+                data={users}
+                keyExtractor={(item) => item.id}
+                ListFooterComponent={footerControls}
+                renderItem={renderUserItem}
+                ListEmptyComponent={!loading ? <EmptyState label="Không có người dùng phù hợp." /> : null}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
+          </View>
+        </View>
+      </AppScreen>
+    );
+  }
+
   return (
     <AppScreen scroll={false} style={styles.flatScreen}>
-      <FlatList
-        data={users}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={header}
-        ListFooterComponent={footer}
-        contentContainerStyle={styles.flatContent}
-        renderItem={({ item }) => (
-          <Pressable style={styles.userCard} onPress={() => navigation.navigate("AdminUserDetail", { id: item.id })}>
-            <View style={styles.headerRow}>
-              <View style={styles.flex}>
-                <AppText variant="subtitle">{item.displayName}</AppText>
-                <AppText muted>{item.email || item.phone || item.id}</AppText>
-              </View>
-              <Pill label={item.isPremium ? "Premium" : "Miễn phí"} tone={item.isPremium ? "good" : "neutral"} />
-            </View>
-            <AppText muted>
-              Bài đăng {item.stats.posts} · Người theo dõi {item.stats.followers} · Đang theo dõi {item.stats.following} · Báo cáo {item.stats.reports}
-            </AppText>
-            <View style={styles.actionRow}>
-              <AppButton label={item.isPremium ? "Tắt premium" : "Bật premium"} size="sm" variant="ghost" onPress={() => togglePremium(item)} disabled={busyUser === item.id} />
-              <AppButton label="Chi tiết" size="sm" onPress={() => navigation.navigate("AdminUserDetail", { id: item.id })} />
-            </View>
-          </Pressable>
-        )}
-        ListEmptyComponent={!loading ? <EmptyState label="Không có người dùng phù hợp." /> : null}
-      />
+      <View style={styles.mobileWrap}>
+        <View style={styles.mobileHeader}>
+          <View style={styles.flex}>
+            <AppText variant="title" style={styles.mobileHeaderTitle}>Người dùng</AppText>
+            <AppText muted variant="caption">Danh sách tài khoản hệ thống</AppText>
+          </View>
+          <View style={styles.mobileHeaderActions}>
+            <HeaderIconButton icon="grid-outline" onPress={() => navigation.navigate("AdminDashboard")} />
+          </View>
+        </View>
+
+        <FlatList
+          key="m"
+          data={users}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={headerControls}
+          ListFooterComponent={footerControls}
+          renderItem={renderUserItem}
+          contentContainerStyle={styles.mobileScrollContent}
+          ListEmptyComponent={!loading ? <EmptyState label="Không có người dùng phù hợp." /> : null}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
     </AppScreen>
   );
 }
 
 export function AdminUserDetailScreen({ route, navigation }: any) {
-  const { adminToken } = useAuth();
+  const { adminToken, signOut } = useAuth();
   const { width } = useWindowDimensions();
-  const compactHeader = width < 760;
   const [user, setUser] = useState<AdminUserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+
+  const isDesktop = width >= 992;
 
   const load = useCallback(async () => {
     if (!adminToken) return;
@@ -800,141 +1304,664 @@ export function AdminUserDetailScreen({ route, navigation }: any) {
     }
   }
 
+  async function handleSignOut() {
+    setBusyAction("sign-out");
+    try {
+      await signOut();
+    } catch (err: any) {
+      setError(err?.message ?? "Không đăng xuất được. Vui lòng thử lại.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   useEffect(() => {
     load();
   }, [load]);
 
   if (loading || !user) {
     return (
-      <AppScreen>
-        <ActivityIndicator color={colors.green} />
-        <ErrorText message={error} />
+      <AppScreen scroll={false}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.greenDark} />
+          <ErrorText message={error} />
+        </View>
+      </AppScreen>
+    );
+  }
+
+  const userInitials = user.displayName ? user.displayName.slice(0, 2).toUpperCase() : "US";
+
+  const userDetailContent = (
+    <View style={styles.detailContainer}>
+      <ErrorText message={error} />
+
+      {/* Main Profile Info Card */}
+      <Card style={styles.profileHeaderCard}>
+        <View style={styles.profileMetaRow}>
+          <View style={styles.profileAvatarCircle}>
+            <AppText style={styles.profileAvatarText}>{userInitials}</AppText>
+          </View>
+          <View style={styles.flex}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <AppText variant="title" style={styles.profileDisplayName}>{user.displayName}</AppText>
+              <Pill label={user.isPremium ? "Premium" : "Miễn phí"} tone={user.isPremium ? "good" : "neutral"} />
+            </View>
+            <AppText muted style={{ marginTop: 2 }}>ID: {user.id}</AppText>
+            <AppText muted variant="caption" style={{ marginTop: 2 }}>
+              Liên hệ: {user.email || "Chưa cung cấp email"} {user.phone ? `· ${user.phone}` : ""}
+            </AppText>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.profileInfoDetails}>
+          <AppText style={styles.profileBioText}>
+            <AppText variant="button">Tiểu sử: </AppText>
+            {user.bio || "(Chưa có tiểu sử)"}
+          </AppText>
+          <AppText style={styles.profileBioText}>
+            <AppText variant="button">Sở thích ẩm thực: </AppText>
+            {user.preferences?.interests?.join(", ") || "Chưa cập nhật"}
+          </AppText>
+          <AppText style={styles.profileBioText}>
+            <AppText variant="button">Kiểu ăn uống: </AppText>
+            {user.preferences?.eatingStyles?.join(", ") || "Chưa cập nhật"}
+          </AppText>
+          <AppText variant="caption" muted style={{ marginTop: 4 }}>
+            Tạo tài khoản: {formatDate(user.createdAt)} · Cập nhật gần nhất: {formatDate(user.updatedAt)}
+          </AppText>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.profileActions}>
+          <AppText variant="caption" muted style={{ flex: 1, marginRight: 12 }}>
+            Chuyển trạng thái Premium để kích hoạt các đặc quyền AI phân tích món ăn và đề xuất dinh dưỡng nâng cao.
+          </AppText>
+          <AppButton
+            label={user.isPremium ? "Tắt Premium" : "Kích hoạt Premium"}
+            size="sm"
+            variant={user.isPremium ? "ghost" : "secondary"}
+            onPress={togglePremium}
+            disabled={busy}
+          />
+        </View>
+      </Card>
+
+      {/* Stats Cards */}
+      <View style={isDesktop ? styles.desktopGrid4 : styles.grid}>
+        <MetricCard label="Bài đăng" value={user.stats.posts} isDesktop={isDesktop} />
+        <MetricCard label="Người theo dõi" value={user.stats.followers} isDesktop={isDesktop} />
+        <MetricCard label="Đang theo dõi" value={user.stats.following} isDesktop={isDesktop} />
+        <MetricCard label="Báo cáo" value={user.stats.reports} isDesktop={isDesktop} />
+      </View>
+
+      {/* Side-by-side or stacked detail lists */}
+      <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
+        {/* Recent Posts */}
+        <Card style={styles.detailSectionCard}>
+          <AppText variant="subtitle" style={styles.detailSectionTitle}>
+            <Ionicons name="images-outline" size={16} color={colors.greenDark} style={{ marginRight: 6 }} />
+            Bài đăng gần đây
+          </AppText>
+          <View style={styles.detailSectionList}>
+            {user.recentPosts.length ? (
+              user.recentPosts.map((post) => (
+                <View key={post.id} style={styles.listLine}>
+                  <AppText style={styles.detailItemTitle} numberOfLines={1}>{post.caption || "(Không có caption)"}</AppText>
+                  <View style={styles.detailItemMeta}>
+                    <Pill label={statusLabel(post.moderationStatus)} tone={post.moderationStatus === "hidden" ? "bad" : post.moderationStatus === "review" ? "warn" : "good"} />
+                    <AppText variant="caption" muted>
+                      {statusLabel(post.visibility)} · {formatDate(post.createdAt)}
+                    </AppText>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <AppText muted variant="caption" style={{ padding: 12 }}>Không có bài đăng.</AppText>
+            )}
+          </View>
+        </Card>
+
+        {/* Attention Interactions */}
+        <Card style={styles.detailSectionCard}>
+          <AppText variant="subtitle" style={styles.detailSectionTitle}>
+            <Ionicons name="alert-circle-outline" size={16} color={colors.greenDark} style={{ marginRight: 6 }} />
+            Tương tác cần chú ý
+          </AppText>
+          <View style={styles.detailSectionList}>
+            {user.interactions.length ? (
+              user.interactions.map((interaction) => (
+                <View key={interaction.id} style={styles.listLine}>
+                  <View style={styles.headerRow}>
+                    <AppText style={styles.detailItemTitle}>{statusLabel(interaction.type)}: {interaction.note || "-"}</AppText>
+                    <Pill label={statusLabel(interaction.status)} tone={interaction.status === "resolved" ? "good" : interaction.status === "dismissed" ? "neutral" : "warn"} />
+                  </View>
+                  <AppText variant="caption" muted style={{ marginTop: 4 }}>
+                    {formatDate(interaction.createdAt)} {interaction.adminNote ? `· Ghi chú: ${interaction.adminNote}` : ""}
+                  </AppText>
+                </View>
+              ))
+            ) : (
+              <AppText muted variant="caption" style={{ padding: 12 }}>Không có dữ liệu tương tác bất thường.</AppText>
+            )}
+          </View>
+        </Card>
+      </View>
+
+      {/* User operations Audit Log */}
+      <Card style={styles.itemCard}>
+        <AppText variant="subtitle" style={styles.detailSectionTitle}>
+          <Ionicons name="time-outline" size={16} color={colors.greenDark} style={{ marginRight: 6 }} />
+          Lịch sử thao tác tài khoản
+        </AppText>
+        <View style={{ gap: 8, marginTop: 10 }}>
+          {user.audit?.length ? (
+            user.audit.map((item) => (
+              <View key={item.id} style={styles.auditLogLine}>
+                <View style={styles.auditLogDot} />
+                <View style={styles.flex}>
+                  <AppText variant="body" style={{ fontFamily: fonts.semibold }}>{item.action}</AppText>
+                  <AppText variant="caption" muted>{formatDate(item.createdAt)} {item.note ? `· ${item.note}` : ""}</AppText>
+                </View>
+              </View>
+            ))
+          ) : (
+            <AppText muted variant="caption" style={{ padding: 12 }}>Chưa có bản ghi hoạt động.</AppText>
+          )}
+        </View>
+      </Card>
+    </View>
+  );
+
+  if (isDesktop) {
+    return (
+      <AppScreen scroll={false} style={styles.flatScreen} noBackground>
+        <View style={styles.desktopContainer}>
+          <Sidebar
+            navigation={navigation}
+            currentScreen="user-detail"
+            loading={loading}
+            onRefresh={load}
+            handleSignOut={handleSignOut}
+            busyAction={busyAction}
+          />
+          <View style={styles.workspace}>
+            <View style={styles.desktopTopBar}>
+              <View style={styles.flex}>
+                <AppText variant="title" style={styles.workspaceTitle}>Hồ sơ chi tiết</AppText>
+                <AppText muted variant="caption">Xem thông tin toàn diện và nhật ký thao tác của người dùng.</AppText>
+              </View>
+              <View style={styles.desktopTopActions}>
+                <HeaderIconButton icon="arrow-back-outline" onPress={() => navigation.goBack()} />
+              </View>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.workspaceContent}>
+              {userDetailContent}
+            </ScrollView>
+          </View>
+        </View>
       </AppScreen>
     );
   }
 
   return (
-    <AppScreen scroll scrollProps={{ contentContainerStyle: styles.wrap }}>
-      <View style={[styles.adminHeader, compactHeader && styles.adminHeaderCompact]}>
-        <View style={styles.headerTitle}>
-          <AppText variant="title">{user.displayName}</AppText>
-          <AppText muted>{user.email || user.phone || user.id}</AppText>
-        </View>
-        <View style={[styles.headerActions, compactHeader && styles.headerActionsCompact]}>
-          <AppButton label="Quay lại" size="sm" variant="ghost" onPress={() => navigation.goBack()} />
-        </View>
-      </View>
-      <ErrorText message={error} />
-      <View style={styles.grid}>
-        <MetricCard label="Bài đăng" value={user.stats.posts} />
-        <MetricCard label="Người theo dõi" value={user.stats.followers} />
-        <MetricCard label="Đang theo dõi" value={user.stats.following} />
-        <MetricCard label="Báo cáo" value={user.stats.reports} />
-      </View>
-      <Card>
-        <View style={styles.headerRow}>
-          <View>
-            <AppText variant="subtitle">Hồ sơ</AppText>
-            <AppText>Premium: {user.isPremium ? "Có" : "Không"}</AppText>
+    <AppScreen scroll={false} style={styles.flatScreen}>
+      <View style={styles.mobileWrap}>
+        <View style={styles.mobileHeader}>
+          <View style={styles.flex}>
+            <AppText variant="title" style={styles.mobileHeaderTitle}>Chi tiết User</AppText>
+            <AppText muted variant="caption">Hồ sơ người dùng chi tiết</AppText>
           </View>
-          <AppButton label={user.isPremium ? "Tắt premium" : "Bật premium"} size="sm" variant="ghost" onPress={togglePremium} disabled={busy} />
+          <View style={styles.mobileHeaderActions}>
+            <HeaderIconButton icon="arrow-back-outline" onPress={() => navigation.goBack()} />
+          </View>
         </View>
-        <AppText>Tiểu sử: {user.bio || "-"}</AppText>
-        <AppText>Sở thích: {user.preferences?.interests?.join(", ") || "-"}</AppText>
-        <AppText>Kiểu ăn uống: {user.preferences?.eatingStyles?.join(", ") || "-"}</AppText>
-        <AppText muted>Tạo: {formatDate(user.createdAt)} · Cập nhật: {formatDate(user.updatedAt)}</AppText>
-      </Card>
-      <Card>
-        <AppText variant="subtitle">Bài đăng gần đây</AppText>
-        {user.recentPosts.length ? (
-          user.recentPosts.map((post) => (
-            <View key={post.id} style={styles.listLine}>
-              <AppText>{post.caption || "(Không có caption)"}</AppText>
-              <AppText variant="caption" muted>{statusLabel(post.visibility)} · {statusLabel(post.moderationStatus)} · {formatDate(post.createdAt)}</AppText>
-            </View>
-          ))
-        ) : (
-          <AppText muted>Không có bài đăng.</AppText>
-        )}
-      </Card>
-      <Card>
-        <AppText variant="subtitle">Tương tác cần chú ý</AppText>
-        {user.interactions.length ? (
-          user.interactions.map((interaction) => (
-            <View key={interaction.id} style={styles.listLine}>
-              <View style={styles.headerRow}>
-                <AppText>{statusLabel(interaction.type)}: {interaction.note || "-"}</AppText>
-                <Pill label={statusLabel(interaction.status)} tone={interaction.status === "resolved" ? "good" : interaction.status === "dismissed" ? "neutral" : "warn"} />
-              </View>
-              <AppText variant="caption" muted>{formatDate(interaction.createdAt)} · {interaction.adminNote || ""}</AppText>
-            </View>
-          ))
-        ) : (
-          <AppText muted>Không có dữ liệu.</AppText>
-        )}
-      </Card>
-      <Card>
-        <AppText variant="subtitle">Lịch sử thao tác người dùng</AppText>
-        {user.audit?.length ? (
-          user.audit.map((item) => (
-            <View key={item.id} style={styles.listLine}>
-              <AppText>{item.action}</AppText>
-              <AppText variant="caption" muted>{formatDate(item.createdAt)} · {item.note || ""}</AppText>
-            </View>
-          ))
-        ) : (
-          <AppText muted>Chưa có audit.</AppText>
-        )}
-      </Card>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mobileScrollContent}>
+          {userDetailContent}
+        </ScrollView>
+      </View>
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 16, paddingBottom: 28 },
+  // Global & Login styles
+  flex: { flex: 1, minWidth: 0 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  pressed: { opacity: 0.75 },
+  disabled: { opacity: 0.4 },
+  divider: { height: 1, backgroundColor: colors.line, marginVertical: 14 },
   flatScreen: { padding: 0 },
-  flatContent: { padding: 20, gap: 12, paddingBottom: 28 },
-  loginWrap: { gap: 16, justifyContent: "center", minHeight: "100%" },
-  adminHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
-  adminHeaderCompact: { flexDirection: "column" },
-  headerTitle: { flex: 1, minWidth: 0, gap: 4 },
-  headerActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "flex-end", flexShrink: 1 },
-  headerActionsCompact: { justifyContent: "flex-start", width: "100%" },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
-  headerRowWrap: { flexWrap: "wrap" },
-  listHeader: { gap: 14, paddingBottom: 6 },
-  listFooter: { gap: 10, paddingVertical: 12 },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+
+  // Cards layout base
+  card: {
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 18,
+    gap: 8,
+    flex: 1,
+    // Soft shadow for Web/iOS
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    // Elevation for Android
+    elevation: 1
+  },
+  emptyStateCard: {
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderStyle: "dashed"
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFEBEE",
+    borderColor: "#FFCDD2",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    gap: 8,
+    marginVertical: 4
+  },
+  error: { color: colors.red, fontSize: 13, flex: 1 },
+
+  // Responsive Grid layouts
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  twoColumn: { flexDirection: "row", gap: 12 },
-  stackColumn: { flexDirection: "column" },
-  card: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 8, padding: 16, gap: 8, flex: 1 },
-  metricCard: { minWidth: 150 },
-  chartCard: { minHeight: 190 },
-  barChart: { flexDirection: "row", alignItems: "flex-end", gap: 7, minHeight: 124 },
-  barColumn: { flex: 1, alignItems: "center", gap: 6, minWidth: 18 },
-  barTrack: { height: 90, width: "100%", maxWidth: 22, borderRadius: 4, backgroundColor: colors.canvasStrong, justifyContent: "flex-end", overflow: "hidden" },
-  barFill: { width: "100%", borderTopLeftRadius: 4, borderTopRightRadius: 4 },
-  tabs: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  tab: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 8 },
-  tabActive: { backgroundColor: colors.black, borderColor: colors.black },
-  tabTextActive: { color: colors.white },
-  rangeSelector: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  rangeButton: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 8 },
-  rangeButtonActive: { backgroundColor: colors.black, borderColor: colors.black },
+  desktopGrid3: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
+  desktopGrid4: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
+  twoColumn: { flexDirection: "row", gap: 16 },
+  stackColumn: { flexDirection: "column", gap: 16 },
+
+  // Metric Cards
+  metricCard: {
+    minWidth: 120,
+    flexGrow: 1,
+    flexShrink: 0
+  },
+  metricHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6
+  },
+  metricLabel: {
+    flex: 1,
+    fontSize: 11,
+    marginRight: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    fontFamily: fonts.semibold
+  },
+  metricIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(79, 111, 61, 0.07)",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  metricValue: {
+    fontSize: 22,
+    fontFamily: fonts.bold,
+    color: colors.ink
+  },
+  metricNote: {
+    fontSize: 10,
+    color: colors.muted,
+    marginTop: 2
+  },
+
+  // Pill badges
+  pill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    fontSize: 11,
+    fontFamily: fonts.semibold,
+    overflow: "hidden"
+  },
+  pillGood: { backgroundColor: "#E8F5E9", color: "#2E7D32" },
+  pillWarn: { backgroundColor: "#FFF3E0", color: "#E65100" },
+  pillBad: { backgroundColor: "#FFEBEE", color: "#C62828" },
+  pillNeutral: { backgroundColor: "#F5F5F5", color: "#616161" },
+
+  // Section Headers
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 2
+  },
+  sectionTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 18,
+    color: colors.ink
+  },
+
+  // Range Selector
+  rangeSelector: { flexDirection: "row", gap: 6 },
+  rangeButton: {
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20
+  },
+  rangeButtonActive: {
+    backgroundColor: colors.black,
+    borderColor: colors.black
+  },
+  rangeText: { color: colors.ink, fontFamily: fonts.medium },
   rangeTextActive: { color: colors.white },
-  userCard: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 8, padding: 14, gap: 8 },
-  searchRow: { flexDirection: "row", gap: 10, alignItems: "flex-end" },
+
+  // Mobile Tabs
+  tabs: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginVertical: 4 },
+  tab: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20
+  },
+  tabActive: { backgroundColor: colors.greenDark, borderColor: colors.greenDark },
+  tabText: { color: colors.ink, fontFamily: fonts.medium },
+  tabTextActive: { color: colors.white },
+
+  // Detailed Charts
+  chartCard: { minHeight: 260 },
+  chartHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.04)",
+    paddingBottom: 10,
+    marginBottom: 10
+  },
+  chartTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink },
+  chartStatsRow: { flexDirection: "row", gap: 12, flexWrap: "wrap" },
+  chartStatBox: { alignItems: "flex-start" },
+  chartStatTitle: { fontSize: 9, textTransform: "uppercase", letterSpacing: 0.3 },
+  chartStatValue: { fontSize: 12, fontFamily: fonts.bold, color: colors.ink },
+  chartStatDate: { fontSize: 8, color: colors.muted },
+  chartBody: { flex: 1, position: "relative", justifyContent: "flex-end", paddingTop: 14 },
+  chartGrid: { ...StyleSheet.absoluteFillObject, top: 14, bottom: 20, zIndex: 1 },
+  chartGridLine: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 1,
+    borderBottomWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+    borderStyle: "dashed",
+    flexDirection: "row",
+    justifyContent: "flex-end"
+  },
+  chartGridLabel: { position: "absolute", top: -11, right: 0, fontSize: 8, color: colors.muted },
+  barChart: { flexDirection: "row", alignItems: "flex-end", gap: 6, minHeight: 120, zIndex: 2, position: "relative" },
+  barColumn: { flex: 1, alignItems: "center" },
+  chartBarValue: { fontSize: 8, color: colors.muted, height: 10, marginBottom: 2, fontFamily: fonts.medium },
+  barTrack: { height: 90, width: "100%", maxWidth: 22, borderRadius: 4, backgroundColor: colors.canvasStrong, justifyContent: "flex-end", overflow: "hidden" },
+  barFill: { width: "100%", borderTopLeftRadius: 3, borderTopRightRadius: 3 },
+  chartDateLabel: { fontSize: 8, color: colors.muted, marginTop: 4 },
+
+  // Breakdowns
+  breakdownCard: { minHeight: 200 },
+  breakdownTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink },
+  breakdownContainer: { gap: 10, marginTop: 6 },
+  breakdownRow: { gap: 4 },
+  breakdownHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  breakdownLabel: { fontSize: 13, color: colors.ink },
+  breakdownValue: { fontSize: 13, fontFamily: fonts.semibold, color: colors.ink },
+  breakdownBarTrack: { height: 6, width: "100%", borderRadius: 3, backgroundColor: colors.canvasStrong, overflow: "hidden" },
+  breakdownBarFill: { height: "100%", borderRadius: 3 },
+
+  // AI Report Output
+  reportCard: { gap: 12 },
+  reportHeader: { flexDirection: "row", gap: 10, alignItems: "center" },
+  reportTitle: { fontFamily: fonts.bold, fontSize: 16, color: colors.ink },
+  reportDivider: { height: 1, backgroundColor: "rgba(0,0,0,0.05)" },
+  reportSection: { gap: 4, paddingTop: 4 },
+  reportSectionTitle: { fontSize: 13, color: colors.greenDark, fontFamily: fonts.bold, textTransform: "uppercase", letterSpacing: 0.5 },
+  reportItemRow: { flexDirection: "row", gap: 8, paddingLeft: 6 },
+  reportBullet: { color: colors.muted, fontSize: 13, top: -1 },
+  reportItemText: { flex: 1, fontSize: 14, color: colors.ink, lineHeight: 19 },
+
+  // Header icon buttons (Mobile/Desktop actions)
+  headerIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  headerIconBtnDanger: { backgroundColor: colors.red, borderColor: colors.red },
+  headerIconBtnSuccess: { backgroundColor: colors.green, borderColor: colors.green },
+  headerIconBtnPrimary: { backgroundColor: colors.black, borderColor: colors.black },
+
+  // Desktop layout (Sidebar + Workspace)
+  desktopContainer: { flexDirection: "row", flex: 1, minHeight: "100%", backgroundColor: colors.canvas },
+  sidebar: {
+    width: 250,
+    backgroundColor: "#191B1F",
+    padding: 16,
+    gap: 12,
+    borderRightWidth: 1,
+    borderRightColor: colors.line,
+    height: "100%"
+  },
+  sidebarBrand: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, paddingHorizontal: 6 },
+  brandIconContainer: { width: 34, height: 34, borderRadius: 8, backgroundColor: colors.greenDark, alignItems: "center", justifyContent: "center" },
+  brandTitle: { color: colors.white, fontFamily: fonts.bold, fontSize: 16 },
+  brandSubtitle: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
+  sidebarDivider: { height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginVertical: 8 },
+  sidebarGroupTitle: { color: "rgba(255,255,255,0.3)", fontSize: 9, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4, paddingLeft: 8 },
+  sidebarNav: { gap: 3 },
+  sidebarNavItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  sidebarNavItemActive: { backgroundColor: colors.greenDark },
+  sidebarNavLabel: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontFamily: fonts.medium },
+  sidebarNavLabelActive: { color: colors.white, fontFamily: fonts.semibold },
+  sidebarFooter: { gap: 6, marginTop: "auto", paddingBottom: 6 },
+  sidebarActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)"
+  },
+  sidebarActionText: { color: "rgba(255,255,255,0.8)" },
+  sidebarActionBtnDanger: { backgroundColor: colors.red, borderColor: colors.red },
+  sidebarActionTextDanger: { color: colors.white, fontFamily: fonts.semibold },
+
+  workspace: { flex: 1, backgroundColor: colors.canvas },
+  workspaceTitle: { fontFamily: fonts.bold, fontSize: 22, color: colors.ink },
+  workspaceContent: { padding: 20, gap: 16 },
+  workspaceBody: { gap: 16 },
+  desktopTopBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    paddingHorizontal: 20,
+    paddingVertical: 14
+  },
+  desktopTopActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+
+  // Mobile layout styles
+  mobileWrap: { flex: 1, backgroundColor: colors.canvas },
+  mobileHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line
+  },
+  mobileHeaderTitle: { fontFamily: fonts.bold, fontSize: 18, color: colors.ink },
+  mobileHeaderActions: { flexDirection: "row", gap: 6 },
+  mobileScrollContent: { padding: 16, gap: 14, paddingBottom: 28 },
+
+  // Item List Cards (Posts, Reports, Payments)
+  itemCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    gap: 6
+  },
+  itemCardTitle: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
+  actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+
+  // Audit Logs (Timeline style)
+  auditList: { gap: 10 },
+  auditItem: { flexDirection: "row", gap: 12 },
+  auditIconCol: { alignItems: "center" },
+  auditIconBg: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(79,111,61,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2
+  },
+  auditLine: { width: 1, flex: 1, backgroundColor: colors.line, marginVertical: 2 },
+  auditContentCol: { flex: 1, backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 10, padding: 12, gap: 4 },
+  auditHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  auditActionText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.ink },
+  auditDetails: { fontSize: 12, color: colors.muted },
+
+  // Users Management Screen
+  workspaceUsersContent: { flex: 1, padding: 20, gap: 12 },
+  usersHeaderControls: { gap: 12, paddingBottom: 4 },
+  searchRow: { flexDirection: "row", gap: 10, alignItems: "flex-end", flexWrap: "wrap" },
   searchRowCompact: { flexDirection: "column", alignItems: "stretch" },
   searchInput: { flex: 1, width: "100%" },
-  inlineRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
-  actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  reportSection: { gap: 4, paddingTop: 8 },
-  listLine: { gap: 4, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.line },
-  flex: { flex: 1, minWidth: 0 },
-  pill: { backgroundColor: colors.canvasStrong, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, overflow: "hidden" },
-  pillGood: { backgroundColor: colors.green },
-  pillWarn: { backgroundColor: colors.yellow },
-  pillBad: { backgroundColor: colors.red, color: colors.white },
-  error: { color: colors.red }
+  searchButton: { minHeight: 46 },
+  usersCountRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
+  listFooter: { paddingVertical: 12, gap: 8 },
+
+  // User Card in list
+  userCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    gap: 8,
+    flex: 1,
+    minWidth: 150
+  },
+  userCardTop: { flexDirection: "row", alignItems: "center", gap: 10 },
+  avatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.greenDark,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  avatarText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 13 },
+  userCardName: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
+  userCardStats: { flexDirection: "row", gap: 12, paddingLeft: 4, marginVertical: 2 },
+  userStatMini: { flexDirection: "row", alignItems: "center", gap: 4 },
+  userCardActions: { flexDirection: "row", gap: 6, marginTop: 2, flexWrap: "wrap" },
+
+  // User Details Screen
+  detailContainer: { gap: 16 },
+  profileHeaderCard: { padding: 20 },
+  profileMetaRow: { flexDirection: "row", gap: 16, alignItems: "center", flexWrap: "wrap" },
+  profileAvatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.greenDark,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  profileAvatarText: { color: colors.white, fontFamily: fonts.bold, fontSize: 18 },
+  profileDisplayName: { fontFamily: fonts.bold, fontSize: 20, color: colors.ink },
+  profileInfoDetails: { gap: 8 },
+  profileBioText: { fontSize: 14, color: colors.ink, lineHeight: 20 },
+  profileActions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 8 },
+
+  detailSectionCard: { minHeight: 220, gap: 10 },
+  detailSectionTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink, flexDirection: "row", alignItems: "center" },
+  detailSectionList: { gap: 8 },
+  listLine: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.04)", gap: 4 },
+  detailItemTitle: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink },
+  detailItemMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 2 },
+
+  auditLogLine: { flexDirection: "row", gap: 8, alignItems: "flex-start", paddingVertical: 4 },
+  auditLogDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.greenDark, marginTop: 7 },
+
+  // AI screen details
+  aiGenerateCard: {
+    backgroundColor: "#191B1F",
+    borderColor: "#2B2D31",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 20
+  },
+  aiGenerateHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 },
+
+  // Login visual details
+  loginWrap: { gap: 16, justifyContent: "center", alignItems: "center", minHeight: "100%", backgroundColor: colors.canvas, padding: 20 },
+  loginCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 30,
+    width: "100%",
+    maxWidth: 420,
+    alignItems: "center",
+    gap: 12,
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 2
+  },
+  loginLogoContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: colors.greenDark,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8
+  },
+  loginTitle: { fontFamily: fonts.bold, fontSize: 24, color: colors.ink, textAlign: "center" },
+  loginSubtitle: { textAlign: "center", fontSize: 13, paddingHorizontal: 10 }
 });

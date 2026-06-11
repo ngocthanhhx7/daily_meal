@@ -5,7 +5,7 @@ vi.mock("react-native", () => ({
 }));
 
 vi.mock("../api/client", () => ({
-  api: { baseUrl: "https://api.test" }
+  api: { baseUrl: "https://api.test", setTelemetryReporter: vi.fn() }
 }));
 
 import { createAnalyticsClient, createEventThrottle } from "./analytics";
@@ -103,7 +103,7 @@ describe("analytics client", () => {
     expect(client.getQueueLength()).toBe(1);
   });
 
-  it("sends screen views and allowed key events to Google Analytics on web", () => {
+  it("sends screen views and client events to Google Analytics on web", () => {
     const gtag = vi.fn();
     stubWebRuntime(gtag);
     const client = createAnalyticsClient({
@@ -158,7 +158,7 @@ describe("analytics client", () => {
     expect(gtag.mock.calls[1][2]).not.toHaveProperty("image_uri");
   });
 
-  it("does not send non-allowlisted events to Google Analytics", () => {
+  it("sends non-aliased events to Google Analytics without sensitive params", () => {
     const gtag = vi.fn();
     stubWebRuntime(gtag);
     const client = createAnalyticsClient({
@@ -172,11 +172,22 @@ describe("analytics client", () => {
       screen: "Home",
       properties: {
         message: "hidden",
-        stack: "hidden"
+        stack: "hidden",
+        source: "window_error"
       }
     });
 
-    expect(gtag).not.toHaveBeenCalled();
+    expect(gtag).toHaveBeenCalledWith(
+      "event",
+      "runtime_error",
+      expect.objectContaining({
+        screen_name: "Home",
+        source: "window_error",
+        original_event_name: "runtime_error"
+      })
+    );
+    expect(gtag.mock.calls[0][2]).not.toHaveProperty("message");
+    expect(gtag.mock.calls[0][2]).not.toHaveProperty("stack");
     expect(client.getQueueLength()).toBe(1);
   });
 

@@ -108,20 +108,6 @@ const EVENT_NAME_ALIASES: Record<string, string> = {
   meal_analysis_failed: "meal_analysis_failed"
 };
 
-const GOOGLE_ANALYTICS_EVENT_NAMES = new Set([
-  "meal_analysis_started",
-  "meal_analysis_completed",
-  "meal_analysis_failed",
-  "post_create_started",
-  "post_create_completed",
-  "premium_viewed",
-  "payment_started",
-  "payment_completed",
-  "payment_failed",
-  "feed_click",
-  "scroll_depth"
-]);
-
 const GOOGLE_ANALYTICS_SENSITIVE_PARAM_PATTERN =
   /(auth|authorization|avatar|content|email|id|image|message|password|photo|secret|stack|text|token|user)/i;
 
@@ -351,10 +337,6 @@ function trackGoogleAnalyticsEvent(event: AnalyticsEvent) {
     }
 
     const googleAnalyticsEventName = transportName(event.eventName);
-    if (!GOOGLE_ANALYTICS_EVENT_NAMES.has(googleAnalyticsEventName)) {
-      return;
-    }
-
     const params: GoogleAnalyticsParams = {};
     addGoogleAnalyticsCommonParams(params, event);
     addGoogleAnalyticsSafeProperties(params, event.properties);

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { api } from "../api/client";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
@@ -22,8 +22,8 @@ export function SavedScreen({ navigation }: any) {
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const contentState = getListContentState(loading, savedPosts.length);
-  const gridWidth = Math.min(width - 64, COMPACT_POST_TIDY_GRID_MAX_WIDTH);
-  const cardWidth = Math.min(COMPACT_POST_TIDY_CARD_WIDTH, (gridWidth - 12) / 2);
+  const gridWidth = Math.min(width - 10, COMPACT_POST_TIDY_GRID_MAX_WIDTH);
+  const cardWidth = Math.min(COMPACT_POST_TIDY_CARD_WIDTH, (gridWidth - 60) / 2);
 
   useEffect(() => {
     if (!token || !user?.id) {

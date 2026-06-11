@@ -17,9 +17,9 @@ import { AppText } from "./AppText";
 export const COMPACT_POST_GRID_MAX_WIDTH = 335;
 export const COMPACT_POST_CARD_WIDTH = 154;
 export const COMPACT_POST_ASPECT_RATIO = 154 / 236;
-export const COMPACT_POST_TIDY_GRID_MAX_WIDTH = 304;
-export const COMPACT_POST_TIDY_CARD_WIDTH = 136;
-export const COMPACT_POST_TIDY_ASPECT_RATIO = 136 / 176;
+export const COMPACT_POST_TIDY_GRID_MAX_WIDTH = 380;
+export const COMPACT_POST_TIDY_CARD_WIDTH = 160;
+export const COMPACT_POST_TIDY_ASPECT_RATIO = 160 / 208;
 
 type CompactPostPreviewProps = {
   post: Post;
@@ -163,12 +163,22 @@ const styles = StyleSheet.create({
     aspectRatio: COMPACT_POST_ASPECT_RATIO,
     borderRadius: 20,
     overflow: "visible",
-    position: "relative"
+    position: "relative",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3
   },
   previewTidy: {
     aspectRatio: COMPACT_POST_TIDY_ASPECT_RATIO,
     borderRadius: 16,
-    overflow: "visible"
+    overflow: "visible",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3
   },
   imageStack: {
     ...StyleSheet.absoluteFillObject

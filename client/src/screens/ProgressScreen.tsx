@@ -22,8 +22,8 @@ export function ProgressScreen({ navigation }: any) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const gridWidth = Math.min(width - 64, COMPACT_POST_TIDY_GRID_MAX_WIDTH);
-  const cardWidth = Math.min(COMPACT_POST_TIDY_CARD_WIDTH, (gridWidth - 12) / 2);
+  const gridWidth = Math.min(width - 10, COMPACT_POST_TIDY_GRID_MAX_WIDTH);
+  const cardWidth = Math.min(COMPACT_POST_TIDY_CARD_WIDTH, (gridWidth - 40) / 2);
 
   const loadPosts = useCallback(() => {
     if (!token || !user?.id) {

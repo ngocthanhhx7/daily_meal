@@ -541,9 +541,9 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     width: "100%",
     maxWidth: COMPACT_POST_TIDY_GRID_MAX_WIDTH,
-    rowGap: 12,
-    paddingHorizontal: 2,
-    paddingBottom: 24
+    rowGap: 20,
+    paddingHorizontal: 5,
+    paddingBottom: 25
   },
   loadingGrid: {
     minHeight: 220,

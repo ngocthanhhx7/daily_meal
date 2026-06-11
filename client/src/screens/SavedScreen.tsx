@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { api } from "../api/client";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
@@ -40,11 +40,14 @@ export function SavedScreen({ navigation }: any) {
       .finally(() => setLoading(false));
   }, [token, user?.id]);
 
+  const leftPosts = savedPosts.filter((_, i) => i % 2 === 0);
+  const rightPosts = savedPosts.filter((_, i) => i % 2 === 1);
+
   return (
-    <AppScreen scroll={false}>
+    <AppScreen>
       <View style={styles.header}>
         <Pressable style={styles.backButton} onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color={colors.black} />
+          <Ionicons name="arrow-back" size={18} color={colors.white} />
         </Pressable>
         <AppText variant="title" style={styles.headerTitle}>Đã lưu</AppText>
         <Pressable style={styles.userTab}>
@@ -56,38 +59,51 @@ export function SavedScreen({ navigation }: any) {
         <View style={styles.emptyContainer}>
           <ActivityIndicator color={colors.green} />
         </View>
+      ) : contentState === "empty" ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="bookmark-outline" size={64} color={colors.muted} />
+          <AppText style={styles.emptyTitle}>Chưa lưu bài viết nào</AppText>
+          <AppText style={styles.emptySubtitle} muted>
+            Bấm nút lưu ở các bài đăng thú vị để xem lại công thức và món ăn tại đây bất cứ lúc nào.
+          </AppText>
+        </View>
       ) : (
-        <FlatList
-          data={contentState === "content" ? savedPosts : []}
-          keyExtractor={(item) => item._id}
-          numColumns={2}
-          columnWrapperStyle={styles.columnWrapper}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="bookmark-outline" size={64} color={colors.muted} />
-              <AppText style={styles.emptyTitle}>Chưa lưu bài viết nào</AppText>
-              <AppText style={styles.emptySubtitle} muted>
-                Bấm nút lưu ở các bài đăng thú vị để xem lại công thức và món ăn tại đây bất cứ lúc nào.
-              </AppText>
-            </View>
-          }
-          renderItem={({ item, index }) => (
-            <Pressable
-              style={[styles.card, { width: cardWidth }]}
-              onPress={() => navigation.navigate("Home", getFeedPostParams(item))}
-            >
-              <CompactPostPreview
-                post={item}
-                caption={item.caption || "Nó ngon..."}
-                captionSide={index % 2 === 0 ? "left" : "right"}
-                showAuthorChip
-                tidy
-              />
-            </Pressable>
-          )}
-        />
+        <View style={styles.gridContainer}>
+          <View style={[styles.column, { width: cardWidth }]}>
+            {leftPosts.map((item) => (
+              <Pressable
+                key={item._id}
+                style={[styles.card, { width: cardWidth }]}
+                onPress={() => navigation.navigate("Home", getFeedPostParams(item))}
+              >
+                <CompactPostPreview
+                  post={item}
+                  caption={item.caption || "Nó ngon..."}
+                  captionSide="left"
+                  showAuthorChip
+                  tidy
+                />
+              </Pressable>
+            ))}
+          </View>
+          <View style={[styles.column, styles.rightColumn, { width: cardWidth }]}>
+            {rightPosts.map((item) => (
+              <Pressable
+                key={item._id}
+                style={[styles.card, { width: cardWidth }]}
+                onPress={() => navigation.navigate("Home", getFeedPostParams(item))}
+              >
+                <CompactPostPreview
+                  post={item}
+                  caption={item.caption || "Nó ngon..."}
+                  captionSide="right"
+                  showAuthorChip
+                  tidy
+                />
+              </Pressable>
+            ))}
+          </View>
+        </View>
       )}
     </AppScreen>
   );
@@ -97,15 +113,16 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     marginBottom: 16
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    backgroundColor: colors.black
   },
   headerTitle: {
     flex: 1
@@ -119,16 +136,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.muted
   },
-  listContainer: {
-    flexGrow: 1,
+  gridContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     width: "100%",
     maxWidth: COMPACT_POST_TIDY_GRID_MAX_WIDTH,
     alignSelf: "center",
-    gap: 12,
-    paddingBottom: 24
+    paddingBottom: 28
   },
-  columnWrapper: {
-    justifyContent: "space-between"
+  column: {
+    flexDirection: "column",
+    gap: 24
+  },
+  rightColumn: {
+    paddingTop: 50
   },
   card: {
     borderRadius: 20,

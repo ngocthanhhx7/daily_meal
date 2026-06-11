@@ -7,6 +7,7 @@ import {
   type StyleProp,
   type ViewStyle
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { api } from "../api/client";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
@@ -25,12 +26,15 @@ type CompactPostPreviewProps = {
   caption?: string;
   captionSide?: "left" | "right";
   showAuthorChip?: boolean;
+  showStatsBadge?: boolean;
   tidy?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
 function postImageSource(post: Post, imageIndex = 0): ImageSourcePropType {
-  const imageUrl = post.images?.[imageIndex]?.url;
+  const imageCount = post.images?.length ?? 0;
+  const indexToUse = imageCount > 0 ? imageIndex % imageCount : 0;
+  const imageUrl = post.images?.[indexToUse]?.url;
   if (!imageUrl) {
     return require("../../assets/figma-snapshots/image3.png");
   }
@@ -87,13 +91,14 @@ export function CompactPostPreview({
   caption,
   captionSide = "left",
   showAuthorChip = false,
+  showStatsBadge = false,
   tidy = false,
   style
 }: CompactPostPreviewProps) {
   const label = caption ?? post.caption ?? post.recipe?.title ?? "Bữa ăn";
   const authorName = post.author?.displayName ?? "Daily Meal";
   const avatar = avatarSource(post.author?.avatarUrl);
-  const imageIndexes = tidy ? [0] : previewIndexes(post);
+  const imageIndexes = tidy ? [0, 1] : previewIndexes(post);
 
   return (
     <View style={[styles.preview, tidy && styles.previewTidy, style]}>
@@ -109,19 +114,28 @@ export function CompactPostPreview({
                 styles.imageLayer,
                 tidy && styles.imageLayerTidy,
                 imageIndex === 0 && styles.imageFront,
-                !tidy && imageIndex === 1 && styles.imageSecond,
-                !tidy && imageIndex === 2 && styles.imageThird
+                imageIndex === 1 && (captionSide === "left" ? styles.imageSecondLeft : styles.imageSecondRight),
+                imageIndex === 2 && styles.imageThird
               ]}
               resizeMode="cover"
             />
           ))}
       </View>
 
-      <View style={[styles.captionChip, captionSide === "left" ? styles.leftChip : styles.rightChip]}>
-        <AppText variant="caption" numberOfLines={1} style={styles.captionText}>
-          {label}
-        </AppText>
-      </View>
+      {showStatsBadge && ((post.stats?.comments ?? 0) > 0 || (post.stats?.likes ?? 0) > 0) ? (
+        <View style={[styles.statsChip, captionSide === "left" ? styles.leftChip : styles.rightChip]}>
+          <AppText style={styles.statsValue}>{post.stats?.comments ?? 0}</AppText>
+          <Ionicons name="chatbubble-outline" size={10} color={colors.black} style={{ marginRight: 6 }} />
+          <AppText style={styles.statsValue}>{post.stats?.likes ?? 0}</AppText>
+          <Ionicons name="heart" size={11} color={colors.red} />
+        </View>
+      ) : !showStatsBadge ? (
+        <View style={[styles.captionChip, captionSide === "left" ? styles.leftChip : styles.rightChip]}>
+          <AppText variant="caption" numberOfLines={1} style={styles.captionText}>
+            {label}
+          </AppText>
+        </View>
+      ) : null}
 
       {showAuthorChip ? (
         <View style={[styles.authorChip, { backgroundColor: post.author?.themeColor || colors.green }]}>
@@ -154,7 +168,7 @@ const styles = StyleSheet.create({
   previewTidy: {
     aspectRatio: COMPACT_POST_TIDY_ASPECT_RATIO,
     borderRadius: 16,
-    overflow: "hidden"
+    overflow: "visible"
   },
   imageStack: {
     ...StyleSheet.absoluteFillObject
@@ -179,12 +193,21 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 5
   },
-  imageSecond: {
+  imageSecondLeft: {
     zIndex: 2,
     top: -7,
     right: -9,
     bottom: 7,
     left: 9,
+    opacity: 0.58,
+    transform: [{ rotate: "4deg" }]
+  },
+  imageSecondRight: {
+    zIndex: 2,
+    top: 7,
+    right: 9,
+    bottom: -7,
+    left: -9,
     opacity: 0.58,
     transform: [{ rotate: "4deg" }]
   },
@@ -199,7 +222,7 @@ const styles = StyleSheet.create({
   },
   captionChip: {
     position: "absolute",
-    top: 10,
+    top: -8,
     maxWidth: "82%",
     borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.94)",
@@ -212,11 +235,33 @@ const styles = StyleSheet.create({
     elevation: 2,
     zIndex: 6
   },
+  statsChip: {
+    position: "absolute",
+    top: -8,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.94)",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: -2, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+    zIndex: 6
+  },
+  statsValue: {
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    marginRight: 2
+  },
   leftChip: {
-    left: 8
+    left: -8
   },
   rightChip: {
-    right: 8
+    right: -8
   },
   captionText: {
     color: colors.black,
@@ -225,7 +270,7 @@ const styles = StyleSheet.create({
   },
   authorChip: {
     position: "absolute",
-    bottom: 8,
+    bottom: -6,
     left: 8,
     maxWidth: "86%",
     alignSelf: "flex-start",

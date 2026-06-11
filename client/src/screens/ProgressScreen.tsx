@@ -56,6 +56,9 @@ export function ProgressScreen({ navigation }: any) {
     [posts]
   );
 
+  const leftPosts = posts.filter((_, i) => i % 2 === 0);
+  const rightPosts = posts.filter((_, i) => i % 2 === 1);
+
   return (
     <AppScreen style={styles.screen}>
       <View style={styles.header}>
@@ -71,12 +74,12 @@ export function ProgressScreen({ navigation }: any) {
         <AppText style={styles.totalLabel}>Tổng</AppText>
         <View style={styles.totalChip}>
           <View style={styles.totalItem}>
-            <Ionicons name="chatbubble-outline" size={19} color={colors.black} />
             <AppText style={styles.totalValue}>{totals.comments}</AppText>
+            <Ionicons name="chatbubble-outline" size={14} color={colors.black} style={{ marginLeft: 2 }} />
           </View>
           <View style={styles.totalItem}>
-            <Ionicons name="heart" size={20} color={colors.red} />
             <AppText style={styles.totalValue}>{totals.likes}</AppText>
+            <Ionicons name="heart" size={15} color={colors.red} style={{ marginLeft: 2 }} />
           </View>
         </View>
       </View>
@@ -94,21 +97,39 @@ export function ProgressScreen({ navigation }: any) {
           icon="refresh-outline"
         />
       ) : posts.length ? (
-        <View style={[styles.grid, { maxWidth: COMPACT_POST_TIDY_GRID_MAX_WIDTH }]}>
-          {posts.map((post, index) => (
-            <Pressable
-              key={post._id}
-              style={[styles.gridItem, { width: cardWidth }]}
-              onPress={() => navigation.navigate("Home", getFeedPostParams(post))}
-            >
-              <CompactPostPreview
-                post={post}
-                captionSide={index % 2 === 0 ? "left" : "right"}
-                showAuthorChip={index % 3 === 0}
-                tidy
-              />
-            </Pressable>
-          ))}
+        <View style={styles.gridContainer}>
+          <View style={[styles.column, { width: cardWidth }]}>
+            {leftPosts.map((item) => (
+              <Pressable
+                key={item._id}
+                style={[styles.card, { width: cardWidth }]}
+                onPress={() => navigation.navigate("Home", getFeedPostParams(item))}
+              >
+                <CompactPostPreview
+                  post={item}
+                  captionSide="left"
+                  showStatsBadge
+                  tidy
+                />
+              </Pressable>
+            ))}
+          </View>
+          <View style={[styles.column, styles.rightColumn, { width: cardWidth }]}>
+            {rightPosts.map((item) => (
+              <Pressable
+                key={item._id}
+                style={[styles.card, { width: cardWidth }]}
+                onPress={() => navigation.navigate("Home", getFeedPostParams(item))}
+              >
+                <CompactPostPreview
+                  post={item}
+                  captionSide="right"
+                  showStatsBadge
+                  tidy
+                />
+              </Pressable>
+            ))}
+          </View>
         </View>
       ) : (
         <EmptyState
@@ -196,18 +217,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  grid: {
-    width: "100%",
+  gridContainer: {
     flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "space-between",
+    width: "100%",
+    maxWidth: COMPACT_POST_TIDY_GRID_MAX_WIDTH,
     alignSelf: "center",
-    rowGap: 14,
-    paddingTop: 2,
     paddingBottom: 28
   },
-  gridItem: {
-    borderRadius: 20,
-    overflow: "visible"
+  column: {
+    flexDirection: "column",
+    gap: 24
   },
+  rightColumn: {
+    paddingTop: 50
+  },
+  card: {
+    borderRadius: 20,
+    backgroundColor: "transparent",
+    overflow: "visible",
+    position: "relative"
+  }
 });

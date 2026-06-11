@@ -19,20 +19,46 @@ import type {
   AdminUserDetail,
   AdminUserSummary
 } from "../types/api";
+import {
+  CategoryIcon,
+  KPIIcon,
+  PostsIcon,
+  ReportsIcon,
+  PaymentsIcon,
+  AiIcon,
+  UserIcon,
+  AlertIcon,
+  BagIcon,
+  ClockIcon,
+  CompassIcon,
+  ArrowLeftIcon,
+  RefreshIcon,
+  LogoutIcon,
+  MessageIcon
+} from "../components/AdminIcons";
 
 type AdminTab = "overview" | "analytics" | "posts" | "reports" | "payments" | "ai";
 type AdminRange = "1d" | "7d" | "all";
 
 const USER_PAGE_SIZE = 50;
 
-const tabs: Array<{ key: AdminTab; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
-  { key: "overview", label: "Tổng quan", icon: "grid-outline" },
-  { key: "analytics", label: "KPI", icon: "analytics-outline" },
-  { key: "posts", label: "Bài đăng", icon: "images-outline" },
-  { key: "reports", label: "Báo cáo", icon: "shield-checkmark-outline" },
-  { key: "payments", label: "Thanh toán", icon: "card-outline" },
-  { key: "ai", label: "Báo cáo AI", icon: "sparkles-outline" }
+const tabs: Array<{ key: AdminTab; label: string }> = [
+  { key: "overview", label: "Tổng quan" },
+  { key: "analytics", label: "KPI" },
+  { key: "posts", label: "Bài đăng" },
+  { key: "reports", label: "Báo cáo" },
+  { key: "payments", label: "Thanh toán" },
+  { key: "ai", label: "Báo cáo AI" }
 ];
+
+const tabIcons: Record<AdminTab, React.ComponentType<{ size?: number; color?: string; style?: any }>> = {
+  overview: CategoryIcon,
+  analytics: KPIIcon,
+  posts: PostsIcon,
+  reports: ReportsIcon,
+  payments: PaymentsIcon,
+  ai: AiIcon
+};
 
 const rangeOptions: Array<{ key: AdminRange; label: string }> = [
   { key: "1d", label: "1 ngày" },
@@ -40,23 +66,23 @@ const rangeOptions: Array<{ key: AdminRange; label: string }> = [
   { key: "all", label: "Tất cả" }
 ];
 
-const metricIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
-  "Người dùng trong khoảng": "people-outline",
-  "Bài đăng trong khoảng": "images-outline",
-  "Tương tác trong khoảng": "chatbubble-ellipses-outline",
-  "Doanh thu trong khoảng": "cash-outline",
-  "Báo cáo mở": "warning-outline",
-  "AI meal trong khoảng": "restaurant-outline",
-  "DAU / WAU / MAU": "stats-chart-outline",
-  "Phiên trung bình": "time-outline",
-  "Tỷ lệ bấm bảng tin": "locate-outline",
-  "Phản hồi API": "server-outline",
-  "Tải ảnh": "image-outline",
-  "Lỗi runtime": "bug-outline",
-  "Chuyển đổi creator": "trending-up-outline",
-  "Hoàn tất đăng bài": "checkmark-circle-outline",
-  "Hoàn tất AI món ăn": "analytics-outline",
-  "Thanh toán premium": "card-outline"
+const metricVectorIcons: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+  "Người dùng trong khoảng": UserIcon,
+  "Bài đăng trong khoảng": PostsIcon,
+  "Tương tác trong khoảng": MessageIcon,
+  "Doanh thu trong khoảng": PaymentsIcon,
+  "Báo cáo mở": AlertIcon,
+  "AI meal trong khoảng": BagIcon,
+  "DAU / WAU / MAU": KPIIcon,
+  "Phiên trung bình": ClockIcon,
+  "Tỷ lệ bấm bảng tin": CompassIcon,
+  "Phản hồi API": CompassIcon,
+  "Tải ảnh": PostsIcon,
+  "Lỗi runtime": AlertIcon,
+  "Chuyển đổi creator": KPIIcon,
+  "Hoàn tất đăng bài": ReportsIcon,
+  "Hoàn tất AI món ăn": KPIIcon,
+  "Thanh toán premium": PaymentsIcon
 };
 
 function rangeParams(range: AdminRange) {
@@ -119,7 +145,7 @@ function Card({ children, style }: { children: React.ReactNode; style?: object }
 }
 
 function MetricCard({ label, value, note, isDesktop }: { label: string; value: string | number; note?: string; isDesktop?: boolean }) {
-  const iconName = metricIcons[label] || "stats-chart-outline";
+  const Icon = metricVectorIcons[label] || KPIIcon;
   return (
     <Card style={[styles.metricCard, { width: isDesktop ? "31%" : "47%" }]}>
       <View style={styles.metricHeader}>
@@ -127,7 +153,7 @@ function MetricCard({ label, value, note, isDesktop }: { label: string; value: s
           {label}
         </AppText>
         <View style={styles.metricIconContainer}>
-          <Ionicons name={iconName} size={15} color={colors.greenDark} />
+          <Icon size={15} color={colors.greenDark} />
         </View>
       </View>
       <AppText variant="title" style={styles.metricValue}>
@@ -173,7 +199,7 @@ function Pill({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "
 function EmptyState({ label }: { label: string }) {
   return (
     <Card style={styles.emptyStateCard}>
-      <Ionicons name="information-circle-outline" size={24} color={colors.muted} />
+      <AlertIcon size={24} color={colors.muted} />
       <AppText muted style={{ textAlign: "center" }}>{label}</AppText>
     </Card>
   );
@@ -182,7 +208,7 @@ function EmptyState({ label }: { label: string }) {
 function ErrorText({ message }: { message?: string | null }) {
   return message ? (
     <View style={styles.errorContainer}>
-      <Ionicons name="alert-circle" size={16} color={colors.red} />
+      <AlertIcon size={16} color={colors.red} />
       <AppText style={styles.error}>{message}</AppText>
     </View>
   ) : null;
@@ -210,9 +236,10 @@ function AdminTabs({ activeTab, onChange }: { activeTab: AdminTab; onChange: (ta
     <View style={styles.tabs}>
       {tabs.map((tab) => {
         const active = tab.key === activeTab;
+        const Icon = tabIcons[tab.key];
         return (
           <Pressable key={tab.key} onPress={() => onChange(tab.key)} style={[styles.tab, active && styles.tabActive]}>
-            <Ionicons name={tab.icon} size={15} color={active ? colors.white : colors.ink} />
+            <Icon size={15} color={active ? colors.white : colors.ink} />
             <AppText variant="caption" style={[styles.tabText, active && styles.tabTextActive]}>
               {tab.label}
             </AppText>
@@ -234,8 +261,10 @@ function DetailedChart({
   label: string;
   color: string;
 }) {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 992;
   const isRevenue = field === "revenue";
-  const compactData = data.slice(-14);
+  const compactData = isDesktop ? data.slice(-14) : data.slice(-7);
 
   const values = compactData.map((item) => Number(item[field] ?? 0));
   const max = Math.max(1, ...values);
@@ -263,7 +292,7 @@ function DetailedChart({
       <View style={styles.chartHeader}>
         <View style={styles.flex}>
           <AppText variant="subtitle" style={styles.chartTitle}>{label}</AppText>
-          <AppText variant="caption" muted>14 mốc gần nhất</AppText>
+          <AppText variant="caption" muted>{isDesktop ? 14 : 7} mốc gần nhất</AppText>
         </View>
         <View style={styles.chartStatsRow}>
           <View style={styles.chartStatBox}>
@@ -374,7 +403,7 @@ function ReportOutput({ generatedReport }: { generatedReport: AdminReport | null
   return (
     <Card style={styles.reportCard}>
       <View style={styles.reportHeader}>
-        <Ionicons name="sparkles" size={20} color={colors.greenDark} />
+        <AiIcon size={20} color={colors.greenDark} />
         <View style={styles.flex}>
           <AppText variant="subtitle" style={styles.reportTitle}>{generatedReport.report.title}</AppText>
           <AppText variant="caption" muted>
@@ -403,12 +432,12 @@ function ReportOutput({ generatedReport }: { generatedReport: AdminReport | null
 }
 
 function HeaderIconButton({
-  icon,
+  icon: IconComponent,
   onPress,
   variant = "default",
   disabled
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: React.ComponentType<{ size?: number; color?: string; style?: any }>;
   onPress: () => void;
   variant?: "default" | "danger" | "success" | "primary";
   disabled?: boolean;
@@ -426,15 +455,10 @@ function HeaderIconButton({
         disabled && styles.disabled
       ]}
     >
-      <Ionicons
-        name={icon}
+      <IconComponent
         size={18}
         color={
-          variant === "danger"
-            ? colors.white
-            : variant === "success"
-            ? colors.white
-            : variant === "primary"
+          variant === "danger" || variant === "success" || variant === "primary"
             ? colors.white
             : colors.ink
         }
@@ -462,13 +486,13 @@ function Sidebar({
   handleSignOut: () => void;
   busyAction?: string | null;
 }) {
-  const tabsList: Array<{ key: AdminTab; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
-    { key: "overview", label: "Tổng quan", icon: "grid-outline" },
-    { key: "analytics", label: "KPI", icon: "analytics-outline" },
-    { key: "posts", label: "Bài đăng", icon: "images-outline" },
-    { key: "reports", label: "Báo cáo", icon: "shield-checkmark-outline" },
-    { key: "payments", label: "Thanh toán", icon: "card-outline" },
-    { key: "ai", label: "Báo cáo AI", icon: "sparkles-outline" }
+  const tabsList: Array<{ key: AdminTab; label: string }> = [
+    { key: "overview", label: "Tổng quan" },
+    { key: "analytics", label: "KPI" },
+    { key: "posts", label: "Bài đăng" },
+    { key: "reports", label: "Báo cáo" },
+    { key: "payments", label: "Thanh toán" },
+    { key: "ai", label: "Báo cáo AI" }
   ];
 
   function handleTabPress(tabKey: AdminTab) {
@@ -498,6 +522,7 @@ function Sidebar({
       <View style={styles.sidebarNav}>
         {tabsList.map((tab) => {
           const isActive = currentScreen === "dashboard" && activeTab === tab.key;
+          const Icon = tabIcons[tab.key];
           return (
             <Pressable
               key={tab.key}
@@ -508,8 +533,7 @@ function Sidebar({
                 pressed && styles.pressed
               ]}
             >
-              <Ionicons
-                name={tab.icon}
+              <Icon
                 size={16}
                 color={isActive ? colors.white : "rgba(255,255,255,0.6)"}
               />
@@ -539,8 +563,7 @@ function Sidebar({
             pressed && styles.pressed
           ]}
         >
-          <Ionicons
-            name="people-outline"
+          <UserIcon
             size={16}
             color={currentScreen === "users" ? colors.white : "rgba(255,255,255,0.6)"}
           />
@@ -565,7 +588,7 @@ function Sidebar({
             disabled={loading}
             style={({ pressed }) => [styles.sidebarActionBtn, pressed && styles.pressed]}
           >
-            <Ionicons name="refresh-outline" size={15} color={colors.white} />
+            <RefreshIcon size={15} color={colors.white} />
             <AppText variant="caption" style={styles.sidebarActionText}>
               {loading ? "Đang tải..." : "Làm mới"}
             </AppText>
@@ -581,7 +604,7 @@ function Sidebar({
             pressed && styles.pressed
           ]}
         >
-          <Ionicons name="log-out-outline" size={15} color={colors.white} />
+          <LogoutIcon size={15} color={colors.white} />
           <AppText variant="caption" style={styles.sidebarActionTextDanger}>
             {busyAction === "sign-out" ? "Thoát..." : "Đăng xuất"}
           </AppText>
@@ -995,9 +1018,9 @@ export function AdminDashboardScreen({ route, navigation }: any) {
             <AppText muted variant="caption">Hệ thống giám sát toàn diện</AppText>
           </View>
           <View style={styles.mobileHeaderActions}>
-            <HeaderIconButton icon="people-outline" onPress={() => navigation.navigate("AdminUsers")} />
-            <HeaderIconButton icon="refresh-outline" onPress={loadDashboard} disabled={loading} />
-            <HeaderIconButton icon="log-out-outline" onPress={handleSignOut} variant="danger" disabled={busyAction === "sign-out"} />
+            <HeaderIconButton icon={UserIcon} onPress={() => navigation.navigate("AdminUsers")} />
+            <HeaderIconButton icon={RefreshIcon} onPress={loadDashboard} disabled={loading} />
+            <HeaderIconButton icon={LogoutIcon} onPress={handleSignOut} variant="danger" disabled={busyAction === "sign-out"} />
           </View>
         </View>
 
@@ -1131,7 +1154,7 @@ export function AdminUsersScreen({ navigation }: any) {
       <ErrorText message={error} />
       {pagination ? (
         <View style={styles.usersCountRow}>
-          <Ionicons name="people" size={16} color={colors.greenDark} />
+          <UserIcon size={16} color={colors.greenDark} />
           <AppText muted variant="caption" style={{ fontFamily: fonts.semibold }}>
             Đã tải {formatNumber(users.length)} / {formatNumber(pagination.total)} người dùng
           </AppText>
@@ -1170,20 +1193,20 @@ export function AdminUsersScreen({ navigation }: any) {
         </View>
         <View style={styles.userCardStats}>
           <View style={styles.userStatMini}>
-            <Ionicons name="images-outline" size={12} color={colors.muted} />
+            <PostsIcon size={12} color={colors.muted} />
             <AppText variant="caption" muted>{item.stats.posts} bài</AppText>
           </View>
           <View style={styles.userStatMini}>
-            <Ionicons name="people-outline" size={12} color={colors.muted} />
+            <UserIcon size={12} color={colors.muted} />
             <AppText variant="caption" muted>{item.stats.followers} fl</AppText>
           </View>
           <View style={styles.userStatMini}>
-            <Ionicons name="warning-outline" size={12} color={colors.muted} />
+            <AlertIcon size={12} color={item.stats.reports > 0 ? colors.red : colors.muted} />
             <AppText variant="caption" style={{ color: item.stats.reports > 0 ? colors.red : colors.muted }}>{item.stats.reports} báo cáo</AppText>
           </View>
         </View>
         <View style={styles.userCardActions}>
-          <AppButton label={item.isPremium ? "Tắt prem..." : "Bật prem..."} size="sm" variant="ghost" style={{ flex: 1 }} onPress={() => togglePremium(item)} disabled={busyUser === item.id} />
+          <AppButton label={item.isPremium ? "Hủy Prem" : "Bật Prem"} size="sm" variant="ghost" style={{ flex: 1 }} onPress={() => togglePremium(item)} disabled={busyUser === item.id} />
           <AppButton label="Chi tiết" size="sm" style={{ flex: 1 }} onPress={() => navigation.navigate("AdminUserDetail", { id: item.id })} />
         </View>
       </Pressable>
@@ -1209,7 +1232,7 @@ export function AdminUsersScreen({ navigation }: any) {
                 <AppText muted variant="caption">Tìm kiếm, cập nhật tài khoản và phân quyền Premium thủ công.</AppText>
               </View>
               <View style={styles.desktopTopActions}>
-                <HeaderIconButton icon="grid-outline" onPress={() => navigation.navigate("AdminDashboard")} />
+                <HeaderIconButton icon={CategoryIcon} onPress={() => navigation.navigate("AdminDashboard")} />
               </View>
             </View>
 
@@ -1242,7 +1265,7 @@ export function AdminUsersScreen({ navigation }: any) {
             <AppText muted variant="caption">Danh sách tài khoản hệ thống</AppText>
           </View>
           <View style={styles.mobileHeaderActions}>
-            <HeaderIconButton icon="grid-outline" onPress={() => navigation.navigate("AdminDashboard")} />
+            <HeaderIconButton icon={CategoryIcon} onPress={() => navigation.navigate("AdminDashboard")} />
           </View>
         </View>
 
@@ -1495,7 +1518,7 @@ export function AdminUserDetailScreen({ route, navigation }: any) {
                 <AppText muted variant="caption">Xem thông tin toàn diện và nhật ký thao tác của người dùng.</AppText>
               </View>
               <View style={styles.desktopTopActions}>
-                <HeaderIconButton icon="arrow-back-outline" onPress={() => navigation.goBack()} />
+                <HeaderIconButton icon={ArrowLeftIcon} onPress={() => navigation.goBack()} />
               </View>
             </View>
 
@@ -1517,7 +1540,7 @@ export function AdminUserDetailScreen({ route, navigation }: any) {
             <AppText muted variant="caption">Hồ sơ người dùng chi tiết</AppText>
           </View>
           <View style={styles.mobileHeaderActions}>
-            <HeaderIconButton icon="arrow-back-outline" onPress={() => navigation.goBack()} />
+            <HeaderIconButton icon={ArrowLeftIcon} onPress={() => navigation.goBack()} />
           </View>
         </View>
 

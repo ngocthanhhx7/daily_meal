@@ -26,7 +26,7 @@ export function WebMobileShell({ children }: WebMobileShellProps) {
     };
     routeListeners.add(listener);
     return () => {
-      routeListeners.add(listener);
+      routeListeners.delete(listener);
     };
   }, []);
 

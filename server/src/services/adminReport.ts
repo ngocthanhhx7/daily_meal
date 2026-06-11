@@ -8,6 +8,8 @@ type AdminReportInput = {
   to: string;
 };
 
+const AI_REPORT_TIMEOUT_MS = 20000;
+
 function reportPrompt(input: AdminReportInput) {
   return `Bạn là hệ thống phân tích nội bộ của Daily Meal.
 Hãy tạo báo cáo quản trị bằng tiếng Việt có dấu, chỉ dựa trên dữ liệu được cung cấp, không bịa đặt.
@@ -40,7 +42,7 @@ DASHBOARD: ${JSON.stringify(input.dashboard)}
 `;
 }
 
-function fallbackReport(input: AdminReportInput) {
+function fallbackReport(input: AdminReportInput, reason?: string) {
   return {
     title: "Báo cáo quản trị Daily Meal",
     executiveSummary: [
@@ -70,6 +72,7 @@ function fallbackReport(input: AdminReportInput) {
       "Tiếp tục mở rộng telemetry dùng chung để báo cáo AI có dữ liệu đầy đủ hơn."
     ],
     risks: [
+      ...(reason ? [reason] : []),
       "AI report fallback chỉ là tổng hợp theo quy tắc nếu provider chưa sẵn sàng.",
       "Dữ liệu kỹ thuật có thể còn thiếu instrumentation ở một số bề mặt."
     ],
@@ -89,27 +92,42 @@ function parseJson(text: string) {
 
 export async function generateAdminReport(input: AdminReportInput) {
   if (!env.SHINESHOP_API_KEY || !env.SHINESHOP_BASE_URL) {
-    return fallbackReport(input);
+    return fallbackReport(input, "Provider AI chưa được cấu hình, hệ thống dùng fallback report để admin vẫn có báo cáo.");
   }
 
-  const response = await fetch(`${env.SHINESHOP_BASE_URL.replace(/\/+$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.SHINESHOP_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: env.SHINESHOP_MODEL,
-      messages: [
-        {
-          role: "user",
-          content: reportPrompt(input)
-        }
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: env.SHINESHOP_MAX_TOKENS
-    })
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AI_REPORT_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${env.SHINESHOP_BASE_URL.replace(/\/+$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.SHINESHOP_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: env.SHINESHOP_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: reportPrompt(input)
+          }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: env.SHINESHOP_MAX_TOKENS
+      }),
+      signal: controller.signal
+    });
+  } catch (error) {
+    const reason =
+      error instanceof Error && error.name === "AbortError"
+        ? "Provider AI quá thời gian phản hồi, hệ thống dùng fallback report để không làm gián đoạn luồng admin."
+        : "Provider AI không kết nối được, hệ thống dùng fallback report để không làm gián đoạn luồng admin.";
+    return fallbackReport(input, reason);
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const result = (await response.json().catch(() => ({}))) as {
     choices?: Array<{ message?: { content?: string } }>;
@@ -122,10 +140,16 @@ export async function generateAdminReport(input: AdminReportInput) {
 
   const content = result.choices?.[0]?.message?.content;
   if (!content) {
-    throw new HttpError(502, "AI không trả nội dung báo cáo.");
+    return fallbackReport(input, "Provider AI không trả nội dung báo cáo, hệ thống dùng fallback report.");
   }
 
-  const parsed = parseJson(content) as Record<string, unknown>;
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseJson(content) as Record<string, unknown>;
+  } catch {
+    return fallbackReport(input, "Provider AI trả nội dung không đúng định dạng JSON, hệ thống dùng fallback report.");
+  }
+
   return {
     title: String(parsed.title ?? "Báo cáo quản trị Daily Meal"),
     executiveSummary: Array.isArray(parsed.executiveSummary) ? parsed.executiveSummary.map(String) : [],

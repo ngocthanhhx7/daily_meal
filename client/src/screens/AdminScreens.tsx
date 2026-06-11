@@ -10,6 +10,8 @@ import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type {
   AdminDashboard,
+  AdminAiReportMetric,
+  AdminAiReportSection,
   AdminPayment,
   AdminPagination,
   AdminPostSummary,
@@ -383,26 +385,135 @@ function BreakdownList({ title, data }: { title: string; data: Array<{ _id: stri
   );
 }
 
+const reportSectionIcons: Record<AdminAiReportSection["key"], React.ComponentType<{ size?: number; color?: string; style?: any }>> = {
+  technical: KPIIcon,
+  behavioral: CompassIcon,
+  traffic: UserIcon,
+  conversion: PaymentsIcon
+};
+
+function legacyReportSections(report: AdminReport["report"]): AdminAiReportSection[] {
+  return [
+    {
+      key: "technical",
+      title: "1. Chỉ số hiệu suất kỹ thuật",
+      objective: "Đánh giá tốc độ tải ảnh, lỗi runtime và thời gian phản hồi máy chủ.",
+      metrics: [],
+      insights: report.technical,
+      conclusion: "Hiệu suất kỹ thuật là nền tảng để giữ trải nghiệm mạng xã hội ảnh đồ ăn mượt mà.",
+      actions: []
+    },
+    {
+      key: "behavioral",
+      title: "2. Chỉ số tương tác người dùng",
+      objective: "Đánh giá người dùng có ở lại, cuộn feed và tương tác với nội dung hay không.",
+      metrics: [],
+      insights: report.behavioral,
+      conclusion: "Hành vi người dùng phản ánh chất lượng nội dung và khả năng giữ chân.",
+      actions: []
+    },
+    {
+      key: "traffic",
+      title: "3. Chỉ số lưu lượng truy cập",
+      objective: "Theo dõi tăng trưởng DAU/WAU/MAU, user mới và user quay lại.",
+      metrics: [],
+      insights: report.traffic,
+      conclusion: "Tăng trưởng chỉ bền vững khi người dùng quay lại đủ tốt.",
+      actions: []
+    },
+    {
+      key: "conversion",
+      title: "4. Chỉ số chuyển đổi",
+      objective: "Đo khả năng biến người xem thành creator, người dùng AI món ăn hoặc premium.",
+      metrics: [],
+      insights: report.conversion,
+      conclusion: "Chuyển đổi quyết định app có tạo được vòng lặp nội dung bền vững hay không.",
+      actions: []
+    }
+  ];
+}
+
+function ReportList({ items, emptyLabel }: { items: string[]; emptyLabel: string }) {
+  if (!items.length) {
+    return <AppText muted variant="caption">{emptyLabel}</AppText>;
+  }
+
+  return (
+    <View style={styles.reportList}>
+      {items.map((item, index) => (
+        <View key={`${item}-${index}`} style={styles.reportItemRow}>
+          <AppText style={styles.reportBullet}>{index + 1}</AppText>
+          <AppText style={styles.reportItemText}>{item}</AppText>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function ReportMetricCard({ metric }: { metric: AdminAiReportMetric }) {
+  return (
+    <View style={styles.reportMetricCard}>
+      <AppText variant="caption" style={styles.reportMetricName}>{metric.name}</AppText>
+      <AppText variant="subtitle" style={styles.reportMetricValue}>{metric.value}</AppText>
+      <AppText variant="caption" style={styles.reportMetricAssessment}>{metric.assessment}</AppText>
+      <AppText variant="caption" muted style={styles.reportMetricMeaning}>{metric.meaning}</AppText>
+    </View>
+  );
+}
+
+function ReportSectionBlock({ section }: { section: AdminAiReportSection }) {
+  const Icon = reportSectionIcons[section.key];
+  return (
+    <View style={styles.reportSectionCard}>
+      <View style={styles.reportSectionHeader}>
+        <View style={styles.reportSectionIcon}>
+          <Icon size={18} color={colors.white} />
+        </View>
+        <View style={styles.flex}>
+          <AppText variant="subtitle" style={styles.reportSectionTitle}>{section.title}</AppText>
+          <AppText variant="caption" muted style={styles.reportObjective}>{section.objective}</AppText>
+        </View>
+      </View>
+
+      {section.metrics.length ? (
+        <View style={styles.reportMetricGrid}>
+          {section.metrics.map((metric, index) => (
+            <ReportMetricCard key={`${section.key}-${metric.name}-${index}`} metric={metric} />
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.reportSubBlock}>
+        <AppText variant="button" style={styles.reportSubTitle}>Phân tích</AppText>
+        <ReportList items={section.insights} emptyLabel="Chưa có phân tích cho nhóm này." />
+      </View>
+
+      <View style={styles.reportConclusionBox}>
+        <AppText variant="button" style={styles.reportSubTitle}>Kết luận</AppText>
+        <AppText style={styles.reportConclusionText}>{section.conclusion || "Chưa có kết luận."}</AppText>
+      </View>
+
+      <View style={styles.reportSubBlock}>
+        <AppText variant="button" style={styles.reportSubTitle}>Hành động đề xuất</AppText>
+        <ReportList items={section.actions} emptyLabel="Chưa có hành động đề xuất." />
+      </View>
+    </View>
+  );
+}
+
 function ReportOutput({ generatedReport }: { generatedReport: AdminReport | null }) {
   if (!generatedReport) {
     return <EmptyState label="Bấm tạo báo cáo để AI phân tích trên dữ liệu dashboard hiện tại." />;
   }
 
-  const sections: Array<[string, string[]]> = [
-    ["Tóm tắt", generatedReport.report.executiveSummary],
-    ["Kỹ thuật", generatedReport.report.technical],
-    ["Hành vi", generatedReport.report.behavioral],
-    ["Lưu lượng", generatedReport.report.traffic],
-    ["Chuyển đổi", generatedReport.report.conversion],
-    ["Bất thường", generatedReport.report.anomalies],
-    ["Ưu tiên", generatedReport.report.priorityActions],
-    ["Rủi ro", generatedReport.report.risks]
-  ];
+  const sections = generatedReport.report.sections?.length ? generatedReport.report.sections : legacyReportSections(generatedReport.report);
 
   return (
     <Card style={styles.reportCard}>
       <View style={styles.reportHeader}>
-        <AiIcon size={20} color={colors.greenDark} />
+        <View style={styles.reportHeaderIcon}>
+          <AiIcon size={20} color={colors.white} />
+        </View>
         <View style={styles.flex}>
           <AppText variant="subtitle" style={styles.reportTitle}>{generatedReport.report.title}</AppText>
           <AppText variant="caption" muted>
@@ -411,21 +522,32 @@ function ReportOutput({ generatedReport }: { generatedReport: AdminReport | null
         </View>
       </View>
       <View style={styles.reportDivider} />
-      {sections.map(([title, items]) => (
-        <View key={title} style={styles.reportSection}>
-          <AppText variant="button" style={styles.reportSectionTitle}>{title}</AppText>
-          {items.length ? (
-            items.map((item, index) => (
-              <View key={`${title}-${index}`} style={styles.reportItemRow}>
-                <AppText style={styles.reportBullet}>•</AppText>
-                <AppText style={styles.reportItemText}>{item}</AppText>
-              </View>
-            ))
-          ) : (
-            <AppText muted variant="caption" style={{ paddingLeft: 12 }}>Không có nhận định.</AppText>
-          )}
+
+      <View style={styles.reportSummaryPanel}>
+        <AppText variant="button" style={styles.reportSummaryTitle}>Tóm tắt điều hành</AppText>
+        <ReportList items={generatedReport.report.executiveSummary} emptyLabel="Chưa có tóm tắt điều hành." />
+      </View>
+
+      <View style={styles.reportSectionStack}>
+        {sections.map((section) => (
+          <ReportSectionBlock key={section.key} section={section} />
+        ))}
+      </View>
+
+      <View style={styles.reportBottomGrid}>
+        <View style={styles.reportBottomPanel}>
+          <AppText variant="button" style={styles.reportSubTitle}>Bất thường cần chú ý</AppText>
+          <ReportList items={generatedReport.report.anomalies} emptyLabel="Chưa phát hiện bất thường rõ ràng." />
         </View>
-      ))}
+        <View style={styles.reportBottomPanel}>
+          <AppText variant="button" style={styles.reportSubTitle}>Ưu tiên tiếp theo</AppText>
+          <ReportList items={generatedReport.report.priorityActions} emptyLabel="Chưa có ưu tiên." />
+        </View>
+        <View style={styles.reportBottomPanel}>
+          <AppText variant="button" style={styles.reportSubTitle}>Rủi ro dữ liệu</AppText>
+          <ReportList items={generatedReport.report.risks} emptyLabel="Chưa có rủi ro dữ liệu." />
+        </View>
+      </View>
     </Card>
   );
 }
@@ -1757,15 +1879,35 @@ const styles = StyleSheet.create({
   breakdownBarFill: { height: "100%", borderRadius: 3 },
 
   // AI Report Output
-  reportCard: { gap: 12 },
-  reportHeader: { flexDirection: "row", gap: 10, alignItems: "center" },
-  reportTitle: { fontFamily: fonts.bold, fontSize: 16, color: colors.ink },
-  reportDivider: { height: 1, backgroundColor: "rgba(0,0,0,0.05)" },
-  reportSection: { gap: 4, paddingTop: 4 },
-  reportSectionTitle: { fontSize: 13, color: colors.greenDark, fontFamily: fonts.bold, textTransform: "uppercase", letterSpacing: 0.5 },
-  reportItemRow: { flexDirection: "row", gap: 8, paddingLeft: 6 },
-  reportBullet: { color: colors.muted, fontSize: 13, top: -1 },
-  reportItemText: { flex: 1, fontSize: 14, color: colors.ink, lineHeight: 19 },
+  reportCard: { gap: 16, flex: 0 },
+  reportHeader: { flexDirection: "row", gap: 12, alignItems: "center" },
+  reportHeaderIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.greenDark, alignItems: "center", justifyContent: "center" },
+  reportTitle: { fontFamily: fonts.bold, fontSize: 18, color: colors.ink },
+  reportDivider: { height: 1, backgroundColor: "rgba(0,0,0,0.06)" },
+  reportSummaryPanel: { backgroundColor: "#F6F8F4", borderWidth: 1, borderColor: "rgba(82,106,69,0.14)", borderRadius: 8, padding: 14, gap: 8 },
+  reportSummaryTitle: { color: colors.greenDark, fontFamily: fonts.bold, fontSize: 13 },
+  reportSectionStack: { gap: 14 },
+  reportSectionCard: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 14, gap: 14, backgroundColor: colors.white },
+  reportSectionHeader: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  reportSectionIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.black, alignItems: "center", justifyContent: "center" },
+  reportSectionTitle: { fontSize: 15, color: colors.ink, fontFamily: fonts.bold, letterSpacing: 0 },
+  reportObjective: { lineHeight: 18, marginTop: 2 },
+  reportMetricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  reportMetricCard: { flexGrow: 1, flexBasis: 220, borderWidth: 1, borderColor: "rgba(0,0,0,0.06)", backgroundColor: colors.canvasStrong, borderRadius: 8, padding: 12, gap: 5 },
+  reportMetricName: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 11 },
+  reportMetricValue: { color: colors.greenDark, fontFamily: fonts.bold, fontSize: 17 },
+  reportMetricAssessment: { color: colors.ink, fontFamily: fonts.semibold, lineHeight: 17 },
+  reportMetricMeaning: { lineHeight: 17 },
+  reportSubBlock: { gap: 8 },
+  reportSubTitle: { color: colors.greenDark, fontFamily: fonts.bold, fontSize: 12 },
+  reportList: { gap: 7 },
+  reportItemRow: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
+  reportBullet: { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(82,106,69,0.12)", color: colors.greenDark, textAlign: "center", fontSize: 11, lineHeight: 18, fontFamily: fonts.bold },
+  reportItemText: { flex: 1, fontSize: 14, color: colors.ink, lineHeight: 20 },
+  reportConclusionBox: { backgroundColor: "rgba(25,27,31,0.04)", borderLeftWidth: 3, borderLeftColor: colors.greenDark, padding: 12, gap: 6, borderRadius: 6 },
+  reportConclusionText: { color: colors.ink, lineHeight: 20, fontFamily: fonts.medium },
+  reportBottomGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  reportBottomPanel: { flexGrow: 1, flexBasis: 260, borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 12, gap: 8, backgroundColor: colors.surface },
 
   // Header icon buttons (Mobile/Desktop actions)
   headerIconBtn: {
@@ -1953,7 +2095,8 @@ const styles = StyleSheet.create({
     borderColor: "#2B2D31",
     borderWidth: 1,
     borderRadius: 12,
-    padding: 20
+    padding: 20,
+    flex: 0
   },
   aiGenerateHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 },
 

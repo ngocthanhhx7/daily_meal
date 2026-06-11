@@ -463,6 +463,8 @@ describe("Daily Meal API", () => {
 
     expect(aiReport.body.rangePreset).toBe("1d");
     expect(aiReport.body.report.executiveSummary.length).toBeGreaterThan(0);
+    expect(aiReport.body.report.sections).toHaveLength(4);
+    expect(aiReport.body.report.sections[0].metrics.length).toBeGreaterThan(0);
     expect(aiReport.body.report.metricsSnapshot.mode).toBe("fallback");
   });
 

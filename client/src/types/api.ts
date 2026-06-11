@@ -307,9 +307,27 @@ export type AdminReportItem = {
   resolvedBy?: string;
 };
 
+export type AdminAiReportMetric = {
+  name: string;
+  value: string;
+  assessment: string;
+  meaning: string;
+};
+
+export type AdminAiReportSection = {
+  key: "technical" | "behavioral" | "traffic" | "conversion";
+  title: string;
+  objective: string;
+  metrics: AdminAiReportMetric[];
+  insights: string[];
+  conclusion: string;
+  actions: string[];
+};
+
 export type AdminAiReportBody = {
   title: string;
   executiveSummary: string[];
+  sections?: AdminAiReportSection[];
   technical: string[];
   behavioral: string[];
   traffic: string[];

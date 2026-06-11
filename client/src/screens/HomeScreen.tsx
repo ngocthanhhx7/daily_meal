@@ -30,6 +30,7 @@ import { analytics, createEventThrottle } from "../services/analytics";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post, PostLayout } from "../types/api";
+import { getHomeTargetIndex, getPostViewerSets, mergeTargetPostIntoFeed } from "../utils/postNavigation";
 import { stickerImageSource } from "../utils/stickers";
 import { getNutritionDetailSections } from "./postNutrition";
 import { CameraIcon, CategoryIcon } from "../components/SvgIcons";
@@ -178,30 +179,15 @@ export function HomeScreen({ navigation, route }: any) {
       const result = await api.feed(token, 1, 20);
       let feedPosts = result.posts.length ? result.posts : demoPosts;
 
-      if (targetPostId) {
-        const exists = feedPosts.some((p) => p._id === targetPostId);
-        if (!exists && targetPost) {
-          feedPosts = [targetPost, ...feedPosts];
-        }
-      }
+      feedPosts = mergeTargetPostIntoFeed(feedPosts, targetPostId, targetPost);
 
       setPosts(feedPosts);
       setPage(1);
       setHasMore(result.posts.length >= 20);
 
-      // Populate liked and saved sets from database viewerState on page load
-      const initialLikes = new Set<string>();
-      const initialSaves = new Set<string>();
-      feedPosts.forEach((post) => {
-        if (post.viewerState?.liked) {
-          initialLikes.add(post._id);
-        }
-        if (post.viewerState?.saved) {
-          initialSaves.add(post._id);
-        }
-      });
-      setLikedSet(initialLikes);
-      setSavedSet(initialSaves);
+      const viewerSets = getPostViewerSets(feedPosts);
+      setLikedSet(viewerSets.liked);
+      setSavedSet(viewerSets.saved);
 
       if (!targetPostId && jumpToTop) {
         setCurrentIndex(0);
@@ -210,7 +196,11 @@ export function HomeScreen({ navigation, route }: any) {
         });
       }
     } catch {
-      setPosts(demoPosts);
+      const fallbackPosts = mergeTargetPostIntoFeed(demoPosts, targetPostId, targetPost);
+      setPosts(fallbackPosts);
+      const viewerSets = getPostViewerSets(fallbackPosts);
+      setLikedSet(viewerSets.liked);
+      setSavedSet(viewerSets.saved);
       setHasMore(false);
     }
   }, [token]);
@@ -278,12 +268,14 @@ export function HomeScreen({ navigation, route }: any) {
   useEffect(() => {
     const targetPostId = route?.params?.postId;
     if (listHeight > 0 && targetPostId && posts.length > 0) {
-      const index = posts.findIndex((p) => p._id === targetPostId);
+      const index = getHomeTargetIndex(posts, targetPostId);
       if (index !== -1) {
         setCurrentIndex(index);
         requestAnimationFrame(() => {
           flatRef.current?.scrollToIndex({ index, animated: false });
         });
+        navigation.setParams({ postId: undefined, targetPost: undefined });
+      } else {
         navigation.setParams({ postId: undefined, targetPost: undefined });
       }
     }

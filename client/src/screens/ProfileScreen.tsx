@@ -4,6 +4,11 @@ import { ActivityIndicator, Image, Modal, Pressable, Share, StyleSheet, View } f
 import { api } from "../api/client";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
+import {
+  COMPACT_POST_CARD_WIDTH,
+  COMPACT_POST_GRID_MAX_WIDTH,
+  CompactPostPreview
+} from "../components/CompactPostPreview";
 import { EmptyState } from "../components/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
@@ -200,13 +205,13 @@ export function ProfileScreen({ navigation }: any) {
           {currentPosts.map((post, index) => (
             <Pressable
               key={post._id}
-              style={styles.gridItem}
+              style={[styles.gridItem, index % 2 === 1 && styles.gridItemLower]}
               onPress={() => {
                 const target = getProfilePostTarget(tab, post);
                 navigation.navigate(target.screen, target.params);
               }}
             >
-              <ProfilePostImageStack post={post} />
+              <CompactPostPreview post={post} captionSide={index % 2 === 0 ? "left" : "right"} />
               <View style={[styles.gridCaption, index % 2 === 0 ? { left: 8 } : { right: 8 }]}>
                 <AppText variant="caption" numberOfLines={1}>
                   {post.caption || post.recipe?.title || "Bữa ăn"}
@@ -563,7 +568,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    rowGap: 18,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: COMPACT_POST_GRID_MAX_WIDTH,
+    rowGap: 14,
     paddingHorizontal: 2,
     paddingBottom: 24
   },
@@ -573,10 +581,14 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   gridItem: {
-    width: "47.5%",
-    borderRadius: 14,
+    width: COMPACT_POST_CARD_WIDTH,
+    maxWidth: "46%",
+    borderRadius: 20,
     backgroundColor: "transparent",
     overflow: "visible"
+  },
+  gridItemLower: {
+    marginTop: 18
   },
   gridImageStack: {
     width: "100%",
@@ -619,6 +631,7 @@ const styles = StyleSheet.create({
     transform: [{ rotate: "7deg" }]
   },
   gridCaption: {
+    display: "none",
     position: "absolute",
     top: 10,
     maxWidth: "86%",

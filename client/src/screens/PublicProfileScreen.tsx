@@ -4,12 +4,18 @@ import { ActivityIndicator, Alert, Image, Modal, Pressable, StyleSheet, View } f
 import { api } from "../api/client";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
+import {
+  COMPACT_POST_CARD_WIDTH,
+  COMPACT_POST_GRID_MAX_WIDTH,
+  CompactPostPreview
+} from "../components/CompactPostPreview";
 import { EmptyState } from "../components/EmptyState";
 import { useAuth } from "../context/AuthContext";
 import { demoUser } from "../data/sample";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post, User } from "../types/api";
+import { getPublicProfilePostTarget } from "../utils/postNavigation";
 
 type ProfileTab = "posts" | "saved";
 
@@ -40,10 +46,6 @@ function mediaSource(url?: string) {
   }
 
   return { uri: `${api.baseUrl}${url}` };
-}
-
-function postImageSource(post: Post) {
-  return mediaSource(post.images[0]?.url) ?? require("../../assets/figma-snapshots/image3.png");
 }
 
 function profileHandle(profile: User) {
@@ -321,10 +323,13 @@ export function PublicProfileScreen({ route, navigation }: any) {
           {currentPosts.map((post, index) => (
             <Pressable
               key={post._id}
-              style={styles.gridItem}
-              onPress={() => navigation.navigate("Recipe", { post })}
+              style={[styles.gridItem, index % 2 === 1 && styles.gridItemLower]}
+              onPress={() => {
+                const target = getPublicProfilePostTarget(tab, post);
+                navigation.navigate(target.screen, target.params);
+              }}
             >
-              <Image source={postImageSource(post)} style={styles.gridImage} />
+              <CompactPostPreview post={post} captionSide={index % 2 === 0 ? "left" : "right"} />
               <View style={[styles.gridCaption, index % 2 === 0 ? { left: 8 } : { right: 8 }]}>
                 <AppText variant="caption" numberOfLines={1}>
                   {post.caption || post.recipe?.title || "Bữa ăn"}
@@ -678,20 +683,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    rowGap: 18,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: COMPACT_POST_GRID_MAX_WIDTH,
+    rowGap: 14,
     paddingHorizontal: 2,
     paddingBottom: 24
   },
   gridItem: {
-    width: "47.5%",
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    shadowColor: colors.black,
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 10,
-    elevation: 5,
+    width: COMPACT_POST_CARD_WIDTH,
+    maxWidth: "46%",
+    borderRadius: 20,
+    backgroundColor: "transparent",
     overflow: "visible"
+  },
+  gridItemLower: {
+    marginTop: 18
   },
   gridImage: {
     width: "100%",
@@ -703,6 +710,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvasStrong
   },
   gridCaption: {
+    display: "none",
     position: "absolute",
     top: 10,
     maxWidth: "86%",

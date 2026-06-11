@@ -5,8 +5,8 @@ import { api } from "../api/client";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import {
-  COMPACT_POST_CARD_WIDTH,
-  COMPACT_POST_GRID_MAX_WIDTH,
+  COMPACT_POST_TIDY_CARD_WIDTH,
+  COMPACT_POST_TIDY_GRID_MAX_WIDTH,
   CompactPostPreview
 } from "../components/CompactPostPreview";
 import { EmptyState } from "../components/EmptyState";
@@ -685,15 +685,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignSelf: "center",
     width: "100%",
-    maxWidth: COMPACT_POST_GRID_MAX_WIDTH,
-    rowGap: 14,
+    maxWidth: COMPACT_POST_TIDY_GRID_MAX_WIDTH,
+    rowGap: 12,
     paddingHorizontal: 2,
     paddingBottom: 24
   },
   gridItem: {
-    width: COMPACT_POST_CARD_WIDTH,
-    maxWidth: "46%",
-    borderRadius: 20,
+    width: COMPACT_POST_TIDY_CARD_WIDTH,
+    maxWidth: "47%",
+    borderRadius: 16,
     backgroundColor: "transparent",
     overflow: "visible"
   },

@@ -5,8 +5,8 @@ import { api } from "../api/client";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import {
-  COMPACT_POST_CARD_WIDTH,
-  COMPACT_POST_GRID_MAX_WIDTH,
+  COMPACT_POST_TIDY_CARD_WIDTH,
+  COMPACT_POST_TIDY_GRID_MAX_WIDTH,
   CompactPostPreview
 } from "../components/CompactPostPreview";
 import { EmptyState } from "../components/EmptyState";
@@ -22,8 +22,8 @@ export function ProgressScreen({ navigation }: any) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const gridWidth = Math.min(width - 40, COMPACT_POST_GRID_MAX_WIDTH);
-  const cardWidth = Math.min(COMPACT_POST_CARD_WIDTH, (gridWidth - 18) / 2);
+  const gridWidth = Math.min(width - 64, COMPACT_POST_TIDY_GRID_MAX_WIDTH);
+  const cardWidth = Math.min(COMPACT_POST_TIDY_CARD_WIDTH, (gridWidth - 12) / 2);
 
   const loadPosts = useCallback(() => {
     if (!token || !user?.id) {
@@ -94,7 +94,7 @@ export function ProgressScreen({ navigation }: any) {
           icon="refresh-outline"
         />
       ) : posts.length ? (
-        <View style={[styles.grid, { maxWidth: COMPACT_POST_GRID_MAX_WIDTH }]}>
+        <View style={[styles.grid, { maxWidth: COMPACT_POST_TIDY_GRID_MAX_WIDTH }]}>
           {posts.map((post, index) => (
             <Pressable
               key={post._id}
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   },
   header: {
     width: "100%",
-    maxWidth: COMPACT_POST_GRID_MAX_WIDTH,
+    maxWidth: COMPACT_POST_TIDY_GRID_MAX_WIDTH,
     minHeight: 40,
     flexDirection: "row",
     alignItems: "center",
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   },
   totalBlock: {
     width: "100%",
-    maxWidth: COMPACT_POST_GRID_MAX_WIDTH,
+    maxWidth: COMPACT_POST_TIDY_GRID_MAX_WIDTH,
     alignItems: "center",
     gap: 4,
     marginTop: 2,
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     alignSelf: "center",
-    rowGap: 28,
+    rowGap: 14,
     paddingTop: 2,
     paddingBottom: 28
   },

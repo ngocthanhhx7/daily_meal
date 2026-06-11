@@ -6,6 +6,8 @@ import { AppText } from "../components/AppText";
 import { useNotifications } from "../context/NotificationContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
+import type { Post } from "../types/api";
+import { getFeedPostParams } from "../utils/postNavigation";
 
 type NotificationItem = {
   _id: string;
@@ -75,7 +77,11 @@ export function NotificationsScreen({ navigation }: any) {
     } else if (notification.type === "message") {
       navigation.navigate("Inbox");
     } else if (notification.post) {
-      navigation.navigate("Home", { postId: notification.post._id, targetPost: notification.post });
+      const post = notification.post as Post & { id?: string };
+      const postId = post._id ?? post.id;
+      if (postId) {
+        navigation.navigate("Home", getFeedPostParams({ ...post, _id: postId }));
+      }
     }
   }
 

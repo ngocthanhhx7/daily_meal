@@ -16,6 +16,9 @@ import { AppText } from "./AppText";
 export const COMPACT_POST_GRID_MAX_WIDTH = 335;
 export const COMPACT_POST_CARD_WIDTH = 154;
 export const COMPACT_POST_ASPECT_RATIO = 154 / 236;
+export const COMPACT_POST_TIDY_GRID_MAX_WIDTH = 304;
+export const COMPACT_POST_TIDY_CARD_WIDTH = 136;
+export const COMPACT_POST_TIDY_ASPECT_RATIO = 136 / 176;
 
 type CompactPostPreviewProps = {
   post: Post;
@@ -104,6 +107,7 @@ export function CompactPostPreview({
               source={postImageSource(post, imageIndex)}
               style={[
                 styles.imageLayer,
+                tidy && styles.imageLayerTidy,
                 imageIndex === 0 && styles.imageFront,
                 !tidy && imageIndex === 1 && styles.imageSecond,
                 !tidy && imageIndex === 2 && styles.imageThird
@@ -148,6 +152,8 @@ const styles = StyleSheet.create({
     position: "relative"
   },
   previewTidy: {
+    aspectRatio: COMPACT_POST_TIDY_ASPECT_RATIO,
+    borderRadius: 16,
     overflow: "hidden"
   },
   imageStack: {
@@ -161,6 +167,9 @@ const styles = StyleSheet.create({
     left: 0,
     borderRadius: 20,
     backgroundColor: colors.canvasStrong
+  },
+  imageLayerTidy: {
+    borderRadius: 16
   },
   imageFront: {
     zIndex: 3,

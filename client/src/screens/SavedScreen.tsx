@@ -5,8 +5,8 @@ import { api } from "../api/client";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import {
-  COMPACT_POST_CARD_WIDTH,
-  COMPACT_POST_GRID_MAX_WIDTH,
+  COMPACT_POST_TIDY_CARD_WIDTH,
+  COMPACT_POST_TIDY_GRID_MAX_WIDTH,
   CompactPostPreview
 } from "../components/CompactPostPreview";
 import { useAuth } from "../context/AuthContext";
@@ -22,8 +22,8 @@ export function SavedScreen({ navigation }: any) {
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const contentState = getListContentState(loading, savedPosts.length);
-  const gridWidth = Math.min(width - 40, COMPACT_POST_GRID_MAX_WIDTH);
-  const cardWidth = Math.min(COMPACT_POST_CARD_WIDTH, (gridWidth - 18) / 2);
+  const gridWidth = Math.min(width - 64, COMPACT_POST_TIDY_GRID_MAX_WIDTH);
+  const cardWidth = Math.min(COMPACT_POST_TIDY_CARD_WIDTH, (gridWidth - 12) / 2);
 
   useEffect(() => {
     if (!token || !user?.id) {
@@ -122,9 +122,9 @@ const styles = StyleSheet.create({
   listContainer: {
     flexGrow: 1,
     width: "100%",
-    maxWidth: COMPACT_POST_GRID_MAX_WIDTH,
+    maxWidth: COMPACT_POST_TIDY_GRID_MAX_WIDTH,
     alignSelf: "center",
-    gap: 10,
+    gap: 12,
     paddingBottom: 24
   },
   columnWrapper: {

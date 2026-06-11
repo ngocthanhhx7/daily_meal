@@ -122,6 +122,7 @@ export function HomeScreen({ navigation, route }: any) {
   const postsRef = useRef<Post[]>(posts);
   const flatRef = useRef<FlatList>(null);
   const isInitialMount = useRef(true);
+  const clearingTargetParams = useRef(false);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
   const impressedPostIds = useRef<Set<string>>(new Set());
   const maxScrollDepthBucket = useRef(0);
@@ -146,6 +147,13 @@ export function HomeScreen({ navigation, route }: any) {
   useEffect(() => {
     postsRef.current = posts;
   }, [posts]);
+
+  const scrollFeedToTop = useCallback(() => {
+    setCurrentIndex(0);
+    requestAnimationFrame(() => {
+      flatRef.current?.scrollToOffset({ offset: 0, animated: false });
+    });
+  }, []);
 
   // Real-time feed interaction updates
   useEffect(() => {
@@ -189,11 +197,8 @@ export function HomeScreen({ navigation, route }: any) {
       setLikedSet(viewerSets.liked);
       setSavedSet(viewerSets.saved);
 
-      if (!targetPostId && jumpToTop) {
-        setCurrentIndex(0);
-        requestAnimationFrame(() => {
-          flatRef.current?.scrollToOffset({ offset: 0, animated: false });
-        });
+      if (targetPostId || jumpToTop) {
+        scrollFeedToTop();
       }
     } catch {
       const fallbackPosts = mergeTargetPostIntoFeed(demoPosts, targetPostId, targetPost);
@@ -202,8 +207,11 @@ export function HomeScreen({ navigation, route }: any) {
       setLikedSet(viewerSets.liked);
       setSavedSet(viewerSets.saved);
       setHasMore(false);
+      if (targetPostId) {
+        scrollFeedToTop();
+      }
     }
-  }, [token]);
+  }, [scrollFeedToTop, token]);
 
   const loadMore = useCallback(async () => {
     if (!token || loadingMore || !hasMore || posts === demoPosts) return;
@@ -256,6 +264,11 @@ export function HomeScreen({ navigation, route }: any) {
       const targetPostId = route?.params?.postId;
       const targetPost = route?.params?.targetPost;
 
+      if (clearingTargetParams.current && !targetPostId) {
+        clearingTargetParams.current = false;
+        return;
+      }
+
       if (isInitialMount.current) {
         load(true, targetPostId, targetPost);
         isInitialMount.current = false;
@@ -272,10 +285,16 @@ export function HomeScreen({ navigation, route }: any) {
       if (index !== -1) {
         setCurrentIndex(index);
         requestAnimationFrame(() => {
-          flatRef.current?.scrollToIndex({ index, animated: false });
+          if (index === 0) {
+            flatRef.current?.scrollToOffset({ offset: 0, animated: false });
+          } else {
+            flatRef.current?.scrollToIndex({ index, animated: false });
+          }
         });
+        clearingTargetParams.current = true;
         navigation.setParams({ postId: undefined, targetPost: undefined });
       } else {
+        clearingTargetParams.current = true;
         navigation.setParams({ postId: undefined, targetPost: undefined });
       }
     }

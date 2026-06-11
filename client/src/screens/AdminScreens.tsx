@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, useWindowDimensions, View, ScrollView, Image } from "react-native";
 import { api } from "../api/client";
@@ -820,7 +819,7 @@ export function AdminDashboardScreen({ route, navigation }: any) {
                 <View key={item.id} style={styles.auditItem}>
                   <View style={styles.auditIconCol}>
                     <View style={styles.auditIconBg}>
-                      <Ionicons name="shield-checkmark" size={14} color={colors.greenDark} />
+                      <ReportsIcon size={14} color={colors.greenDark} />
                     </View>
                     <View style={styles.auditLine} />
                   </View>
@@ -1426,7 +1425,7 @@ export function AdminUserDetailScreen({ route, navigation }: any) {
         {/* Recent Posts */}
         <Card style={styles.detailSectionCard}>
           <AppText variant="subtitle" style={styles.detailSectionTitle}>
-            <Ionicons name="images-outline" size={16} color={colors.greenDark} style={{ marginRight: 6 }} />
+            <PostsIcon size={16} color={colors.greenDark} style={{ marginRight: 6 }} />
             Bài đăng gần đây
           </AppText>
           <View style={styles.detailSectionList}>
@@ -1451,7 +1450,7 @@ export function AdminUserDetailScreen({ route, navigation }: any) {
         {/* Attention Interactions */}
         <Card style={styles.detailSectionCard}>
           <AppText variant="subtitle" style={styles.detailSectionTitle}>
-            <Ionicons name="alert-circle-outline" size={16} color={colors.greenDark} style={{ marginRight: 6 }} />
+            <AlertIcon size={16} color={colors.greenDark} style={{ marginRight: 6 }} />
             Tương tác cần chú ý
           </AppText>
           <View style={styles.detailSectionList}>
@@ -1477,7 +1476,7 @@ export function AdminUserDetailScreen({ route, navigation }: any) {
       {/* User operations Audit Log */}
       <Card style={styles.itemCard}>
         <AppText variant="subtitle" style={styles.detailSectionTitle}>
-          <Ionicons name="time-outline" size={16} color={colors.greenDark} style={{ marginRight: 6 }} />
+          <ClockIcon size={16} color={colors.greenDark} style={{ marginRight: 6 }} />
           Lịch sử thao tác tài khoản
         </AppText>
         <View style={{ gap: 8, marginTop: 10 }}>

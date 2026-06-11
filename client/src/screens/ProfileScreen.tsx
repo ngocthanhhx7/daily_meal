@@ -200,13 +200,13 @@ export function ProfileScreen({ navigation }: any) {
           {currentPosts.map((post, index) => (
             <Pressable
               key={post._id}
-              style={[styles.gridItem, index % 2 === 1 && styles.gridItemLower]}
+              style={styles.gridItem}
               onPress={() => {
                 const target = getProfilePostTarget(tab, post);
                 navigation.navigate(target.screen, target.params);
               }}
             >
-              <CompactPostPreview post={post} captionSide={index % 2 === 0 ? "left" : "right"} />
+              <CompactPostPreview post={post} captionSide={index % 2 === 0 ? "left" : "right"} tidy />
               <View style={[styles.gridCaption, index % 2 === 0 ? { left: 8 } : { right: 8 }]}>
                 <AppText variant="caption" numberOfLines={1}>
                   {post.caption || post.recipe?.title || "Bữa ăn"}
@@ -556,9 +556,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "transparent",
     overflow: "visible"
-  },
-  gridItemLower: {
-    marginTop: 18
   },
   gridImageStack: {
     width: "100%",

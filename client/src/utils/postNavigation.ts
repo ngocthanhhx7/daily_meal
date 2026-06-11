@@ -10,11 +10,18 @@ export function getFeedPostParams(post: Post) {
 }
 
 export function mergeTargetPostIntoFeed(posts: Post[], targetPostId?: string, targetPost?: Post) {
-  if (!targetPostId || posts.some((post) => post._id === targetPostId)) {
+  if (!targetPostId) {
     return posts;
   }
 
-  return targetPost ? [targetPost, ...posts] : posts;
+  const existingTarget = posts.find((post) => post._id === targetPostId);
+  const selectedPost = targetPost ?? existingTarget;
+
+  if (!selectedPost) {
+    return posts;
+  }
+
+  return [selectedPost, ...posts.filter((post) => post._id !== targetPostId)];
 }
 
 export function getPostViewerSets(posts: Post[]) {

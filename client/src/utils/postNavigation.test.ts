@@ -91,10 +91,11 @@ describe("postNavigation", () => {
     expect(mergeTargetPostIntoFeed([feedPost], "old-post", oldPost)).toEqual([oldPost, feedPost]);
   });
 
-  it("does not duplicate a target post already present in the feed", () => {
+  it("moves a target post already present in the feed to the first slide without duplicating it", () => {
     const posts = [feedPost, oldPost];
 
-    expect(mergeTargetPostIntoFeed(posts, "old-post", oldPost)).toBe(posts);
+    expect(mergeTargetPostIntoFeed(posts, "old-post", oldPost)).toEqual([oldPost, feedPost]);
+    expect(mergeTargetPostIntoFeed(posts, "old-post")).toEqual([oldPost, feedPost]);
   });
 
   it("leaves the feed unchanged when target params are incomplete", () => {

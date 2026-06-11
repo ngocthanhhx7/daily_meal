@@ -22,6 +22,7 @@ type CompactPostPreviewProps = {
   caption?: string;
   captionSide?: "left" | "right";
   showAuthorChip?: boolean;
+  tidy?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -83,16 +84,18 @@ export function CompactPostPreview({
   caption,
   captionSide = "left",
   showAuthorChip = false,
+  tidy = false,
   style
 }: CompactPostPreviewProps) {
   const label = caption ?? post.caption ?? post.recipe?.title ?? "Bữa ăn";
   const authorName = post.author?.displayName ?? "Daily Meal";
   const avatar = avatarSource(post.author?.avatarUrl);
+  const imageIndexes = tidy ? [0] : previewIndexes(post);
 
   return (
-    <View style={[styles.preview, style]}>
+    <View style={[styles.preview, tidy && styles.previewTidy, style]}>
       <View style={styles.imageStack} pointerEvents="none">
-        {previewIndexes(post)
+        {imageIndexes
           .slice()
           .reverse()
           .map((imageIndex) => (
@@ -102,8 +105,8 @@ export function CompactPostPreview({
               style={[
                 styles.imageLayer,
                 imageIndex === 0 && styles.imageFront,
-                imageIndex === 1 && styles.imageSecond,
-                imageIndex === 2 && styles.imageThird
+                !tidy && imageIndex === 1 && styles.imageSecond,
+                !tidy && imageIndex === 2 && styles.imageThird
               ]}
               resizeMode="cover"
             />
@@ -143,6 +146,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "visible",
     position: "relative"
+  },
+  previewTidy: {
+    overflow: "hidden"
   },
   imageStack: {
     ...StyleSheet.absoluteFillObject

@@ -98,13 +98,14 @@ export function ProgressScreen({ navigation }: any) {
           {posts.map((post, index) => (
             <Pressable
               key={post._id}
-              style={[styles.gridItem, { width: cardWidth }, index % 2 === 1 && styles.gridItemLower]}
+              style={[styles.gridItem, { width: cardWidth }]}
               onPress={() => navigation.navigate("Home", getFeedPostParams(post))}
             >
               <CompactPostPreview
                 post={post}
                 captionSide={index % 2 === 0 ? "left" : "right"}
                 showAuthorChip={index % 3 === 0}
+                tidy
               />
             </Pressable>
           ))}
@@ -209,7 +210,4 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "visible"
   },
-  gridItemLower: {
-    marginTop: 66
-  }
 });

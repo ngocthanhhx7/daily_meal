@@ -75,7 +75,7 @@ export function SavedScreen({ navigation }: any) {
           }
           renderItem={({ item, index }) => (
             <Pressable
-              style={[styles.card, { width: cardWidth }, index % 2 === 1 && styles.cardStaggered]}
+              style={[styles.card, { width: cardWidth }]}
               onPress={() => navigation.navigate("Home", getFeedPostParams(item))}
             >
               <CompactPostPreview
@@ -83,6 +83,7 @@ export function SavedScreen({ navigation }: any) {
                 caption={item.caption || "Nó ngon..."}
                 captionSide={index % 2 === 0 ? "left" : "right"}
                 showAuthorChip
+                tidy
               />
             </Pressable>
           )}
@@ -134,9 +135,6 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     overflow: "visible",
     position: "relative"
-  },
-  cardStaggered: {
-    marginTop: 24
   },
   emptyContainer: {
     flex: 1,

@@ -1122,6 +1122,38 @@ describe("Daily Meal API", () => {
     expect(friendProfileForStranger.body.posts.map((post: { caption: string }) => post.caption)).not.toContain("Friend friends meal");
   });
 
+  it("prioritizes feed by calendar day first, then by relationship", async () => {
+    const viewer = await register("feed-day-viewer@example.com");
+    const friend = await register("feed-day-friend@example.com");
+    const stranger = await register("feed-day-stranger@example.com");
+
+    await request(app)
+      .post(`/api/users/${friend.user.id}/follow`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    await request(app)
+      .post(`/api/users/${viewer.user.id}/follow`)
+      .set("Authorization", `Bearer ${friend.token}`)
+      .expect(200);
+
+    const strangerPost = await createPost(stranger.token, "Stranger today meal");
+    const friendPost = await createPost(friend.token, "Friend yesterday meal");
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const PostModel = mongoose.model("Post");
+    await PostModel.collection.updateOne({ _id: new mongoose.Types.ObjectId(friendPost._id) }, { $set: { createdAt: yesterday } });
+
+    const feed = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    const captions = feed.body.posts.map((post: { caption: string }) => post.caption);
+    expect(captions.indexOf("Stranger today meal")).toBeLessThan(captions.indexOf("Friend yesterday meal"));
+  });
+
   it("exposes saved posts and profile interactions", async () => {
     const viewer = await register("viewer-actions@example.com");
     const creator = await register("creator-actions@example.com");

@@ -211,6 +211,13 @@ function feedPriority(post: any, viewerId: string | undefined, followingIds: Set
 
 function rankFeedPosts(posts: any[], viewerId: string | undefined, followingIds: Set<string>, friendIds: Set<string>) {
   return [...posts].sort((a, b) => {
+    const dateA = new Date(a.createdAt).toISOString().slice(0, 10);
+    const dateB = new Date(b.createdAt).toISOString().slice(0, 10);
+
+    if (dateA !== dateB) {
+      return dateB.localeCompare(dateA);
+    }
+
     const priorityDiff = feedPriority(a, viewerId, followingIds, friendIds) - feedPriority(b, viewerId, followingIds, friendIds);
 
     if (priorityDiff !== 0) {

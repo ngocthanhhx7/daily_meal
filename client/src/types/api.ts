@@ -204,8 +204,142 @@ export type Conversation = {
   updatedAt: string;
 };
 
+export type AdminBreakdownItem = {
+  _id: string;
+  count: number;
+};
+
+export type AdminDailyPoint = {
+  date: string;
+  users: number;
+  posts: number;
+  interactions: number;
+  payments: number;
+  revenue: number;
+  reports: number;
+  apiErrors: number;
+};
+
+export type AdminAnalyticsSummary = {
+  range: { start: string; end: string };
+  activeUsers: { dau: number; wau: number; mau: number; returning: number };
+  sessions: {
+    total: number;
+    averageDurationMs: number;
+    bounces: number;
+    bounceRate: number;
+    earlyExits: number;
+    earlyExitRate: number;
+  };
+  feed: {
+    impressions: number;
+    clicks: number;
+    ctr: number;
+    averageScrollDepth: number;
+    maxScrollDepth: number;
+  };
+  technical: {
+    apiRequests: number;
+    averageApiResponseMs: number;
+    apiFailures: number;
+    apiFailureRate: number;
+    imageLoads: number;
+    averageImageLoadMs: number;
+    runtimeErrors: number;
+    crashRate: number;
+    instrumentation: Record<string, string>;
+  };
+  creatorConversion: { started: number; completed: number; rate: number };
+  postCreation: { started: number; completed: number; completionRate: number };
+  mealAnalysis: { started: number; completed: number; completionRate: number };
+  premiumFunnel: {
+    viewed: number;
+    checkoutStarted: number;
+    paymentStarted: number;
+    paymentCompleted: number;
+    paymentFailed: number;
+    checkoutStartRate: number;
+    paymentCompletionRate: number;
+  };
+};
+
+export type AdminPostSummary = {
+  id: string;
+  caption?: string;
+  visibility: PostVisibility;
+  moderationStatus: "visible" | "hidden" | "review";
+  moderationReason?: string;
+  author?: { id: string; displayName?: string; email?: string; avatarUrl?: string };
+  imageCount: number;
+  stats: { likes: number; comments: number; saves: number };
+  nutritionAttached: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  moderatedAt?: string;
+  moderatedBy?: string;
+};
+
+export type AdminPayment = {
+  id: string;
+  user?: { id: string; displayName?: string; email?: string };
+  planId: PremiumPlan["id"];
+  orderCode: number;
+  amount: number;
+  currency: "VND";
+  status: PayosPayment["status"];
+  paidAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type AdminReportItem = {
+  id: string;
+  type: "report" | "restrict" | "block";
+  note?: string;
+  status: "open" | "resolved" | "dismissed";
+  adminNote?: string;
+  actor?: { id: string; displayName?: string; email?: string };
+  target?: { id: string; displayName?: string; email?: string };
+  createdAt?: string;
+  updatedAt?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+};
+
+export type AdminAiReportBody = {
+  title: string;
+  executiveSummary: string[];
+  technical: string[];
+  behavioral: string[];
+  traffic: string[];
+  conversion: string[];
+  anomalies: string[];
+  priorityActions: string[];
+  risks: string[];
+  metricsSnapshot: Record<string, unknown>;
+};
+
+export type AdminReport = {
+  report: AdminAiReportBody;
+  generatedAt: string;
+  range: { start: string; end: string };
+};
+
 export type AdminDashboard = {
-  totals: { users: number; posts: number };
+  range: { start: string; end: string };
+  totals: {
+    users: number;
+    posts: number;
+    meals: number;
+    comments: number;
+    likes: number;
+    saves: number;
+    payments: number;
+    revenue: number;
+    premiumUsers: number;
+    openReports: number;
+    hiddenPosts: number;
+  };
   today: {
     users: number;
     posts: number;
@@ -214,6 +348,21 @@ export type AdminDashboard = {
     saves: number;
     comments: number;
     userInteractions: number;
+  };
+  charts: { daily: AdminDailyPoint[] };
+  breakdowns: {
+    usersByPremium: AdminBreakdownItem[];
+    postsByVisibility: AdminBreakdownItem[];
+    postsByModeration: AdminBreakdownItem[];
+    paymentsByStatus: AdminBreakdownItem[];
+    reportsByStatus: AdminBreakdownItem[];
+  };
+  analytics: AdminAnalyticsSummary;
+  recent: {
+    reports: AdminReportItem[];
+    posts: AdminPostSummary[];
+    payments: AdminPayment[];
+    audit: Array<{ id: string; adminEmail: string; action: string; targetType: string; targetId: string; note?: string; createdAt?: string }>;
   };
 };
 
@@ -242,9 +391,12 @@ export type AdminUserDetail = AdminUserSummary & {
     id: string;
     caption: string;
     visibility: string;
+    moderationStatus?: "visible" | "hidden" | "review";
+    moderationReason?: string;
     stats?: { likes: number; comments: number; saves: number };
     imageCount: number;
     createdAt?: string;
   }>;
-  interactions: Array<{ id: string; type: string; note?: string; actor?: string; createdAt?: string }>;
+  interactions: Array<{ id: string; type: string; note?: string; status?: string; adminNote?: string; actor?: string; createdAt?: string; resolvedAt?: string; resolvedBy?: string }>;
+  audit?: Array<{ id: string; action: string; note?: string; createdAt?: string }>;
 };

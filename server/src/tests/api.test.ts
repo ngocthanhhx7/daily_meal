@@ -271,6 +271,41 @@ describe("Daily Meal API", () => {
     const alice = await register("admin-alice@example.com");
     const bob = await register("admin-bob@example.com");
     const post = await createPost(alice.token, "Admin dashboard meal");
+    await Payment.create({
+      provider: "payos",
+      user: alice.user.id,
+      planId: "premium_month",
+      orderCode: 9234567890,
+      amount: 99000,
+      currency: "VND",
+      description: "Admin test payment",
+      status: "PAID",
+      paidAt: new Date()
+    });
+    await AnalyticsEvent.create([
+      {
+        name: "api_request_completed",
+        occurredAt: new Date(),
+        receivedAt: new Date(),
+        sessionId: "admin-suite-technical",
+        anonymousId: "admin-suite-anon",
+        subjectKey: "anon:admin-suite-anon",
+        source: "client",
+        value: 123,
+        properties: { durationMs: 123, status: 200 }
+      },
+      {
+        name: "image_load_completed",
+        occurredAt: new Date(),
+        receivedAt: new Date(),
+        sessionId: "admin-suite-technical",
+        anonymousId: "admin-suite-anon",
+        subjectKey: "anon:admin-suite-anon",
+        source: "client",
+        value: 456,
+        properties: { durationMs: 456 }
+      }
+    ]);
     await Promise.all([
       PostLike.create({ post: post._id, user: bob.user.id }),
       PostSave.create({ post: post._id, user: bob.user.id }),
@@ -299,6 +334,10 @@ describe("Daily Meal API", () => {
 
     expect(dashboard.body.totals.users).toBeGreaterThanOrEqual(2);
     expect(dashboard.body.totals.posts).toBeGreaterThanOrEqual(1);
+    expect(dashboard.body.totals.revenue).toBeGreaterThanOrEqual(99000);
+    expect(dashboard.body.breakdowns.paymentsByStatus.length).toBeGreaterThanOrEqual(1);
+    expect(dashboard.body.analytics.technical.apiRequests).toBeGreaterThanOrEqual(1);
+    expect(dashboard.body.analytics.technical.imageLoads).toBeGreaterThanOrEqual(1);
     expect(dashboard.body.today.interactions).toBeGreaterThanOrEqual(4);
 
     const users = await request(app)
@@ -317,6 +356,68 @@ describe("Daily Meal API", () => {
     expect(detail.body.user.email).toBe("admin-alice@example.com");
     expect(detail.body.user.recentPosts[0].caption).toBe("Admin dashboard meal");
     expect(detail.body.user.interactions[0].type).toBe("report");
+
+    const posts = await request(app)
+      .get("/api/admin/posts?q=dashboard")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(posts.body.posts[0].caption).toBe("Admin dashboard meal");
+
+    const hidden = await request(app)
+      .patch(`/api/admin/posts/${post._id}/moderation`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ moderationStatus: "hidden", reason: "test hide" })
+      .expect(200);
+
+    expect(hidden.body.post.moderationStatus).toBe("hidden");
+
+    const feedAfterHide = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${alice.token}`)
+      .expect(200);
+
+    expect(feedAfterHide.body.posts.some((item: any) => item._id === post._id)).toBe(false);
+
+    const reports = await request(app)
+      .get("/api/admin/reports")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(reports.body.reports[0].status).toBe("open");
+
+    const resolvedReport = await request(app)
+      .patch(`/api/admin/reports/${reports.body.reports[0].id}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ status: "resolved", adminNote: "Handled in test" })
+      .expect(200);
+
+    expect(resolvedReport.body.report.status).toBe("resolved");
+
+    const premiumToggle = await request(app)
+      .patch(`/api/admin/users/${bob.user.id}/premium`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ isPremium: true, note: "test premium" })
+      .expect(200);
+
+    expect(premiumToggle.body.user.isPremium).toBe(true);
+
+    const payments = await request(app)
+      .get("/api/admin/payments?q=9234567890")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(payments.body.payments[0].orderCode).toBe(9234567890);
+
+    Object.assign(env, { SHINESHOP_API_KEY: undefined });
+    const aiReport = await request(app)
+      .post("/api/admin/reports/ai")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({})
+      .expect(200);
+
+    expect(aiReport.body.report.executiveSummary.length).toBeGreaterThan(0);
+    expect(aiReport.body.report.metricsSnapshot.mode).toBe("fallback");
   });
 
   it("validates analytics ingestion batches", async () => {

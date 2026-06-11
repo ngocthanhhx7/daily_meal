@@ -186,6 +186,7 @@ async function networkIds(viewerId: string | undefined) {
 
 function visiblePostFilter(viewerId: string | undefined, friendIds: Set<string>) {
   return {
+    moderationStatus: { $ne: "hidden" },
     $or: [
       { visibility: "public" },
       ...(viewerId ? [{ author: viewerId }] : []),

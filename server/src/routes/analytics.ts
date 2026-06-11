@@ -149,7 +149,11 @@ export async function buildAnalyticsSummary(options: SummaryOptions = {}) {
     paymentFailed,
     earlyExitEvents,
     sessionGroups,
-    scrollEvents
+    scrollEvents,
+    runtimeErrors,
+    apiRequestEvents,
+    apiRequestFailures,
+    imageLoadEvents
   ] = await Promise.all([
     distinctSubjects(oneDayStart),
     distinctSubjects(oneWeekStart),
@@ -191,7 +195,11 @@ export async function buildAnalyticsSummary(options: SummaryOptions = {}) {
         }
       }
     ]),
-    AnalyticsEvent.find({ ...baseFilter, name: "scroll_depth" }).select("properties").lean()
+    AnalyticsEvent.find({ ...baseFilter, name: "scroll_depth" }).select("properties").lean(),
+    AnalyticsEvent.countDocuments({ ...baseFilter, name: { $in: ["runtime_error", "runtime_unhandled_rejection"] } }),
+    AnalyticsEvent.find({ ...baseFilter, name: "api_request_completed" }).select("value properties").lean(),
+    AnalyticsEvent.countDocuments({ ...baseFilter, name: "api_request_failed" }),
+    AnalyticsEvent.find({ ...baseFilter, name: "image_load_completed" }).select("value properties").lean()
   ]);
 
   const returningSubjects =
@@ -227,6 +235,18 @@ export async function buildAnalyticsSummary(options: SummaryOptions = {}) {
   const averageScrollDepth =
     scrollDepths.length > 0 ? scrollDepths.reduce((total, value) => total + value, 0) / scrollDepths.length : 0;
   const maxScrollDepth = scrollDepths.length > 0 ? Math.max(...scrollDepths) : 0;
+  const apiDurations = apiRequestEvents
+    .map((event) => (typeof event.value === "number" && Number.isFinite(event.value) ? event.value : numberProperty(event.properties, ["durationMs"])))
+    .filter((value): value is number => value !== undefined);
+  const imageLoadDurations = imageLoadEvents
+    .map((event) => (typeof event.value === "number" && Number.isFinite(event.value) ? event.value : numberProperty(event.properties, ["durationMs"])))
+    .filter((value): value is number => value !== undefined);
+  const apiFailuresFromCompleted = apiRequestEvents.filter((event) => {
+    const status = numberProperty(event.properties, ["status"]);
+    return typeof status === "number" && status >= 400;
+  }).length;
+  const totalApiFailures = apiRequestFailures + apiFailuresFromCompleted;
+  const average = (values: number[]) => (values.length > 0 ? values.reduce((total, value) => total + value, 0) / values.length : 0);
 
   return {
     range: { start: start.toISOString(), end: end.toISOString() },
@@ -250,6 +270,21 @@ export async function buildAnalyticsSummary(options: SummaryOptions = {}) {
       ctr: rate(feedClicks, feedImpressions),
       averageScrollDepth,
       maxScrollDepth
+    },
+    technical: {
+      apiRequests: apiRequestEvents.length,
+      averageApiResponseMs: average(apiDurations),
+      apiFailures: totalApiFailures,
+      apiFailureRate: rate(totalApiFailures, apiRequestEvents.length + apiRequestFailures),
+      imageLoads: imageLoadEvents.length,
+      averageImageLoadMs: average(imageLoadDurations),
+      runtimeErrors,
+      crashRate: rate(runtimeErrors, sessions),
+      instrumentation: {
+        apiResponseTime: apiRequestEvents.length > 0 ? "available" : "not_instrumented",
+        imageLoadSpeed: imageLoadEvents.length > 0 ? "available" : "not_instrumented",
+        runtimeErrors: runtimeErrors > 0 ? "available" : "available_no_errors"
+      }
     },
     creatorConversion: {
       started: creatorStarted,

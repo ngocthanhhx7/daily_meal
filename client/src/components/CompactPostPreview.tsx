@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  Image,
   StyleSheet,
   View,
   type ImageSourcePropType,
@@ -13,6 +12,7 @@ import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
 import { AppText } from "./AppText";
+import { TrackedImage } from "./TrackedImage";
 
 export const COMPACT_POST_GRID_MAX_WIDTH = 335;
 export const COMPACT_POST_CARD_WIDTH = 154;
@@ -107,8 +107,9 @@ export function CompactPostPreview({
           .slice()
           .reverse()
           .map((imageIndex) => (
-            <Image
+            <TrackedImage
               key={`${post._id}-${imageIndex}`}
+              metricName="compact_post_image"
               source={postImageSource(post, imageIndex)}
               style={[
                 styles.imageLayer,
@@ -141,7 +142,7 @@ export function CompactPostPreview({
         <View style={[styles.authorChip, { backgroundColor: post.author?.themeColor || colors.green }]}>
           <View style={styles.authorAvatar}>
             {avatar ? (
-              <Image source={avatar} style={styles.authorAvatarImage} resizeMode="cover" />
+              <TrackedImage metricName="compact_post_avatar" source={avatar} style={styles.authorAvatarImage} resizeMode="cover" />
             ) : (
               <AppText style={[styles.avatarText, { color: post.author?.themeColor || colors.green }]}>
                 {authorName.slice(0, 1).toUpperCase()}

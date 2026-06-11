@@ -1,5 +1,22 @@
 import { NativeModules, Platform } from "react-native";
-import type { AdminDashboard, AdminUserDetail, AdminUserSummary, ChatMessage, Conversation, Meal, PayosPayment, Post, PremiumPlan, Sticker, Upload, User } from "../types/api";
+import type {
+  AdminDashboard,
+  AdminPayment,
+  AdminPostSummary,
+  AdminReport,
+  AdminReportItem,
+  AdminUserDetail,
+  AdminUserSummary,
+  ChatMessage,
+  Conversation,
+  Meal,
+  PayosPayment,
+  Post,
+  PremiumPlan,
+  Sticker,
+  Upload,
+  User
+} from "../types/api";
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -51,6 +68,24 @@ type MealAnalyzeHints = {
   ingredientsText?: string;
 };
 
+type ApiTelemetryEvent = {
+  path: string;
+  method: string;
+  status?: number;
+  durationMs: number;
+  ok: boolean;
+};
+
+let telemetryReporter: ((event: ApiTelemetryEvent) => void) | undefined;
+
+function nowMs() {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+
+  return Date.now();
+}
+
 async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const headers: Record<string, string> = {
     ...(options.headers ?? {})
@@ -68,16 +103,27 @@ async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
     headers.Authorization = `Bearer ${options.token}`;
   }
 
+  const method = options.method ?? "GET";
+  const startedAt = nowMs();
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method ?? "GET",
+    method,
     headers,
     body
   }).catch((error) => {
+    telemetryReporter?.({ path, method, durationMs: Math.max(0, nowMs() - startedAt), ok: false });
     throw new Error(
       `Không kết nối được API tại ${API_BASE_URL}. Kiểm tra server và cùng mạng Wi-Fi. ${
         error instanceof Error ? error.message : ""
       }`
     );
+  });
+
+  telemetryReporter?.({
+    path,
+    method,
+    status: response.status,
+    durationMs: Math.max(0, nowMs() - startedAt),
+    ok: response.ok
   });
 
   if (!response.ok) {
@@ -93,12 +139,28 @@ async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
 }
 
 export const api = {
+  setTelemetryReporter: (reporter?: (event: ApiTelemetryEvent) => void) => {
+    telemetryReporter = reporter;
+  },
   adminLogin: (body: { email: string; password: string }) =>
     request<{ token: string; admin: { email: string; displayName: string } }>("/api/admin/login", {
       method: "POST",
       body
     }),
   adminDashboard: (token: string) => request<AdminDashboard>("/api/admin/dashboard", { token }),
+  adminAnalyticsSummary: (token: string, params?: { start?: string; end?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.start) search.set("start", params.start);
+    if (params?.end) search.set("end", params.end);
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<{ summary: AdminDashboard["analytics"] }>(`/api/admin/analytics/summary${suffix}`, { token });
+  },
+  adminAiReport: (token: string, body?: { start?: string; end?: string }) =>
+    request<AdminReport>("/api/admin/reports/ai", {
+      method: "POST",
+      token,
+      body: body ?? {}
+    }),
   adminUsers: (token: string, params?: { q?: string; page?: number; limit?: number }) => {
     const search = new URLSearchParams();
     if (params?.q) search.set("q", params.q);
@@ -108,6 +170,50 @@ export const api = {
     return request<{ users: AdminUserSummary[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/api/admin/users${suffix}`, { token });
   },
   adminUser: (token: string, id: string) => request<{ user: AdminUserDetail }>(`/api/admin/users/${id}`, { token }),
+  adminSetUserPremium: (token: string, id: string, body: { isPremium: boolean; note?: string }) =>
+    request<{ user: AdminUserSummary }>(`/api/admin/users/${id}/premium`, {
+      method: "PATCH",
+      token,
+      body
+    }),
+  adminPosts: (token: string, params?: { q?: string; page?: number; limit?: number; moderationStatus?: "visible" | "hidden" | "review"; visibility?: "public" | "friends" | "private" }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set("q", params.q);
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.limit) search.set("limit", String(params.limit));
+    if (params?.moderationStatus) search.set("moderationStatus", params.moderationStatus);
+    if (params?.visibility) search.set("visibility", params.visibility);
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<{ posts: AdminPostSummary[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/api/admin/posts${suffix}`, { token });
+  },
+  adminModeratePost: (token: string, id: string, body: { moderationStatus: "visible" | "hidden" | "review"; reason?: string }) =>
+    request<{ post: AdminPostSummary }>(`/api/admin/posts/${id}/moderation`, {
+      method: "PATCH",
+      token,
+      body
+    }),
+  adminReports: (token: string, params?: { status?: "open" | "resolved" | "dismissed" | "all"; page?: number; limit?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.status) search.set("status", params.status);
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.limit) search.set("limit", String(params.limit));
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<{ reports: AdminReportItem[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/api/admin/reports${suffix}`, { token });
+  },
+  adminUpdateReport: (token: string, id: string, body: { status: "open" | "resolved" | "dismissed"; adminNote?: string }) =>
+    request<{ report: AdminReportItem }>(`/api/admin/reports/${id}`, {
+      method: "PATCH",
+      token,
+      body
+    }),
+  adminPayments: (token: string, params?: { q?: string; page?: number; limit?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set("q", params.q);
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.limit) search.set("limit", String(params.limit));
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<{ payments: AdminPayment[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/api/admin/payments${suffix}`, { token });
+  },
   baseUrl: API_BASE_URL,
   register: (body: { email: string; password: string; displayName?: string }) =>
     request<{ token: string; user: User }>("/api/auth/register", {

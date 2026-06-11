@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { api } from "../api/client";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
@@ -8,6 +8,7 @@ import type { Post } from "../types/api";
 import { AppText } from "./AppText";
 import { NutritionCard } from "./NutritionCard";
 import { StickerBadge } from "./StickerBadge";
+import { TrackedImage } from "./TrackedImage";
 
 type PostCardProps = {
   post: Post;
@@ -77,7 +78,8 @@ export function PostCard({
       </Pressable>
 
       {/* Image */}
-      <Image
+      <TrackedImage
+        metricName="post_card_image"
         source={imageSource(post)}
         style={styles.image}
         resizeMode="cover"

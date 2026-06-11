@@ -99,6 +99,15 @@ const postSchema = new Schema(
     stickerId: { type: Types.ObjectId, ref: "Sticker" },
     stickerPlacement: { type: stickerPlacementSchema },
     visibility: { type: String, enum: ["public", "friends", "private"], default: "public", index: true },
+    moderationStatus: {
+      type: String,
+      enum: ["visible", "hidden", "review"],
+      default: "visible",
+      index: true
+    },
+    moderationReason: { type: String, default: "", maxlength: 1000 },
+    moderatedAt: { type: Date },
+    moderatedBy: { type: String, trim: true },
     stats: {
       likes: { type: Number, default: 0 },
       comments: { type: Number, default: 0 },

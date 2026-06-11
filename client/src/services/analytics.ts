@@ -551,6 +551,18 @@ export const analytics = createAnalyticsClient({
   platform: Platform.OS
 });
 
+api.setTelemetryReporter((event) => {
+  analytics.track(event.ok ? "api_request_completed" : "api_request_failed", {
+    value: event.durationMs,
+    properties: {
+      path: event.path,
+      method: event.method,
+      status: event.status ?? 0,
+      durationMs: event.durationMs
+    }
+  });
+});
+
 function normalizeError(error: unknown) {
   if (error instanceof Error) {
     return {

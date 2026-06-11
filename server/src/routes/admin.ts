@@ -16,7 +16,7 @@ import { User } from "../models/User.js";
 import { UserInteraction } from "../models/UserInteraction.js";
 import { generateAdminReport } from "../services/adminReport.js";
 import { hasActivePremium, premiumTrialDto } from "../utils/premium.js";
-import { buildAnalyticsSummary, parseAnalyticsSummaryQuery } from "./analytics.js";
+import { buildAnalyticsSummary, parseAnalyticsSummaryQuery, type AnalyticsRangePreset } from "./analytics.js";
 
 export const adminRouter = Router();
 
@@ -55,6 +55,12 @@ const reportStatusBodySchema = z.object({
 const premiumBodySchema = z.object({
   isPremium: z.boolean(),
   note: z.string().trim().max(1000).optional()
+});
+
+const adminRangeBodySchema = z.object({
+  start: z.coerce.date().optional(),
+  end: z.coerce.date().optional(),
+  range: z.enum(["1d", "7d", "all"]).optional()
 });
 
 type AdminJwtPayload = {
@@ -116,19 +122,62 @@ function startOfToday() {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
-function defaultRange() {
+function defaultRange(): { start: Date; end: Date; rangePreset: AnalyticsRangePreset } {
   const end = new Date();
-  const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
-  return { start, end };
+  const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  return { start, end, rangePreset: "7d" };
 }
 
-function resolveRange(query: unknown) {
-  const parsed = parseAnalyticsSummaryQuery(query);
-  const defaults = defaultRange();
-  return {
-    start: parsed.start ?? defaults.start,
-    end: parsed.end ?? defaults.end
-  };
+async function earliestAdminDate(end: Date) {
+  const [user, post, meal, payment, event, interaction] = await Promise.all([
+    User.findOne({ createdAt: { $lt: end } }).sort({ createdAt: 1 }).select("createdAt").lean(),
+    Post.findOne({ createdAt: { $lt: end } }).sort({ createdAt: 1 }).select("createdAt").lean(),
+    Meal.findOne({ createdAt: { $lt: end } }).sort({ createdAt: 1 }).select("createdAt").lean(),
+    Payment.findOne({ createdAt: { $lt: end } }).sort({ createdAt: 1 }).select("createdAt").lean(),
+    AnalyticsEvent.findOne({ occurredAt: { $lt: end } }).sort({ occurredAt: 1 }).select("occurredAt").lean(),
+    UserInteraction.findOne({ createdAt: { $lt: end } }).sort({ createdAt: 1 }).select("createdAt").lean()
+  ]);
+
+  const dates = [user?.createdAt, post?.createdAt, meal?.createdAt, payment?.createdAt, event?.occurredAt, interaction?.createdAt]
+    .filter(Boolean)
+    .map((value) => new Date(value as Date));
+
+  if (!dates.length) {
+    return new Date(end.getTime() - 24 * 60 * 60 * 1000);
+  }
+
+  return new Date(Math.min(...dates.map((date) => date.getTime())));
+}
+
+async function resolveRange(input: unknown) {
+  const parsed = adminRangeBodySchema.parse(input);
+  const end = parsed.end ?? new Date();
+
+  if (parsed.start || parsed.end) {
+    return {
+      start: parsed.start ?? defaultRange().start,
+      end,
+      rangePreset: parsed.range ?? "7d"
+    };
+  }
+
+  if (parsed.range === "1d") {
+    return {
+      start: new Date(end.getTime() - 24 * 60 * 60 * 1000),
+      end,
+      rangePreset: "1d" as const
+    };
+  }
+
+  if (parsed.range === "all") {
+    return {
+      start: await earliestAdminDate(end),
+      end,
+      rangePreset: "all" as const
+    };
+  }
+
+  return defaultRange();
 }
 
 function toIso(value?: Date | null) {
@@ -351,28 +400,40 @@ async function aggregateByField(model: any, field: string, match: Record<string,
   ])) as Array<{ _id: string | null; count: number }>;
 }
 
-async function buildAdminDashboard(start: Date, end: Date) {
+async function buildAdminDashboard(start: Date, end: Date, rangePreset: AnalyticsRangePreset) {
   const today = startOfToday();
+  const rangeFilter = { createdAt: { $gte: start, $lt: end } };
   const [
     analyticsSummary,
     series,
-    totalUsers,
-    totalPosts,
-    totalMeals,
-    totalComments,
-    totalLikes,
-    totalSaves,
-    totalPayments,
-    paidRevenue,
-    premiumUsers,
+    totalUsersAllTime,
+    totalPostsAllTime,
+    totalMealsAllTime,
+    totalCommentsAllTime,
+    totalLikesAllTime,
+    totalSavesAllTime,
+    totalPaymentsAllTime,
+    paidRevenueAllTime,
+    premiumUsersAllTime,
+    totalUsersInRange,
+    totalPostsInRange,
+    totalMealsInRange,
+    totalCommentsInRange,
+    totalLikesInRange,
+    totalSavesInRange,
+    totalPaymentsInRange,
+    paidRevenueInRange,
+    premiumUsersInRange,
     usersToday,
     postsToday,
     likesToday,
     savesToday,
     commentsToday,
     userInteractionsToday,
-    openReports,
-    hiddenPosts,
+    openReportsAllTime,
+    openReportsInRange,
+    hiddenPostsAllTime,
+    hiddenPostsInRange,
     recentReports,
     recentPosts,
     recentPayments,
@@ -383,7 +444,7 @@ async function buildAdminDashboard(start: Date, end: Date) {
     paymentsByStatus,
     reportsByStatus
   ] = await Promise.all([
-    buildAnalyticsSummary({ start, end }),
+    buildAnalyticsSummary({ start, end, range: rangePreset }),
     buildDailySeries(start, end),
     User.countDocuments(),
     Post.countDocuments(),
@@ -394,6 +455,15 @@ async function buildAdminDashboard(start: Date, end: Date) {
     Payment.countDocuments(),
     Payment.aggregate<{ total: number }>([{ $match: { status: "PAID" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
     User.countDocuments({ isPremium: true }),
+    User.countDocuments(rangeFilter),
+    Post.countDocuments(rangeFilter),
+    Meal.countDocuments(rangeFilter),
+    Comment.countDocuments(rangeFilter),
+    PostLike.countDocuments(rangeFilter),
+    PostSave.countDocuments(rangeFilter),
+    Payment.countDocuments({ ...rangeFilter, status: "PAID" }),
+    Payment.aggregate<{ total: number }>([{ $match: { ...rangeFilter, status: "PAID" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+    User.countDocuments({ ...rangeFilter, isPremium: true }),
     User.countDocuments({ createdAt: { $gte: today } }),
     Post.countDocuments({ createdAt: { $gte: today } }),
     PostLike.countDocuments({ createdAt: { $gte: today } }),
@@ -401,7 +471,9 @@ async function buildAdminDashboard(start: Date, end: Date) {
     Comment.countDocuments({ createdAt: { $gte: today } }),
     UserInteraction.countDocuments({ createdAt: { $gte: today } }),
     UserInteraction.countDocuments(openReportFilter()),
+    UserInteraction.countDocuments({ ...openReportFilter(), createdAt: { $gte: start, $lt: end } }),
     Post.countDocuments({ moderationStatus: "hidden" }),
+    Post.countDocuments({ moderationStatus: "hidden", createdAt: { $gte: start, $lt: end } }),
     UserInteraction.find({ type: "report" }).sort({ createdAt: -1 }).limit(5).populate("actor", "displayName email").populate("target", "displayName email").lean(),
     Post.find().sort({ createdAt: -1 }).limit(5).populate("author", "displayName email avatarUrl").lean(),
     Payment.find().sort({ createdAt: -1 }).limit(5).populate("user", "displayName email").lean(),
@@ -419,18 +491,32 @@ async function buildAdminDashboard(start: Date, end: Date) {
 
   return {
     range: { start: start.toISOString(), end: end.toISOString() },
-    totals: {
-      users: totalUsers,
-      posts: totalPosts,
-      meals: totalMeals,
-      comments: totalComments,
-      likes: totalLikes,
-      saves: totalSaves,
-      payments: totalPayments,
-      revenue: paidRevenue[0]?.total ?? 0,
-      premiumUsers,
-      openReports,
-      hiddenPosts
+    rangePreset,
+    totalsAllTime: {
+      users: totalUsersAllTime,
+      posts: totalPostsAllTime,
+      meals: totalMealsAllTime,
+      comments: totalCommentsAllTime,
+      likes: totalLikesAllTime,
+      saves: totalSavesAllTime,
+      payments: totalPaymentsAllTime,
+      revenue: paidRevenueAllTime[0]?.total ?? 0,
+      premiumUsers: premiumUsersAllTime,
+      openReports: openReportsAllTime,
+      hiddenPosts: hiddenPostsAllTime
+    },
+    totalsInRange: {
+      users: totalUsersInRange,
+      posts: totalPostsInRange,
+      meals: totalMealsInRange,
+      comments: totalCommentsInRange,
+      likes: totalLikesInRange,
+      saves: totalSavesInRange,
+      payments: totalPaymentsInRange,
+      revenue: paidRevenueInRange[0]?.total ?? 0,
+      premiumUsers: premiumUsersInRange,
+      openReports: openReportsInRange,
+      hiddenPosts: hiddenPostsInRange
     },
     today: {
       users: usersToday,
@@ -489,12 +575,12 @@ adminRouter.post("/login", (req, res, next) => {
 
 adminRouter.get("/dashboard", requireAdmin, async (req, res, next) => {
   try {
-    const { start, end } = resolveRange(req.query);
+    const { start, end, rangePreset } = await resolveRange(req.query);
     if (start >= end) {
       throw new HttpError(400, "Dashboard start must be before end.");
     }
 
-    res.json(await buildAdminDashboard(start, end));
+    res.json(await buildAdminDashboard(start, end, rangePreset));
   } catch (error) {
     next(error);
   }
@@ -511,12 +597,15 @@ adminRouter.get("/analytics/summary", requireAdmin, async (req, res, next) => {
 
 adminRouter.post("/reports/ai", requireAdmin, async (req, res, next) => {
   try {
-    const { start, end } = resolveRange(req.body ?? {});
+    const { start, end, rangePreset } = await resolveRange(req.body ?? {});
     if (start >= end) {
       throw new HttpError(400, "Report start must be before end.");
     }
 
-    const [summary, dashboard] = await Promise.all([buildAnalyticsSummary({ start, end }), buildAdminDashboard(start, end)]);
+    const [summary, dashboard] = await Promise.all([
+      buildAnalyticsSummary({ start, end, range: rangePreset }),
+      buildAdminDashboard(start, end, rangePreset)
+    ]);
     const report = await generateAdminReport({
       summary: summary as Record<string, unknown>,
       dashboard: dashboard as Record<string, unknown>,
@@ -529,10 +618,15 @@ adminRouter.post("/reports/ai", requireAdmin, async (req, res, next) => {
       action: "report.ai.generate",
       targetType: "admin_report",
       targetId: `${start.toISOString()}_${end.toISOString()}`,
-      metadata: { start: start.toISOString(), end: end.toISOString() }
+      metadata: { start: start.toISOString(), end: end.toISOString(), rangePreset }
     });
 
-    res.json({ report, generatedAt: new Date().toISOString(), range: { start: start.toISOString(), end: end.toISOString() } });
+    res.json({
+      report,
+      generatedAt: new Date().toISOString(),
+      range: { start: start.toISOString(), end: end.toISOString() },
+      rangePreset
+    });
   } catch (error) {
     next(error);
   }

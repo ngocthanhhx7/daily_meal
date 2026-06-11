@@ -332,13 +332,33 @@ describe("Daily Meal API", () => {
       .set("Authorization", `Bearer ${adminToken}`)
       .expect(200);
 
-    expect(dashboard.body.totals.users).toBeGreaterThanOrEqual(2);
-    expect(dashboard.body.totals.posts).toBeGreaterThanOrEqual(1);
-    expect(dashboard.body.totals.revenue).toBeGreaterThanOrEqual(99000);
+    expect(dashboard.body.rangePreset).toBe("7d");
+    expect(dashboard.body.totalsAllTime.users).toBeGreaterThanOrEqual(2);
+    expect(dashboard.body.totalsAllTime.posts).toBeGreaterThanOrEqual(1);
+    expect(dashboard.body.totalsAllTime.revenue).toBeGreaterThanOrEqual(99000);
+    expect(dashboard.body.totalsInRange.users).toBeGreaterThanOrEqual(2);
+    expect(dashboard.body.totalsInRange.posts).toBeGreaterThanOrEqual(1);
+    expect(dashboard.body.totalsInRange.revenue).toBeGreaterThanOrEqual(99000);
     expect(dashboard.body.breakdowns.paymentsByStatus.length).toBeGreaterThanOrEqual(1);
     expect(dashboard.body.analytics.technical.apiRequests).toBeGreaterThanOrEqual(1);
     expect(dashboard.body.analytics.technical.imageLoads).toBeGreaterThanOrEqual(1);
     expect(dashboard.body.today.interactions).toBeGreaterThanOrEqual(4);
+
+    const oneDayDashboard = await request(app)
+      .get("/api/admin/dashboard?range=1d")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(oneDayDashboard.body.rangePreset).toBe("1d");
+    expect(oneDayDashboard.body.totalsInRange.posts).toBeGreaterThanOrEqual(1);
+
+    const allDashboard = await request(app)
+      .get("/api/admin/dashboard?range=all")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(allDashboard.body.rangePreset).toBe("all");
+    expect(allDashboard.body.totalsInRange.users).toBe(dashboard.body.totalsAllTime.users);
 
     const users = await request(app)
       .get("/api/admin/users?q=admin-alice")
@@ -347,6 +367,24 @@ describe("Daily Meal API", () => {
 
     expect(users.body.users[0]).toMatchObject({ email: "admin-alice@example.com" });
     expect(users.body.users[0].stats).toHaveProperty("posts");
+
+    const firstUserPage = await request(app)
+      .get("/api/admin/users?limit=1")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(firstUserPage.body.users).toHaveLength(1);
+    expect(firstUserPage.body.pagination).toMatchObject({ page: 1, limit: 1 });
+    expect(firstUserPage.body.pagination.total).toBeGreaterThanOrEqual(2);
+    expect(firstUserPage.body.pagination.pages).toBeGreaterThanOrEqual(2);
+
+    const secondUserPage = await request(app)
+      .get("/api/admin/users?limit=1&page=2")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(secondUserPage.body.users).toHaveLength(1);
+    expect(secondUserPage.body.pagination).toMatchObject({ page: 2, limit: 1 });
 
     const detail = await request(app)
       .get(`/api/admin/users/${alice.user.id}`)
@@ -378,6 +416,13 @@ describe("Daily Meal API", () => {
       .expect(200);
 
     expect(feedAfterHide.body.posts.some((item: any) => item._id === post._id)).toBe(false);
+
+    const searchAfterHide = await request(app)
+      .get("/api/posts/search?q=dashboard")
+      .set("Authorization", `Bearer ${alice.token}`)
+      .expect(200);
+
+    expect(searchAfterHide.body.posts.some((item: any) => item._id === post._id)).toBe(false);
 
     const reports = await request(app)
       .get("/api/admin/reports")
@@ -413,9 +458,10 @@ describe("Daily Meal API", () => {
     const aiReport = await request(app)
       .post("/api/admin/reports/ai")
       .set("Authorization", `Bearer ${adminToken}`)
-      .send({})
+      .send({ range: "1d" })
       .expect(200);
 
+    expect(aiReport.body.rangePreset).toBe("1d");
     expect(aiReport.body.report.executiveSummary.length).toBeGreaterThan(0);
     expect(aiReport.body.report.metricsSnapshot.mode).toBe("fallback");
   });

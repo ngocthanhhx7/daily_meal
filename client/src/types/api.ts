@@ -222,6 +222,7 @@ export type AdminDailyPoint = {
 
 export type AdminAnalyticsSummary = {
   range: { start: string; end: string };
+  rangePreset: "1d" | "7d" | "all";
   activeUsers: { dau: number; wau: number; mau: number; returning: number };
   sessions: {
     total: number;
@@ -323,11 +324,33 @@ export type AdminReport = {
   report: AdminAiReportBody;
   generatedAt: string;
   range: { start: string; end: string };
+  rangePreset: "1d" | "7d" | "all";
+};
+
+export type AdminPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
 };
 
 export type AdminDashboard = {
   range: { start: string; end: string };
-  totals: {
+  rangePreset: "1d" | "7d" | "all";
+  totalsAllTime: {
+    users: number;
+    posts: number;
+    meals: number;
+    comments: number;
+    likes: number;
+    saves: number;
+    payments: number;
+    revenue: number;
+    premiumUsers: number;
+    openReports: number;
+    hiddenPosts: number;
+  };
+  totalsInRange: {
     users: number;
     posts: number;
     meals: number;

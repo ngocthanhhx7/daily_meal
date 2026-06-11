@@ -48,7 +48,8 @@ const ingestSchema = z.object({
 
 const summaryQuerySchema = z.object({
   start: z.coerce.date().optional(),
-  end: z.coerce.date().optional()
+  end: z.coerce.date().optional(),
+  range: z.enum(["1d", "7d", "all"]).optional()
 });
 
 type JwtPayload = {
@@ -58,12 +59,50 @@ type JwtPayload = {
 type SummaryOptions = {
   start?: Date;
   end?: Date;
+  range?: "1d" | "7d" | "all";
 };
 
-function defaultSummaryRange() {
+export type AnalyticsRangePreset = "1d" | "7d" | "all";
+
+function defaultSummaryRange(): { start: Date; end: Date; rangePreset: AnalyticsRangePreset } {
   const end = new Date();
-  const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
-  return { start, end };
+  const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  return { start, end, rangePreset: "7d" };
+}
+
+async function earliestAnalyticsDate(end: Date) {
+  const first = await AnalyticsEvent.findOne({ occurredAt: { $lt: end } }).sort({ occurredAt: 1 }).select("occurredAt").lean();
+  return first?.occurredAt ? new Date(first.occurredAt) : new Date(end.getTime() - 24 * 60 * 60 * 1000);
+}
+
+async function resolveSummaryRange(options: SummaryOptions = {}) {
+  const end = options.end ?? new Date();
+
+  if (options.start || options.end) {
+    return {
+      start: options.start ?? defaultSummaryRange().start,
+      end,
+      rangePreset: options.range ?? "7d"
+    };
+  }
+
+  if (options.range === "1d") {
+    return {
+      start: new Date(end.getTime() - 24 * 60 * 60 * 1000),
+      end,
+      rangePreset: "1d" as const
+    };
+  }
+
+  if (options.range === "all") {
+    return {
+      start: await earliestAnalyticsDate(end),
+      end,
+      rangePreset: "all" as const
+    };
+  }
+
+  return defaultSummaryRange();
 }
 
 function rate(numerator: number, denominator: number) {
@@ -112,9 +151,7 @@ async function authenticatedUserId(authorizationHeader: string | undefined) {
 }
 
 export async function buildAnalyticsSummary(options: SummaryOptions = {}) {
-  const defaults = defaultSummaryRange();
-  const end = options.end ?? defaults.end;
-  const start = options.start ?? defaults.start;
+  const { start, end, rangePreset } = await resolveSummaryRange(options);
 
   if (start >= end) {
     throw new HttpError(400, "Summary start must be before end.");
@@ -250,6 +287,7 @@ export async function buildAnalyticsSummary(options: SummaryOptions = {}) {
 
   return {
     range: { start: start.toISOString(), end: end.toISOString() },
+    rangePreset,
     activeUsers: {
       dau: dauSubjects.length,
       wau: wauSubjects.length,

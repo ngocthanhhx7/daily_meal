@@ -130,6 +130,10 @@ function normalizeTags(tags: string[]) {
   return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))];
 }
 
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function serializePost(post: any, likedPostIds: Set<string>, savedPostIds: Set<string>) {
   const id = post._id.toString();
   const author = post.author
@@ -261,10 +265,15 @@ postsRouter.get("/search", requireAuth, async (req, res, next) => {
     const filter: Record<string, unknown> = visiblePostFilter(req.user?.id, friendIds);
 
     if (q) {
-      filter.$or = [
-        { caption: new RegExp(q, "i") },
-        { tags: new RegExp(q, "i") },
-        { "recipe.title": new RegExp(q, "i") }
+      const searchRegex = new RegExp(escapeRegex(q), "i");
+      filter.$and = [
+        {
+          $or: [
+            { caption: searchRegex },
+            { tags: searchRegex },
+            { "recipe.title": searchRegex }
+          ]
+        }
       ];
     }
 

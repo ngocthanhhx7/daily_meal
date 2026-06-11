@@ -2,6 +2,7 @@ import { NativeModules, Platform } from "react-native";
 import type {
   AdminDashboard,
   AdminPayment,
+  AdminPagination,
   AdminPostSummary,
   AdminReport,
   AdminReportItem,
@@ -147,15 +148,23 @@ export const api = {
       method: "POST",
       body
     }),
-  adminDashboard: (token: string) => request<AdminDashboard>("/api/admin/dashboard", { token }),
-  adminAnalyticsSummary: (token: string, params?: { start?: string; end?: string }) => {
+  adminDashboard: (token: string, params?: { range?: "1d" | "7d" | "all"; start?: string; end?: string }) => {
     const search = new URLSearchParams();
+    if (params?.range) search.set("range", params.range);
+    if (params?.start) search.set("start", params.start);
+    if (params?.end) search.set("end", params.end);
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<AdminDashboard>(`/api/admin/dashboard${suffix}`, { token });
+  },
+  adminAnalyticsSummary: (token: string, params?: { range?: "1d" | "7d" | "all"; start?: string; end?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.range) search.set("range", params.range);
     if (params?.start) search.set("start", params.start);
     if (params?.end) search.set("end", params.end);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return request<{ summary: AdminDashboard["analytics"] }>(`/api/admin/analytics/summary${suffix}`, { token });
   },
-  adminAiReport: (token: string, body?: { start?: string; end?: string }) =>
+  adminAiReport: (token: string, body?: { range?: "1d" | "7d" | "all"; start?: string; end?: string }) =>
     request<AdminReport>("/api/admin/reports/ai", {
       method: "POST",
       token,
@@ -167,7 +176,7 @@ export const api = {
     if (params?.page) search.set("page", String(params.page));
     if (params?.limit) search.set("limit", String(params.limit));
     const suffix = search.toString() ? `?${search.toString()}` : "";
-    return request<{ users: AdminUserSummary[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/api/admin/users${suffix}`, { token });
+    return request<{ users: AdminUserSummary[]; pagination: AdminPagination }>(`/api/admin/users${suffix}`, { token });
   },
   adminUser: (token: string, id: string) => request<{ user: AdminUserDetail }>(`/api/admin/users/${id}`, { token }),
   adminSetUserPremium: (token: string, id: string, body: { isPremium: boolean; note?: string }) =>
@@ -184,7 +193,7 @@ export const api = {
     if (params?.moderationStatus) search.set("moderationStatus", params.moderationStatus);
     if (params?.visibility) search.set("visibility", params.visibility);
     const suffix = search.toString() ? `?${search.toString()}` : "";
-    return request<{ posts: AdminPostSummary[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/api/admin/posts${suffix}`, { token });
+    return request<{ posts: AdminPostSummary[]; pagination: AdminPagination }>(`/api/admin/posts${suffix}`, { token });
   },
   adminModeratePost: (token: string, id: string, body: { moderationStatus: "visible" | "hidden" | "review"; reason?: string }) =>
     request<{ post: AdminPostSummary }>(`/api/admin/posts/${id}/moderation`, {
@@ -198,7 +207,7 @@ export const api = {
     if (params?.page) search.set("page", String(params.page));
     if (params?.limit) search.set("limit", String(params.limit));
     const suffix = search.toString() ? `?${search.toString()}` : "";
-    return request<{ reports: AdminReportItem[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/api/admin/reports${suffix}`, { token });
+    return request<{ reports: AdminReportItem[]; pagination: AdminPagination }>(`/api/admin/reports${suffix}`, { token });
   },
   adminUpdateReport: (token: string, id: string, body: { status: "open" | "resolved" | "dismissed"; adminNote?: string }) =>
     request<{ report: AdminReportItem }>(`/api/admin/reports/${id}`, {
@@ -212,7 +221,7 @@ export const api = {
     if (params?.page) search.set("page", String(params.page));
     if (params?.limit) search.set("limit", String(params.limit));
     const suffix = search.toString() ? `?${search.toString()}` : "";
-    return request<{ payments: AdminPayment[]; pagination: { page: number; limit: number; total: number; pages: number } }>(`/api/admin/payments${suffix}`, { token });
+    return request<{ payments: AdminPayment[]; pagination: AdminPagination }>(`/api/admin/payments${suffix}`, { token });
   },
   baseUrl: API_BASE_URL,
   register: (body: { email: string; password: string; displayName?: string }) =>

@@ -9,10 +9,10 @@ type AdminReportInput = {
 };
 
 function reportPrompt(input: AdminReportInput) {
-  return `Ban la he thong phan tich noi bo cua Daily Meal.
-Hay tao bao cao quan tri bang tieng Viet, chi dua tren du lieu duoc cung cap, khong bau dien.
+  return `Bạn là hệ thống phân tích nội bộ của Daily Meal.
+Hãy tạo báo cáo quản trị bằng tiếng Việt có dấu, chỉ dựa trên dữ liệu được cung cấp, không bịa đặt.
 
-Tra ve JSON hop le theo dung cau truc:
+Trả về JSON hợp lệ theo đúng cấu trúc:
 {
   "title": "string",
   "executiveSummary": ["string"],
@@ -26,12 +26,13 @@ Tra ve JSON hop le theo dung cau truc:
   "metricsSnapshot": { "key": "value" }
 }
 
-Nguyen tac:
-- Viet ngan gon, ro rang, uu tien so lieu va hanh dong.
-- Neu mot chi so chua co du lieu, ghi nhan ro "chua instrumented" hoac "khong co du lieu".
-- Nho dong goi tren them outliers, xu huong, rui ro, hanh dong uu tien.
+Nguyên tắc:
+- Viết ngắn gọn, rõ ràng, ưu tiên số liệu và hành động.
+- Nếu một chỉ số chưa có dữ liệu, ghi nhận rõ "chưa instrumented" hoặc "không có dữ liệu".
+- Giữ nguyên các nhãn kỹ thuật như "not_instrumented" nếu chúng là giá trị dữ liệu.
+- Bao gồm xu hướng, bất thường, rủi ro và hành động ưu tiên.
 
-Du lieu:
+Dữ liệu:
 FROM: ${input.from}
 TO: ${input.to}
 SUMMARY: ${JSON.stringify(input.summary)}
@@ -41,36 +42,36 @@ DASHBOARD: ${JSON.stringify(input.dashboard)}
 
 function fallbackReport(input: AdminReportInput) {
   return {
-    title: "Bao cao quan tri Daily Meal",
+    title: "Báo cáo quản trị Daily Meal",
     executiveSummary: [
-      "He thong da tong hop duoc cac nhom KPI chinh cho khu vuc admin.",
-      "Can uu tien theo doi do on dinh ky thuat, do tuong tac feed, va ty le chuyen doi sang tao noi dung."
+      "Hệ thống đã tổng hợp các nhóm KPI chính cho khu vực admin.",
+      "Cần ưu tiên theo dõi độ ổn định kỹ thuật, mức tương tác feed và tỷ lệ chuyển đổi sang tạo nội dung."
     ],
     technical: [
-      "Chua co du lieu AI hoac telemetry day du cho moi KPI ky thuat thi se duoc danh dau ro.",
-      "Nen tiep tuc instrument response time, image load speed, crash va unhandled rejection o muc dung chung."
+      "Nếu dữ liệu AI hoặc telemetry chưa đầy đủ, báo cáo sẽ đánh dấu rõ các chỉ số chưa instrumented.",
+      "Nên tiếp tục đo thời gian phản hồi API, tốc độ tải ảnh, crash và unhandled rejection ở lớp dùng chung."
     ],
     behavioral: [
-      "Bao cao can theo doi session duration, bounce rate va scroll depth de danh gia chat luong noi dung.",
-      "Neu scroll depth thap hoac bounce rate cao, feed dau vao can duoc dieu chinh."
+      "Cần theo dõi thời lượng phiên, bounce rate và scroll depth để đánh giá chất lượng nội dung.",
+      "Nếu scroll depth thấp hoặc bounce rate cao, chiến lược nội dung feed cần được điều chỉnh."
     ],
     traffic: [
-      "Theo doi DAU/WAU/MAU va returning users de phan biet tang truong that voi tang truong ao."
+      "Theo dõi DAU, WAU, MAU và returning users để phân biệt tăng trưởng thật với tăng trưởng ngắn hạn."
     ],
     conversion: [
-      "Theo doi post creation, meal analysis va premium funnel de phat hien do ro chai trong cac luong chuyen doi."
+      "Theo dõi post creation, meal analysis và premium funnel để phát hiện điểm rơi trong các luồng chuyển đổi."
     ],
     anomalies: [
-      "Khong co du lieu phat hien bat thuong duoc sinh tu fallback report."
+      "Không có dữ liệu phát hiện bất thường được sinh từ fallback report."
     ],
     priorityActions: [
-      "Hoan thien dashboard admin voi chart va breakdown ro rang.",
-      "Mo rong soft moderation va audit trail.",
-      "Duy tri bo do telemetry chung de bao cao AI co du lieu day du hon."
+      "Hoàn thiện dashboard admin với chart và breakdown rõ ràng.",
+      "Duy trì soft moderation và audit trail cho mọi hành động quan trọng.",
+      "Tiếp tục mở rộng telemetry dùng chung để báo cáo AI có dữ liệu đầy đủ hơn."
     ],
     risks: [
-      "AI report fallback se chi la tong hop quy tac neu provider chua san sang.",
-      "Du lieu metrics ky thuat co the con thieu instrumentation."
+      "AI report fallback chỉ là tổng hợp theo quy tắc nếu provider chưa sẵn sàng.",
+      "Dữ liệu kỹ thuật có thể còn thiếu instrumentation ở một số bề mặt."
     ],
     metricsSnapshot: {
       from: input.from,
@@ -116,17 +117,17 @@ export async function generateAdminReport(input: AdminReportInput) {
   };
 
   if (!response.ok) {
-    throw new HttpError(502, result.error?.message || "Khong the tao bao cao AI.");
+    throw new HttpError(502, result.error?.message || "Không thể tạo báo cáo AI.");
   }
 
   const content = result.choices?.[0]?.message?.content;
   if (!content) {
-    throw new HttpError(502, "AI khong tra noi dung bao cao.");
+    throw new HttpError(502, "AI không trả nội dung báo cáo.");
   }
 
   const parsed = parseJson(content) as Record<string, unknown>;
   return {
-    title: String(parsed.title ?? "Bao cao quan tri Daily Meal"),
+    title: String(parsed.title ?? "Báo cáo quản trị Daily Meal"),
     executiveSummary: Array.isArray(parsed.executiveSummary) ? parsed.executiveSummary.map(String) : [],
     technical: Array.isArray(parsed.technical) ? parsed.technical.map(String) : [],
     behavioral: Array.isArray(parsed.behavioral) ? parsed.behavioral.map(String) : [],

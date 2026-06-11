@@ -16,7 +16,6 @@ import { fonts } from "../theme/typography";
 import type { Post, User } from "../types/api";
 import { getListContentState } from "../utils/contentState";
 import { getProfilePostTarget } from "../utils/postNavigation";
-import { getPostPreviewImageIndexes } from "../utils/postPreviewImages";
 
 type ProfileTab = "posts" | "saved";
 
@@ -47,10 +46,6 @@ function mediaSource(url?: string) {
   }
 
   return { uri: `${api.baseUrl}${url}` };
-}
-
-function postImageSource(post: Post, imageIndex = 0) {
-  return mediaSource(post.images[imageIndex]?.url) ?? require("../../assets/figma-snapshots/image3.png");
 }
 
 function profileHandle(user: User | null) {
@@ -239,31 +234,6 @@ export function ProfileScreen({ navigation }: any) {
         onSignOut={signOutFromMenu}
       />
     </AppScreen>
-  );
-}
-
-function ProfilePostImageStack({ post }: { post: Post }) {
-  const imageIndexes = getPostPreviewImageIndexes(post);
-
-  return (
-    <View style={styles.gridImageStack} pointerEvents="none">
-      {imageIndexes
-        .slice()
-        .reverse()
-        .map((imageIndex) => (
-          <Image
-            key={`${post._id}-${imageIndex}`}
-            source={postImageSource(post, imageIndex)}
-            style={[
-              styles.gridImageLayer,
-              imageIndex === 0 && styles.gridImageFront,
-              imageIndex === 1 && styles.gridImageSecond,
-              imageIndex === 2 && styles.gridImageThird
-            ]}
-            resizeMode="cover"
-          />
-        ))}
-    </View>
   );
 }
 

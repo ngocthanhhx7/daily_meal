@@ -6,9 +6,9 @@
     "orientation": "portrait",
     "scheme": "dailymeal",
     "userInterfaceStyle": "light",
-    "icon": "./assets/logo/logo.png",
+    "icon": "./assets/logo/logo-square.png",
     "splash": {
-      "image": "./assets/logo/logo.png",
+      "image": "./assets/logo/logo-square.png",
       "resizeMode": "contain",
       "backgroundColor": "#F4F3EF"
     },
@@ -28,10 +28,9 @@
     "android": {
       "package": "com.dailymeal.app",
       "versionCode": 1,
-      "usesCleartextTraffic": true,
       "googleServicesFile": "./android/app/google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo/logo.png",
+        "foregroundImage": "./assets/logo/logo-square.png",
         "backgroundColor": "#F4F3EF"
       },
       "permissions": [

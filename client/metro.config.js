@@ -7,6 +7,6 @@ const workspaceRoot = path.resolve(projectRoot, "..");
 const config = getDefaultConfig(projectRoot);
 
 config.projectRoot = projectRoot;
-config.watchFolders = [workspaceRoot];
+config.watchFolders = Array.from(new Set([...(config.watchFolders ?? []), workspaceRoot]));
 
 module.exports = config;

@@ -1,0 +1,34 @@
+{
+  "project_info": {
+    "project_number": "20654020356",
+    "project_id": "daily-meal-mock",
+    "storage_bucket": "daily-meal-mock.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:20654020356:android:da11ymealm0ck123456",
+        "android_client_info": {
+          "package_name": "com.dailymeal.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "20654020356-nsqam5ladrg7j5v6agefq8pucnrcqtn8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "dummy_api_key_for_compilation_only"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

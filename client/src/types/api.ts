@@ -272,6 +272,7 @@ export type AdminPostSummary = {
   moderationStatus: "visible" | "hidden" | "review";
   moderationReason?: string;
   author?: { id: string; displayName?: string; email?: string; avatarUrl?: string };
+  images: PostImage[];
   imageCount: number;
   stats: { likes: number; comments: number; saves: number };
   nutritionAttached: boolean;

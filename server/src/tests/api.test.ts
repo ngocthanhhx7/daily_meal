@@ -572,6 +572,9 @@ describe("Daily Meal API", () => {
       .expect(200);
 
     expect(posts.body.posts[0].caption).toBe("Admin dashboard meal");
+    expect(posts.body.posts[0].images).toEqual([
+      expect.objectContaining({ url: "/uploads/demo.jpg" })
+    ]);
 
     const hidden = await request(app)
       .patch(`/api/admin/posts/${post._id}/moderation`)

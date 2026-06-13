@@ -15,6 +15,7 @@ import type {
   AdminPayment,
   AdminPagination,
   AdminPostSummary,
+  PostImage,
   AdminReport,
   AdminReportItem,
   AdminUserDetail,
@@ -141,8 +142,48 @@ function statusLabel(value?: string) {
   return value ? labels[value] ?? value : "-";
 }
 
+function adminMediaSource(image?: PostImage) {
+  const url = image?.url;
+  if (!url) {
+    return undefined;
+  }
+
+  if (url.startsWith("http") || url.startsWith("file:") || url.startsWith("data:") || url.startsWith("blob:")) {
+    return { uri: url };
+  }
+
+  return { uri: `${api.baseUrl}${url.startsWith("/") ? url : `/${url}`}` };
+}
+
 function Card({ children, style }: { children: React.ReactNode; style?: object }) {
   return <View style={[styles.card, style]}>{children}</View>;
+}
+
+function AdminPostPreview({ post, isDesktop }: { post: AdminPostSummary; isDesktop: boolean }) {
+  const source = adminMediaSource(post.images?.[0]);
+  const extraCount = Math.max(0, post.imageCount - 1);
+
+  return (
+    <View style={[styles.adminPostPreview, isDesktop ? styles.adminPostPreviewDesktop : styles.adminPostPreviewMobile]}>
+      {source ? (
+        <Image source={source} style={styles.adminPostPreviewImage} resizeMode="cover" />
+      ) : (
+        <View style={styles.adminPostPreviewPlaceholder}>
+          <PostsIcon size={20} color={colors.muted} />
+          <AppText variant="caption" muted style={styles.adminPostPreviewText}>
+            Không có ảnh
+          </AppText>
+        </View>
+      )}
+      {extraCount > 0 ? (
+        <View style={styles.adminPostImageCountBadge}>
+          <AppText variant="caption" style={styles.adminPostImageCountText}>
+            +{extraCount}
+          </AppText>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 function MetricCard({ label, value, note, isDesktop }: { label: string; value: string | number; note?: string; isDesktop?: boolean }) {
@@ -990,10 +1031,11 @@ export function AdminDashboardScreen({ route, navigation }: any) {
         <View style={{ gap: 14 }}>
           <SectionHeader title="Quản lý bài đăng" subtitle="Kiểm duyệt mềm: ẩn, đưa vào review hoặc khôi phục." />
           {posts.length ? posts.map((post) => (
-            <Card key={post.id} style={styles.itemCard}>
+            <Card key={post.id} style={[styles.itemCard, isDesktop && styles.adminPostItemCardDesktop]}>
+              <AdminPostPreview post={post} isDesktop={isDesktop} />
               <View style={styles.headerRow}>
                 <View style={styles.flex}>
-                  <AppText variant="subtitle" numberOfLines={1} style={styles.itemCardTitle}>
+                  <AppText variant="subtitle" numberOfLines={isDesktop ? 1 : 2} style={styles.itemCardTitle}>
                     {post.caption || "(Không có caption)"}
                   </AppText>
                   <AppText muted variant="caption">
@@ -2002,6 +2044,60 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     gap: 6
+  },
+  adminPostItemCardDesktop: {
+    minHeight: 128,
+    paddingLeft: 160
+  },
+  adminPostPreview: {
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 8,
+    backgroundColor: colors.canvasStrong
+  },
+  adminPostPreviewDesktop: {
+    position: "absolute",
+    left: 16,
+    top: 16,
+    width: 128,
+    height: 96
+  },
+  adminPostPreviewMobile: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    marginBottom: 6
+  },
+  adminPostPreviewImage: {
+    width: "100%",
+    height: "100%"
+  },
+  adminPostPreviewPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: colors.canvasStrong
+  },
+  adminPostPreviewText: {
+    fontFamily: fonts.semibold
+  },
+  adminPostImageCountBadge: {
+    position: "absolute",
+    right: 8,
+    top: 8,
+    minWidth: 30,
+    height: 24,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.72)"
+  },
+  adminPostImageCountText: {
+    color: colors.white,
+    fontFamily: fonts.bold,
+    fontSize: 11
   },
   itemCardTitle: { fontFamily: fonts.bold, fontSize: 14, color: colors.ink },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },

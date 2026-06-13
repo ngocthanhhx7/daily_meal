@@ -301,6 +301,8 @@ async function userExtraStats(userId: string) {
 }
 
 function postDto(post: any) {
+  const images = Array.isArray(post.images) ? post.images.slice(0, 3) : [];
+
   return {
     id: post._id.toString(),
     caption: post.caption,
@@ -315,6 +317,11 @@ function postDto(post: any) {
           avatarUrl: post.author.avatarUrl
         }
       : undefined,
+    images: images.map((image: any) => ({
+      url: image.url,
+      localPath: image.localPath,
+      uploadId: image.uploadId
+    })),
     imageCount: post.images?.length ?? 0,
     stats: post.stats ?? { likes: 0, comments: 0, saves: 0 },
     nutritionAttached: Boolean(post.nutritionSummary || post.nutritionDetails?.length),

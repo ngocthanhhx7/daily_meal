@@ -829,8 +829,10 @@ export function AdminDashboardScreen({ route, navigation }: any) {
   const [posts, setPosts] = useState<AdminPostSummary[]>([]);
   const [reports, setReports] = useState<AdminReportItem[]>([]);
   const [payments, setPayments] = useState<AdminPayment[]>([]);
+  const [postsPagination, setPostsPagination] = useState<AdminPagination | null>(null);
   const [generatedReport, setGeneratedReport] = useState<AdminReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -851,6 +853,7 @@ export function AdminDashboardScreen({ route, navigation }: any) {
       ]);
       setDashboard(dashboardResult);
       setPosts(postsResult.posts);
+      setPostsPagination(postsResult.pagination);
       setReports(reportsResult.reports);
       setPayments(paymentsResult.payments);
     } catch (err: any) {
@@ -859,6 +862,24 @@ export function AdminDashboardScreen({ route, navigation }: any) {
       setLoading(false);
     }
   }, [adminToken, range]);
+
+  const loadMorePosts = useCallback(async () => {
+    if (!adminToken || !postsPagination || loadingMorePosts || posts.length >= postsPagination.total || postsPagination.page >= postsPagination.pages) {
+      return;
+    }
+
+    setLoadingMorePosts(true);
+    try {
+      const nextPage = postsPagination.page + 1;
+      const result = await api.adminPosts(adminToken, { limit: postsPagination.limit, page: nextPage });
+      setPosts((current) => [...current, ...result.posts]);
+      setPostsPagination(result.pagination);
+    } catch (err: any) {
+      setActionError(err?.message ?? "Không tải thêm được bài đăng.");
+    } finally {
+      setLoadingMorePosts(false);
+    }
+  }, [adminToken, loadingMorePosts, posts.length, postsPagination]);
 
   useEffect(() => {
     if (route?.params?.tab) {
@@ -893,7 +914,10 @@ export function AdminDashboardScreen({ route, navigation }: any) {
         reason: moderationStatus === "hidden" ? "Ẩn từ dashboard admin" : "Cập nhật kiểm duyệt từ dashboard admin"
       });
       setPosts((current) => current.map((item) => (item.id === post.id ? result.post : item)));
-      await loadDashboard();
+      if (dashboard) {
+        const refreshedDashboard = await api.adminDashboard(adminToken, rangeParams(range));
+        setDashboard(refreshedDashboard);
+      }
     } catch (err: any) {
       setActionError(err?.message ?? "Không cập nhật được trạng thái bài đăng.");
     } finally {
@@ -1030,7 +1054,9 @@ export function AdminDashboardScreen({ route, navigation }: any) {
       {activeTab === "posts" && (
         <View style={{ gap: 14 }}>
           <SectionHeader title="Quản lý bài đăng" subtitle="Kiểm duyệt mềm: ẩn, đưa vào review hoặc khôi phục." />
-          {posts.length ? posts.map((post) => (
+          {posts.length ? (
+            <>
+              {posts.map((post) => (
             <Card key={post.id} style={[styles.itemCard, isDesktop && styles.adminPostItemCardDesktop]}>
               <AdminPostPreview post={post} isDesktop={isDesktop} />
               <View style={styles.headerRow}>

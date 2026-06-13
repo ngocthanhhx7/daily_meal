@@ -971,6 +971,14 @@ export function AdminDashboardScreen({ route, navigation }: any) {
     ] as Array<[string, string | number, string]>;
   }, [dashboard]);
 
+  const canLoadMorePosts = Boolean(
+    postsPagination &&
+      postsPagination.page < postsPagination.pages &&
+      posts.length < postsPagination.total
+  );
+  const loadedPostCount = posts.length;
+  const totalPostCount = postsPagination?.total ?? posts.length;
+
   if (loading && !dashboard) {
     return (
       <AppScreen scroll={false}>
@@ -1057,29 +1065,51 @@ export function AdminDashboardScreen({ route, navigation }: any) {
           {posts.length ? (
             <>
               {posts.map((post) => (
-            <Card key={post.id} style={[styles.itemCard, isDesktop && styles.adminPostItemCardDesktop]}>
-              <AdminPostPreview post={post} isDesktop={isDesktop} />
-              <View style={styles.headerRow}>
-                <View style={styles.flex}>
-                  <AppText variant="subtitle" numberOfLines={isDesktop ? 1 : 2} style={styles.itemCardTitle}>
-                    {post.caption || "(Không có caption)"}
+                <Card key={post.id} style={[styles.itemCard, isDesktop && styles.adminPostItemCardDesktop]}>
+                  <AdminPostPreview post={post} isDesktop={isDesktop} />
+                  <View style={styles.headerRow}>
+                    <View style={styles.flex}>
+                      <AppText variant="subtitle" numberOfLines={isDesktop ? 1 : 2} style={styles.itemCardTitle}>
+                        {post.caption || "(Không có caption)"}
+                      </AppText>
+                      <AppText muted variant="caption">
+                        {post.author?.displayName || "Không rõ"} · {formatDate(post.createdAt)} · {post.imageCount} ảnh · {statusLabel(post.visibility)}
+                      </AppText>
+                    </View>
+                    <Pill label={statusLabel(post.moderationStatus)} tone={post.moderationStatus === "hidden" ? "bad" : post.moderationStatus === "review" ? "warn" : "good"} />
+                  </View>
+                  <AppText muted variant="caption" style={{ marginVertical: 6 }}>
+                    Lượt thích {post.stats.likes} · Bình luận {post.stats.comments} · Lưu {post.stats.saves}
                   </AppText>
-                  <AppText muted variant="caption">
-                    {post.author?.displayName || "Không rõ"} · {formatDate(post.createdAt)} · {post.imageCount} ảnh · {statusLabel(post.visibility)}
+                  <View style={styles.actionRow}>
+                    <AppButton label="Ẩn" size="sm" variant="danger" onPress={() => moderatePost(post, "hidden")} disabled={busyAction === `post-${post.id}`} />
+                    <AppButton label="Cần xem lại" size="sm" variant="ghost" onPress={() => moderatePost(post, "review")} disabled={busyAction === `post-${post.id}`} />
+                    <AppButton label="Khôi phục" size="sm" variant="secondary" onPress={() => moderatePost(post, "visible")} disabled={busyAction === `post-${post.id}`} />
+                  </View>
+                </Card>
+              ))}
+              <View style={styles.adminPostsFooter}>
+                <AppText muted variant="caption" style={styles.adminPostsCountText}>
+                  Hiển thị {formatNumber(loadedPostCount)} / {formatNumber(totalPostCount)} bài đăng
+                </AppText>
+                {canLoadMorePosts ? (
+                  <AppButton
+                    label={loadingMorePosts ? "Đang tải..." : "Tải thêm bài đăng"}
+                    size="sm"
+                    variant="ghost"
+                    onPress={loadMorePosts}
+                    disabled={loadingMorePosts}
+                  />
+                ) : (
+                  <AppText muted variant="caption" style={styles.adminPostsDoneText}>
+                    Đã hiển thị toàn bộ bài đăng phù hợp.
                   </AppText>
-                </View>
-                <Pill label={statusLabel(post.moderationStatus)} tone={post.moderationStatus === "hidden" ? "bad" : post.moderationStatus === "review" ? "warn" : "good"} />
+                )}
               </View>
-              <AppText muted variant="caption" style={{ marginVertical: 6 }}>
-                Lượt thích {post.stats.likes} · Bình luận {post.stats.comments} · Lưu {post.stats.saves}
-              </AppText>
-              <View style={styles.actionRow}>
-                <AppButton label="Ẩn" size="sm" variant="danger" onPress={() => moderatePost(post, "hidden")} disabled={busyAction === `post-${post.id}`} />
-                <AppButton label="Cần xem lại" size="sm" variant="ghost" onPress={() => moderatePost(post, "review")} disabled={busyAction === `post-${post.id}`} />
-                <AppButton label="Khôi phục" size="sm" variant="secondary" onPress={() => moderatePost(post, "visible")} disabled={busyAction === `post-${post.id}`} />
-              </View>
-            </Card>
-          )) : <EmptyState label="Chưa có bài đăng." />}
+            </>
+          ) : (
+            <EmptyState label="Chưa có bài đăng." />
+          )}
         </View>
       )}
 
@@ -2156,6 +2186,9 @@ const styles = StyleSheet.create({
   searchButton: { minHeight: 46 },
   usersCountRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   listFooter: { paddingVertical: 12, gap: 8 },
+  adminPostsFooter: { paddingTop: 8, gap: 8, alignItems: "center" },
+  adminPostsCountText: { textAlign: "center", fontFamily: fonts.semibold },
+  adminPostsDoneText: { textAlign: "center" },
 
   // User Card in list
   userCard: {

@@ -41,6 +41,12 @@ function paymentDto(payment: any) {
   };
 }
 
+function addMonths(date: Date, months: number) {
+  const result = new Date(date);
+  result.setUTCMonth(result.getUTCMonth() + months);
+  return result;
+}
+
 paymentsRouter.get("/premium/plans", (_req, res) => {
   res.json({ plans: premiumPlans });
 });
@@ -128,12 +134,26 @@ paymentsRouter.post("/payos/webhook", async (req, res, next) => {
     const isPaid = body.success !== false && (body.code === "00" || data.code === "00");
 
     if (isPaid && payment.status !== "PAID") {
+      const plan = getPremiumPlan(payment.planId);
+      const paidAt = new Date();
       payment.status = "PAID";
-      payment.paidAt = new Date();
+      payment.paidAt = paidAt;
       payment.webhookReference = typeof data.reference === "string" ? data.reference : undefined;
       payment.rawWebhook = req.body;
       await payment.save();
-      await User.findByIdAndUpdate(payment.user, { $set: { isPremium: true } });
+
+      if (plan) {
+        const user = await User.findById(payment.user).select("premiumPaidEndsAt").lean();
+        const currentPaidEndsAt = user?.premiumPaidEndsAt ? new Date(user.premiumPaidEndsAt) : undefined;
+        const startsAt =
+          currentPaidEndsAt && currentPaidEndsAt.getTime() > paidAt.getTime() ? currentPaidEndsAt : paidAt;
+        await User.findByIdAndUpdate(payment.user, {
+          $set: {
+            isPremium: true,
+            premiumPaidEndsAt: addMonths(startsAt, plan.durationMonths)
+          }
+        });
+      }
     } else {
       payment.rawWebhook = req.body;
       await payment.save();

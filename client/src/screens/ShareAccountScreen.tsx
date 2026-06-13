@@ -9,18 +9,26 @@ import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 
+const SHARE_ACCOUNT_API_READY = false;
+
 export function ShareAccountScreen({ navigation }: any) {
   const { user } = useAuth();
   const [inviteCode, setInviteCode] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  // Hardcoded premium share code for premium users, otherwise request upgrade
   const isPremium = user?.isPremium || false;
-  const myShareCode = isPremium ? "DMEAL-FAMILY-99X" : "NÂNG CẤP PREMIUM ĐỂ LẤY MÃ";
+  const canUseShareCode = isPremium && SHARE_ACCOUNT_API_READY;
+  const myShareCode = canUseShareCode ? "DMEAL-FAMILY-99X" : isPremium ? "Tính năng đang chuẩn bị" : "Nâng cấp Premium để lấy mã";
 
   function handleCopyCode() {
     if (!isPremium) {
       Alert.alert("Daily Premium", "Vui lòng nâng cấp tài khoản Premium để sử dụng tính năng này!");
+      return;
+    }
+    if (!SHARE_ACCOUNT_API_READY) {
+      Alert.alert(
+        "Tính năng đang chuẩn bị",
+        "Daily Meal chưa mở API tạo mã chia sẻ trong bản này. Mã chia sẻ sẽ xuất hiện khi tính năng hoàn tất."
+      );
       return;
     }
     Clipboard.setString(myShareCode);
@@ -33,23 +41,11 @@ export function ShareAccountScreen({ navigation }: any) {
       return;
     }
 
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      Alert.alert(
-        "Tham gia thành công",
-        "Bạn đã tham gia nhóm gia đình Daily Meal thành công và nhận đầy đủ quyền lợi Premium!",
-        [
-          {
-            text: "Tuyệt vời",
-            onPress: () => {
-              setInviteCode("");
-              navigation.goBack();
-            }
-          }
-        ]
-      );
-    }, 1200);
+    Alert.alert(
+      "Tính năng đang chuẩn bị",
+      "Mã chia sẻ gia đình chưa kết nối với server trong bản này, nên Daily Meal chưa thể tham gia nhóm hoặc kích hoạt Premium từ mã.",
+      [{ text: "Đã hiểu" }]
+    );
   }
 
   return (
@@ -77,16 +73,16 @@ export function ShareAccountScreen({ navigation }: any) {
           Mã chia sẻ của bạn
         </AppText>
 
-        <Pressable style={[styles.codeBox, !isPremium && styles.codeBoxDisabled]} onPress={handleCopyCode}>
-          <AppText style={[styles.codeText, !isPremium && styles.codeTextDisabled]}>
+        <Pressable style={[styles.codeBox, !canUseShareCode && styles.codeBoxDisabled]} onPress={handleCopyCode}>
+          <AppText style={[styles.codeText, !canUseShareCode && styles.codeTextDisabled]}>
             {myShareCode}
           </AppText>
-          {isPremium && <Ionicons name="copy-outline" size={18} color={colors.greenDark} />}
+          {canUseShareCode && <Ionicons name="copy-outline" size={18} color={colors.greenDark} />}
         </Pressable>
 
         <AppText variant="caption" muted style={styles.hintText}>
-          {isPremium 
-            ? "Nhấp vào mã trên để sao chép và gửi cho người thân của bạn." 
+          {isPremium
+            ? "Tính năng tạo mã chia sẻ cho tài khoản Premium đang được chuẩn bị."
             : "Nâng cấp lên Daily Premium để tạo mã chia sẻ tài khoản với người thân."}
         </AppText>
       </View>
@@ -108,7 +104,6 @@ export function ShareAccountScreen({ navigation }: any) {
         <AppButton
           label="Tham gia nhóm"
           onPress={handleJoinFamily}
-          loading={loading}
         />
       </View>
     </AppScreen>

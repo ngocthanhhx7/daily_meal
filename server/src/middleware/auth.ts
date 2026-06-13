@@ -19,7 +19,9 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
     }
 
     const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
-    const user = await User.findById(payload.sub).select("email phone isPremium premiumTrialEndsAt").lean();
+    const user = await User.findById(payload.sub)
+      .select("email phone isPremium premiumTrialEndsAt premiumPaidEndsAt")
+      .lean();
 
     if (!user) {
       throw new HttpError(401, "Invalid session");

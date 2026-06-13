@@ -667,7 +667,10 @@ adminRouter.get("/users", requireAdmin, async (req, res, next) => {
 adminRouter.patch("/users/:id/premium", requireAdmin, async (req, res, next) => {
   try {
     const body = premiumBodySchema.parse(req.body);
-    const user = await User.findByIdAndUpdate(req.params.id, { $set: { isPremium: body.isPremium } }, { new: true });
+    const update = body.isPremium
+      ? { $set: { isPremium: true }, $unset: { premiumPaidEndsAt: "" } }
+      : { $set: { isPremium: false }, $unset: { premiumPaidEndsAt: "" } };
+    const user = await User.findByIdAndUpdate(req.params.id, update, { new: true });
 
     if (!user) {
       throw new HttpError(404, "User not found");

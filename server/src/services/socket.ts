@@ -2,6 +2,8 @@ import { Server as SocketServer, Socket } from "socket.io";
 import type { Server as HttpServer } from "node:http";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
+import { Conversation } from "../models/Conversation.js";
+import { hasBlockBetween } from "../utils/userSafety.js";
 
 let io: SocketServer | undefined;
 
@@ -11,6 +13,10 @@ const userSockets = new Map<string, Set<string>>();
 type HandshakeAuth = {
   token?: string;
 };
+
+function emitRoomError(socket: Socket, room: string, message: string) {
+  socket.emit("room:error", { room, message });
+}
 
 export function initSocket(server: HttpServer) {
   io = new SocketServer(server, {
@@ -23,49 +29,92 @@ export function initSocket(server: HttpServer) {
   io.on("connection", (socket: Socket) => {
     let userId: string | undefined;
 
-    // Authenticate connection via token in auth handshake or query
+    // Authenticate connection via token in auth handshake or query.
     const auth = socket.handshake.auth as HandshakeAuth | undefined;
     const token = auth?.token ?? (socket.handshake.query.token as string | undefined);
 
-    if (token) {
-      try {
-        const payload = jwt.verify(token, env.JWT_SECRET) as { sub: string };
-        userId = payload.sub;
-
-        if (!userSockets.has(userId)) {
-          userSockets.set(userId, new Set());
-        }
-        userSockets.get(userId)!.add(socket.id);
-        console.log(`🔌 User authenticated: ${userId} (Socket: ${socket.id})`);
-      } catch (err) {
-        console.warn(`⚠️ Invalid token supplied to Socket.io connection: ${socket.id}`);
-      }
-    } else {
-      console.log(`🔌 Anonymous socket connected: ${socket.id}`);
+    if (!token) {
+      socket.emit("auth:error", { message: "Authentication required" });
+      socket.disconnect(true);
+      return;
     }
 
-    // Join room for a specific post (e.g. comments updates)
+    try {
+      const payload = jwt.verify(token, env.JWT_SECRET) as { sub: string };
+      userId = payload.sub;
+
+      if (!userSockets.has(userId)) {
+        userSockets.set(userId, new Set());
+      }
+      userSockets.get(userId)!.add(socket.id);
+      console.log(`Socket user authenticated: ${userId} (${socket.id})`);
+    } catch (err) {
+      console.warn(`Invalid token supplied to Socket.io connection: ${socket.id}`);
+      socket.emit("auth:error", { message: "Invalid session" });
+      socket.disconnect(true);
+      return;
+    }
+
     socket.on("join-post", (postId: string) => {
-      socket.join(`post:${postId}`);
-      console.log(`👁️ Socket ${socket.id} joined post room: post:${postId}`);
+      const room = `post:${postId}`;
+      if (!userId) {
+        emitRoomError(socket, room, "Authentication required");
+        return;
+      }
+
+      socket.join(room);
+      console.log(`Socket ${socket.id} joined post room: ${room}`);
     });
 
-    // Leave room for a specific post
     socket.on("leave-post", (postId: string) => {
-      socket.leave(`post:${postId}`);
-      console.log(`🚪 Socket ${socket.id} left post room: post:${postId}`);
+      const room = `post:${postId}`;
+      socket.leave(room);
+      console.log(`Socket ${socket.id} left post room: ${room}`);
     });
 
-    // Join room for a specific chat conversation
-    socket.on("join-conversation", (conversationId: string) => {
-      socket.join(`conversation:${conversationId}`);
-      console.log(`💬 Socket ${socket.id} joined chat room: conversation:${conversationId}`);
+    socket.on("join-conversation", async (conversationId: string) => {
+      const room = `conversation:${conversationId}`;
+      if (!userId) {
+        emitRoomError(socket, room, "Authentication required");
+        return;
+      }
+
+      try {
+        const conversation = await Conversation.exists({
+          _id: conversationId,
+          participants: userId
+        });
+
+        if (!conversation) {
+          emitRoomError(socket, room, "Conversation not found");
+          return;
+        }
+
+        const conversationDoc = await Conversation.findById(conversationId).select("participants").lean();
+        if (!conversationDoc) {
+          emitRoomError(socket, room, "Conversation not found");
+          return;
+        }
+
+        for (const participant of conversationDoc.participants) {
+          const participantId = participant.toString();
+          if (participantId !== userId && (await hasBlockBetween(userId, participantId))) {
+            emitRoomError(socket, room, "Conversation not found");
+            return;
+          }
+        }
+
+        socket.join(room);
+        console.log(`Socket ${socket.id} joined chat room: ${room}`);
+      } catch (error) {
+        emitRoomError(socket, room, "Conversation not found");
+      }
     });
 
-    // Leave room for a specific chat conversation
     socket.on("leave-conversation", (conversationId: string) => {
-      socket.leave(`conversation:${conversationId}`);
-      console.log(`🚪 Socket ${socket.id} left chat room: conversation:${conversationId}`);
+      const room = `conversation:${conversationId}`;
+      socket.leave(room);
+      console.log(`Socket ${socket.id} left chat room: ${room}`);
     });
 
     socket.on("disconnect", () => {
@@ -75,9 +124,9 @@ export function initSocket(server: HttpServer) {
         if (sockets.size === 0) {
           userSockets.delete(userId);
         }
-        console.log(`❌ User disconnected: ${userId} (Socket: ${socket.id})`);
+        console.log(`User disconnected: ${userId} (${socket.id})`);
       } else {
-        console.log(`❌ Anonymous socket disconnected: ${socket.id}`);
+        console.log(`Anonymous socket disconnected: ${socket.id}`);
       }
     });
   });

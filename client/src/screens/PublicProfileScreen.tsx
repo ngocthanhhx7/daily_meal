@@ -48,15 +48,21 @@ function mediaSource(url?: string) {
   return { uri: `${api.baseUrl}${url}` };
 }
 
-function profileHandle(profile: User) {
-  const base = profile.displayName
+function handleSegment(value?: string) {
+  return value
+    ?.trim()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9]+/g, ".")
     .replace(/^\.+|\.+$/g, "")
     .toLowerCase();
+}
 
-  return `@${base || profile.email?.split("@")[0] || profile.phone || "daily.meal"}`;
+function profileHandle(profile: User) {
+  const base = handleSegment(profile.displayName);
+  const phone = profile.phone?.replace(/[^\d]+/g, "");
+
+  return `@${base || phone || handleSegment(profile.id) || "daily.meal"}`;
 }
 
 function formatCount(value: number) {

@@ -14,9 +14,13 @@ Use `npm.cmd` on this Windows environment:
 
 ```powershell
 npm.cmd install
+if (!(Test-Path server/.env)) { Copy-Item server/.env.example server/.env }
+if (!(Test-Path client/.env)) { Copy-Item client/.env.example client/.env }
 npm.cmd run dev:server
 npm.cmd run dev:client
 ```
+
+For Expo web at `http://localhost:8081`, set `EXPO_PUBLIC_API_URL=http://localhost:4000` in `client/.env` or in the shell before starting the client.
 
 MongoDB local path noted during planning:
 

@@ -12,6 +12,8 @@ import { User } from "../models/User.js";
 import { Notification } from "../models/Notification.js";
 import { emitToUser, broadcastToRoom, broadcastGlobal } from "../services/socket.js";
 import { sendPushNotification } from "../services/pushNotification.js";
+import { hasActivePremium } from "../utils/premium.js";
+import { assertNotBlocked, blockedUserIdsFor } from "../utils/userSafety.js";
 
 export const postsRouter = Router();
 
@@ -139,7 +141,8 @@ function serializePost(post: any, likedPostIds: Set<string>, savedPostIds: Set<s
   const author = post.author
     ? {
         ...post.author,
-        id: post.author._id?.toString?.() ?? post.author.id
+        id: post.author._id?.toString?.() ?? post.author.id,
+        isPremium: hasActivePremium(post.author)
       }
     : post.author;
 
@@ -188,9 +191,10 @@ async function networkIds(viewerId: string | undefined) {
   return { followingIds, friendIds };
 }
 
-function visiblePostFilter(viewerId: string | undefined, friendIds: Set<string>) {
+function visiblePostFilter(viewerId: string | undefined, friendIds: Set<string>, blockedIds = new Set<string>()) {
   return {
     moderationStatus: { $ne: "hidden" },
+    ...(blockedIds.size ? { author: { $nin: [...blockedIds] } } : {}),
     $or: [
       { visibility: "public" },
       ...(viewerId ? [{ author: viewerId }] : []),
@@ -238,11 +242,12 @@ postsRouter.get("/feed", requireAuth, async (req, res, next) => {
     const page = Number(req.query.page ?? 1);
     const limit = Math.min(Number(req.query.limit ?? 20), 50);
     const skip = (Math.max(page, 1) - 1) * limit;
-    const { followingIds, friendIds } = await networkIds(req.user?.id);
+    const [network, blockedIds] = await Promise.all([networkIds(req.user?.id), blockedUserIdsFor(req.user?.id)]);
+    const { followingIds, friendIds } = network;
 
-    const posts = await Post.find(visiblePostFilter(req.user?.id, friendIds))
+    const posts = await Post.find(visiblePostFilter(req.user?.id, friendIds, blockedIds))
       .sort({ createdAt: -1 })
-      .populate("author", "displayName avatarUrl isPremium themeColor")
+      .populate("author", "displayName avatarUrl isPremium premiumPaidEndsAt premiumTrialEndsAt themeColor")
       .populate("stickerId")
       .lean();
     const rankedPosts = rankFeedPosts(posts, req.user?.id, followingIds, friendIds).slice(skip, skip + limit);
@@ -261,8 +266,8 @@ postsRouter.get("/search", requireAuth, async (req, res, next) => {
     const savedOnly = req.query.saved === "true";
     const premiumStickerOnly = req.query.premiumSticker === "true";
 
-    const { friendIds } = await networkIds(req.user?.id);
-    const filter: Record<string, unknown> = visiblePostFilter(req.user?.id, friendIds);
+    const [network, blockedIds] = await Promise.all([networkIds(req.user?.id), blockedUserIdsFor(req.user?.id)]);
+    const filter: Record<string, unknown> = visiblePostFilter(req.user?.id, network.friendIds, blockedIds);
 
     if (q) {
       const searchRegex = new RegExp(escapeRegex(q), "i");
@@ -293,7 +298,7 @@ postsRouter.get("/search", requireAuth, async (req, res, next) => {
     let posts = await Post.find(filter)
       .sort({ createdAt: -1 })
       .limit(50)
-      .populate("author", "displayName avatarUrl isPremium themeColor")
+      .populate("author", "displayName avatarUrl isPremium premiumPaidEndsAt premiumTrialEndsAt themeColor")
       .populate("stickerId")
       .lean();
 
@@ -337,7 +342,7 @@ postsRouter.post("/", requireAuth, async (req, res, next) => {
     }
 
     const populated = await Post.findById(post._id)
-      .populate("author", "displayName avatarUrl isPremium themeColor")
+      .populate("author", "displayName avatarUrl isPremium premiumPaidEndsAt premiumTrialEndsAt themeColor")
       .populate("stickerId")
       .lean();
     const [serialized] = await serializePostsForViewer(populated ? [populated] : [], req.user?.id);
@@ -374,7 +379,7 @@ postsRouter.patch("/:id", requireAuth, async (req, res, next) => {
     await post.save();
 
     const populated = await Post.findById(post._id)
-      .populate("author", "displayName avatarUrl isPremium themeColor")
+      .populate("author", "displayName avatarUrl isPremium premiumPaidEndsAt premiumTrialEndsAt themeColor")
       .populate("stickerId")
       .lean();
     const [serialized] = await serializePostsForViewer(populated ? [populated] : [], req.user?.id);
@@ -412,6 +417,12 @@ postsRouter.delete("/:id", requireAuth, async (req, res, next) => {
 
 postsRouter.post("/:id/like", requireAuth, async (req, res, next) => {
   try {
+    const targetPost = await Post.findById(req.params.id).select("author").lean();
+    if (!targetPost) {
+      throw new HttpError(404, "Post not found");
+    }
+    await assertNotBlocked(req.user?.id, targetPost.author.toString());
+
     const existing = await PostLike.findOne({ post: req.params.id, user: req.user?.id });
     const liked = !existing;
 
@@ -485,6 +496,12 @@ postsRouter.post("/:id/like", requireAuth, async (req, res, next) => {
 
 postsRouter.post("/:id/save", requireAuth, async (req, res, next) => {
   try {
+    const targetPost = await Post.findById(req.params.id).select("author").lean();
+    if (!targetPost) {
+      throw new HttpError(404, "Post not found");
+    }
+    await assertNotBlocked(req.user?.id, targetPost.author.toString());
+
     const existing = await PostSave.findOne({ post: req.params.id, user: req.user?.id });
     const saved = !existing;
 
@@ -511,6 +528,12 @@ postsRouter.post("/:id/save", requireAuth, async (req, res, next) => {
 
 postsRouter.get("/:id/comments", requireAuth, async (req, res, next) => {
   try {
+    const post = await Post.findById(req.params.id).select("author").lean();
+    if (!post) {
+      throw new HttpError(404, "Post not found");
+    }
+    await assertNotBlocked(req.user?.id, post.author.toString());
+
     const comments = await Comment.find({ post: req.params.id })
       .sort({ createdAt: 1 })
       .populate("author", "displayName avatarUrl themeColor")
@@ -529,6 +552,8 @@ postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
     if (!post) {
       throw new HttpError(404, "Post not found");
     }
+
+    await assertNotBlocked(req.user?.id, post.author?.toString?.());
 
     const comment = await Comment.create({
       post: req.params.id,

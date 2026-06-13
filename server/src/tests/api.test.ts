@@ -266,6 +266,177 @@ describe("Daily Meal API", () => {
       .set("Authorization", `Bearer ${session.token}`)
       .expect(409);
   });
+
+  it("keeps public user data private while preserving owner auth me fields", async () => {
+    const viewer = await register("privacy-viewer@example.com");
+    const target = await register("privacy-target@example.com");
+    const other = await register("privacy-other@example.com");
+
+    await User.findByIdAndUpdate(target.user.id, {
+      displayName: "Privacy Target",
+      phone: "0900000001"
+    });
+    await User.findByIdAndUpdate(other.user.id, {
+      displayName: "Privacy Other",
+      phone: "0900000002"
+    });
+
+    await request(app)
+      .post(`/api/users/${target.user.id}/follow`)
+      .set("Authorization", `Bearer ${other.token}`)
+      .expect(200);
+    await request(app)
+      .post(`/api/users/${other.user.id}/follow`)
+      .set("Authorization", `Bearer ${target.token}`)
+      .expect(200);
+    await request(app)
+      .post(`/api/users/${other.user.id}/interactions`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .send({ type: "block" })
+      .expect(201);
+
+    const profile = await request(app)
+      .get(`/api/users/${target.user.id}`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    expect(profile.body.user).not.toHaveProperty("email");
+    expect(profile.body.user).not.toHaveProperty("phone");
+
+    const search = await request(app)
+      .get("/api/users/search?q=privacy")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    expect(search.body.users).toHaveLength(1);
+    expect(search.body.users[0]).not.toHaveProperty("email");
+    expect(search.body.users[0]).not.toHaveProperty("phone");
+
+    const followers = await request(app)
+      .get(`/api/users/${target.user.id}/followers`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(followers.body.users).toHaveLength(0);
+
+    const following = await request(app)
+      .get(`/api/users/${target.user.id}/following`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(following.body.users).toHaveLength(0);
+
+    const owner = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${target.token}`)
+      .expect(200);
+
+    expect(owner.body.user.email).toBe("privacy-target@example.com");
+    expect(owner.body.user.phone).toBe("0900000001");
+  });
+
+  it("enforces block restrictions on follow, conversation, message, profile, feed, and search", async () => {
+    const alice = await register("block-alice@example.com");
+    const bob = await register("block-bob@example.com");
+
+    const conversation = await request(app)
+      .post("/api/messages/conversations")
+      .set("Authorization", `Bearer ${alice.token}`)
+      .send({ recipientId: bob.user.id })
+      .expect(201);
+
+    const conversationId = conversation.body.conversation.id;
+    const blockedPost = await createPost(bob.token, "Blocked bob meal");
+
+    await request(app)
+      .post(`/api/users/${bob.user.id}/interactions`)
+      .set("Authorization", `Bearer ${alice.token}`)
+      .send({ type: "block" })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/users/${alice.user.id}/follow`)
+      .set("Authorization", `Bearer ${bob.token}`)
+      .expect(403);
+
+    await request(app)
+      .post(`/api/users/${bob.user.id}/follow`)
+      .set("Authorization", `Bearer ${alice.token}`)
+      .expect(403);
+
+    await request(app)
+      .post("/api/messages/conversations")
+      .set("Authorization", `Bearer ${bob.token}`)
+      .send({ recipientId: alice.user.id })
+      .expect(403);
+
+    await request(app)
+      .post(`/api/messages/conversations/${conversationId}/messages`)
+      .set("Authorization", `Bearer ${alice.token}`)
+      .send({ body: "blocked message" })
+      .expect(403);
+
+    const profile = await request(app)
+      .get(`/api/users/${bob.user.id}`)
+      .set("Authorization", `Bearer ${alice.token}`)
+      .expect(200);
+
+    expect(profile.body.user.viewerInteraction.blocked).toBe(true);
+
+    await request(app)
+      .get(`/api/users/${alice.user.id}`)
+      .set("Authorization", `Bearer ${bob.token}`)
+      .expect(404);
+
+    const feed = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${alice.token}`)
+      .expect(200);
+    expect(feed.body.posts.map((post: { _id: string }) => post._id)).not.toContain(blockedPost._id);
+
+    const search = await request(app)
+      .get("/api/posts/search?q=Blocked bob meal")
+      .set("Authorization", `Bearer ${alice.token}`)
+      .expect(200);
+    expect(search.body.posts.map((post: { _id: string }) => post._id)).not.toContain(blockedPost._id);
+
+    await request(app)
+      .post(`/api/posts/${blockedPost._id}/like`)
+      .set("Authorization", `Bearer ${alice.token}`)
+      .expect(403);
+
+    await request(app)
+      .get(`/api/posts/${blockedPost._id}/comments`)
+      .set("Authorization", `Bearer ${alice.token}`)
+      .expect(403);
+
+    await request(app)
+      .post(`/api/users/${bob.user.id}/interactions`)
+      .set("Authorization", `Bearer ${alice.token}`)
+      .send({ type: "report", note: "still reportable" })
+      .expect(201);
+  });
+
+  it("rejects SVG uploads while allowing common raster image types", async () => {
+    const session = await register("upload-guard@example.com");
+
+    await request(app)
+      .post("/api/uploads")
+      .set("Authorization", `Bearer ${session.token}`)
+      .attach("image", Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'></svg>"), {
+        filename: "evil.svg",
+        contentType: "image/svg+xml"
+      })
+      .expect(400);
+
+    await request(app)
+      .post("/api/uploads")
+      .set("Authorization", `Bearer ${session.token}`)
+      .attach("image", Buffer.from("fake png"), {
+        filename: "good.png",
+        contentType: "image/png"
+      })
+      .expect(201);
+  });
+
   it("protects admin APIs and returns dashboard plus user details", async () => {
     Object.assign(env, { ADMIN_EMAIL: "admin@example.com", ADMIN_PASSWORD: "admin-secret" });
     const alice = await register("admin-alice@example.com");
@@ -877,6 +1048,8 @@ describe("Daily Meal API", () => {
     expect(payment?.webhookReference).toBe("TF230204212323");
     expect(payment?.paidAt).toBeInstanceOf(Date);
     expect(user?.isPremium).toBe(true);
+    expect(user?.premiumPaidEndsAt).toBeInstanceOf(Date);
+    expect(new Date(user!.premiumPaidEndsAt!).getTime()).toBeGreaterThan(Date.now());
   });
 
   it("rejects PayOS webhooks with invalid signatures", async () => {

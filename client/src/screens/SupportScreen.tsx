@@ -11,7 +11,6 @@ import { fonts } from "../theme/typography";
 export function SupportScreen({ navigation }: any) {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
 
   async function handleSendFeedback() {
     if (!subject.trim() || !message.trim()) {
@@ -19,25 +18,11 @@ export function SupportScreen({ navigation }: any) {
       return;
     }
 
-    setLoading(true);
-    // Simulating sending feedback
-    setTimeout(() => {
-      setLoading(false);
-      Alert.alert(
-        "Đã gửi phản hồi",
-        "Cảm ơn đóng góp của bạn! Đội ngũ Daily Meal sẽ phản hồi sớm nhất qua email của bạn.",
-        [
-          {
-            text: "Đồng ý",
-            onPress: () => {
-              setSubject("");
-              setMessage("");
-              navigation.goBack();
-            }
-          }
-        ]
-      );
-    }, 1200);
+    Alert.alert(
+      "Tính năng đang chuẩn bị",
+      "Daily Meal chưa mở kênh gửi phản hồi trực tiếp trong app. Nội dung của bạn chưa được gửi lên server.",
+      [{ text: "Đã hiểu" }]
+    );
   }
 
   return (
@@ -96,7 +81,6 @@ export function SupportScreen({ navigation }: any) {
         <AppButton
           label="Gửi phản hồi"
           onPress={handleSendFeedback}
-          loading={loading}
         />
       </View>
     </AppScreen>

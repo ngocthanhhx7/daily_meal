@@ -41,6 +41,7 @@ const userSchema = new Schema(
     premiumTrialUsed: { type: Boolean, default: false },
     premiumTrialStartedAt: { type: Date },
     premiumTrialEndsAt: { type: Date },
+    premiumPaidEndsAt: { type: Date },
     themeColor: { type: String, default: "#8BA58A" },
     pushTokens: { type: [String], default: [] },
     webPushSubscriptions: {

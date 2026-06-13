@@ -15,14 +15,25 @@ const validVietnamese = [
 assert.equal(scanText(validVietnamese).length, 0, "valid Vietnamese Markdown should pass");
 
 const mojibakeSamples = [
-  "# BÃ¡o cÃ¡o Ä‘o lÆ°á»ng",
-  "Quotes look like â€œthisâ€\u009d and apostrophes like â€™.",
+  Buffer.from("# Báo cáo đo lường", "utf8").toString("latin1"),
+  [
+    "Quotes look like ",
+    "\u00e2\u20ac\u015c",
+    "this",
+    "\u00e2\u20ac\u009d",
+    " and apostrophes like ",
+    "\u00e2\u20ac\u2122",
+    ".",
+  ].join(""),
   "A replacement character here: \uFFFD",
 ].join("\n");
 
 const findings = scanText(mojibakeSamples);
-assert.ok(findings.length >= 3, "common mojibake sequences should be flagged");
-assert.ok(findings.some((finding) => finding.pattern === "replacement-character"));
+const findingPatterns = new Set(findings.map((finding) => finding.pattern));
+assert.ok(findingPatterns.has("utf8-read-as-cp1252-vietnamese"), "Vietnamese mojibake should be flagged");
+assert.ok(findingPatterns.has("smart-punctuation-mojibake"), "smart punctuation mojibake should be flagged");
+assert.ok(findingPatterns.has("stray-c1-control"), "stray C1 control characters should be flagged");
+assert.ok(findingPatterns.has("replacement-character"), "replacement characters should be flagged");
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "daily-meal-mojibake-"));
 const invalidFile = path.join(tmpDir, "invalid.md");

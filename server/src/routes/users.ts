@@ -12,6 +12,7 @@ import { Notification } from "../models/Notification.js";
 import { emitToUser } from "../services/socket.js";
 import { sendPushNotification } from "../services/pushNotification.js";
 import { hasActivePremium, premiumTrialDto } from "../utils/premium.js";
+import { assertNotBlocked, assertTargetHasNotBlockedViewer, blockedUserIdsFor, hasBlockBetween } from "../utils/userSafety.js";
 
 export const usersRouter = Router();
 
@@ -88,7 +89,7 @@ async function publicUserDto(user: any, viewerId?: string) {
 
   return {
     id,
-    email: user.email,
+    ...(viewerId === id ? { email: user.email, phone: user.phone } : {}),
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
     coverUrl: user.coverUrl,
@@ -358,8 +359,9 @@ usersRouter.get("/search", requireAuth, async (req, res, next) => {
       return;
     }
 
+    const blockedIds = await blockedUserIdsFor(req.user?.id);
     const users = await User.find({
-      _id: { $ne: req.user?.id },
+      _id: { $nin: [req.user?.id, ...blockedIds] },
       $or: [
         { displayName: new RegExp(q, "i") },
         { email: new RegExp(q, "i") },
@@ -378,6 +380,8 @@ usersRouter.get("/search", requireAuth, async (req, res, next) => {
 
 usersRouter.get("/:id", requireAuth, async (req, res, next) => {
   try {
+    await assertTargetHasNotBlockedViewer(req.user?.id, req.params.id);
+
     const user = await User.findById(req.params.id).lean();
 
     if (!user) {
@@ -393,8 +397,16 @@ usersRouter.get("/:id", requireAuth, async (req, res, next) => {
 usersRouter.get("/:id/followers", requireAuth, async (req, res, next) => {
   try {
     const targetId = req.params.id;
+    if (await hasBlockBetween(req.user?.id, targetId)) {
+      res.json({ users: [] });
+      return;
+    }
+
+    const blockedIds = await blockedUserIdsFor(req.user?.id);
     const follows = await Follow.find({ following: targetId }).populate("follower").lean();
-    const users = follows.map(f => f.follower).filter(Boolean);
+    const users = follows
+      .map(f => f.follower)
+      .filter((user: any) => user && !blockedIds.has(user._id?.toString?.()));
     res.json({ users: await userListDto(users, req.user?.id) });
   } catch (error) {
     next(error);
@@ -404,8 +416,16 @@ usersRouter.get("/:id/followers", requireAuth, async (req, res, next) => {
 usersRouter.get("/:id/following", requireAuth, async (req, res, next) => {
   try {
     const targetId = req.params.id;
+    if (await hasBlockBetween(req.user?.id, targetId)) {
+      res.json({ users: [] });
+      return;
+    }
+
+    const blockedIds = await blockedUserIdsFor(req.user?.id);
     const follows = await Follow.find({ follower: targetId }).populate("following").lean();
-    const users = follows.map(f => f.following).filter(Boolean);
+    const users = follows
+      .map(f => f.following)
+      .filter((user: any) => user && !blockedIds.has(user._id?.toString?.()));
     res.json({ users: await userListDto(users, req.user?.id) });
   } catch (error) {
     next(error);
@@ -425,6 +445,8 @@ usersRouter.post("/:id/follow", requireAuth, async (req, res, next) => {
     if (!target) {
       throw new HttpError(404, "User not found");
     }
+
+    await assertNotBlocked(req.user?.id, targetId);
 
     const existing = await Follow.findOne({ follower: req.user?.id, following: targetId });
 
@@ -548,6 +570,11 @@ usersRouter.delete("/:id/follow", requireAuth, async (req, res, next) => {
 
 usersRouter.get("/:id/posts", requireAuth, async (req, res, next) => {
   try {
+    if (await hasBlockBetween(req.user?.id, req.params.id)) {
+      res.json({ posts: [] });
+      return;
+    }
+
     const friendIds = await friendIdsFor(req.user?.id);
     const posts = await Post.find({
       author: req.params.id,
@@ -566,10 +593,17 @@ usersRouter.get("/:id/posts", requireAuth, async (req, res, next) => {
 
 usersRouter.get("/:id/saved-posts", requireAuth, async (req, res, next) => {
   try {
+    if (await hasBlockBetween(req.user?.id, req.params.id)) {
+      res.json({ posts: [] });
+      return;
+    }
+
     const saves = await PostSave.find({ user: req.params.id }).select("post").sort({ createdAt: -1 }).lean();
     const friendIds = await friendIdsFor(req.user?.id);
+    const blockedIds = await blockedUserIdsFor(req.user?.id);
     const posts = await Post.find({
       _id: { $in: saves.map((save) => save.post) },
+      ...(blockedIds.size ? { author: { $nin: [...blockedIds] } } : {}),
       ...visiblePostFilter(req.user?.id, friendIds)
     })
       .sort({ createdAt: -1 })
@@ -628,4 +662,3 @@ usersRouter.delete("/:id/interactions/:type", requireAuth, async (req, res, next
     next(error);
   }
 });
-

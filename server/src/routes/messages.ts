@@ -8,6 +8,8 @@ import { User } from "../models/User.js";
 import { Notification } from "../models/Notification.js";
 import { emitToUser, broadcastToRoom } from "../services/socket.js";
 import { sendPushNotification } from "../services/pushNotification.js";
+import { hasActivePremium } from "../utils/premium.js";
+import { assertNotBlocked, blockedUserIdsFor } from "../utils/userSafety.js";
 
 export const messagesRouter = Router();
 
@@ -28,7 +30,7 @@ function userDto(user: any) {
     id: user._id?.toString?.() ?? user.id,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
-    isPremium: user.isPremium
+    isPremium: hasActivePremium(user)
   };
 }
 
@@ -68,17 +70,30 @@ async function assertParticipant(conversationId: string, viewerId: string) {
   return conversation;
 }
 
+async function assertConversationNotBlocked(conversation: any, viewerId: string) {
+  const participantIds = conversation.participants.map((participant: any) => participant.toString());
+
+  for (const participantId of participantIds) {
+    if (participantId !== viewerId) {
+      await assertNotBlocked(viewerId, participantId);
+    }
+  }
+}
+
 messagesRouter.get("/conversations", requireAuth, async (req, res, next) => {
   try {
+    const blockedIds = await blockedUserIdsFor(req.user?.id);
     const conversations = await Conversation.find({ participants: req.user?.id })
       .sort({ updatedAt: -1 })
-      .populate("participants", "displayName avatarUrl isPremium")
+      .populate("participants", "displayName avatarUrl isPremium premiumPaidEndsAt premiumTrialEndsAt")
       .lean();
 
     res.json({
-      conversations: conversations.map((conversation) =>
-        conversationDto(conversation, req.user?.id ?? "")
-      )
+      conversations: conversations
+        .filter((conversation) =>
+          conversation.participants.every((participant: any) => !blockedIds.has(userDto(participant).id))
+        )
+        .map((conversation) => conversationDto(conversation, req.user?.id ?? ""))
     });
   } catch (error) {
     next(error);
@@ -99,6 +114,8 @@ messagesRouter.post("/conversations", requireAuth, async (req, res, next) => {
       throw new HttpError(404, "User not found");
     }
 
+    await assertNotBlocked(req.user?.id, body.recipientId);
+
     const key = participantKey(req.user?.id ?? "", body.recipientId);
     const conversation = await Conversation.findOneAndUpdate(
       { participantKey: key },
@@ -110,7 +127,7 @@ messagesRouter.post("/conversations", requireAuth, async (req, res, next) => {
       },
       { new: true, upsert: true }
     )
-      .populate("participants", "displayName avatarUrl isPremium")
+      .populate("participants", "displayName avatarUrl isPremium premiumPaidEndsAt premiumTrialEndsAt")
       .lean();
 
     res.status(201).json({ conversation: conversationDto(conversation, req.user?.id ?? "") });
@@ -125,12 +142,13 @@ messagesRouter.get("/conversations/:id/messages", requireAuth, async (req, res, 
     if (!conversationId) {
       throw new HttpError(400, "Conversation id is required");
     }
-    await assertParticipant(conversationId, req.user?.id ?? "");
+    const conversation = await assertParticipant(conversationId, req.user?.id ?? "");
+    await assertConversationNotBlocked(conversation, req.user?.id ?? "");
 
     const messages = await Message.find({ conversation: conversationId })
       .sort({ createdAt: 1 })
       .limit(100)
-      .populate("sender", "displayName avatarUrl isPremium")
+      .populate("sender", "displayName avatarUrl isPremium premiumPaidEndsAt premiumTrialEndsAt")
       .lean();
 
     res.json({ messages: messages.map(messageDto) });
@@ -147,6 +165,7 @@ messagesRouter.post("/conversations/:id/messages", requireAuth, async (req, res,
       throw new HttpError(400, "Conversation id is required");
     }
     const conversation = await assertParticipant(conversationId, req.user?.id ?? "");
+    await assertConversationNotBlocked(conversation, req.user?.id ?? "");
 
     const message = await Message.create({
       conversation: conversation._id,
@@ -163,7 +182,7 @@ messagesRouter.post("/conversations/:id/messages", requireAuth, async (req, res,
     await conversation.save();
 
     const populated = await Message.findById(message._id)
-      .populate("sender", "displayName avatarUrl isPremium")
+      .populate("sender", "displayName avatarUrl isPremium premiumPaidEndsAt premiumTrialEndsAt")
       .lean();
 
     if (!populated) {
@@ -176,7 +195,7 @@ messagesRouter.post("/conversations/:id/messages", requireAuth, async (req, res,
     broadcastToRoom(`conversation:${conversationId}`, "message:created", formattedMessage);
 
     const updatedConversation = await Conversation.findById(conversation._id)
-      .populate("participants", "displayName avatarUrl isPremium")
+      .populate("participants", "displayName avatarUrl isPremium premiumPaidEndsAt premiumTrialEndsAt")
       .lean();
 
     if (updatedConversation) {

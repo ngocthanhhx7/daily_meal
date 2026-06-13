@@ -432,13 +432,13 @@ export function CreatePostScreen({ navigation, route }: any) {
       current.map((transform, index) =>
         index === selectedIndex
           ? {
-              ...transform,
-              ...patch,
-              scale: clamp(patch.scale ?? transform.scale, 0.5, 3),
-              rotation: clamp(patch.rotation ?? transform.rotation, -180, 180),
-              offsetX: clamp(patch.offsetX ?? transform.offsetX, -120, 120),
-              offsetY: clamp(patch.offsetY ?? transform.offsetY, -120, 120)
-            }
+            ...transform,
+            ...patch,
+            scale: clamp(patch.scale ?? transform.scale, 0.5, 3),
+            rotation: clamp(patch.rotation ?? transform.rotation, -180, 180),
+            offsetX: clamp(patch.offsetX ?? transform.offsetX, -120, 120),
+            offsetY: clamp(patch.offsetY ?? transform.offsetY, -120, 120)
+          }
           : transform
       )
     );
@@ -573,10 +573,10 @@ export function CreatePostScreen({ navigation, route }: any) {
       const firstRecipe = recipes.length > 0 ? recipes[0] : undefined;
       const legacyRecipe = firstRecipe
         ? {
-            title: firstRecipe.title,
-            ingredients: firstRecipe.ingredients,
-            steps: firstRecipe.steps
-          }
+          title: firstRecipe.title,
+          ingredients: firstRecipe.ingredients,
+          steps: firstRecipe.steps
+        }
         : undefined;
 
       await api.createPost(token, {
@@ -813,7 +813,19 @@ export function CreatePostScreen({ navigation, route }: any) {
             />
           </View>
 
-          <AppButton label="Tính calo từng ảnh bằng AI" onPress={analyzeImages} loading={loading} variant="ghost" />
+          <Pressable
+            disabled={loading}
+            onPress={analyzeImages}
+            style={({ pressed }) => [
+              styles.customAiButton,
+              pressed && { opacity: 0.6 }
+            ]}
+          >
+            <AppText style={styles.customAiButtonText}>
+              Nhấn vào đây để đo calo từng món ăn
+            </AppText>
+          </Pressable>
+
           <NutritionCard nutrition={nutritionTotal} />
           <TextField label="Mô tả" value={caption} onChangeText={setCaption} multiline />
           <TextField label="Tags, cách nhau bằng dấu phẩy" value={tags} onChangeText={setTags} />
@@ -1758,5 +1770,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     color: colors.ink
-  }
+  },
+  customAiButton: {
+    minHeight: 50,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    backgroundColor: colors.surface, // Màu nền của nút (mặc định trắng)
+    borderWidth: 1,
+    borderColor: colors.line          // Màu viền xám nhạt
+  },
+  customAiButtonText: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: "#A5CF83" // <--- Chỉnh màu chữ bạn muốn tại đây (mã Hex hoặc mã màu hệ thống như colors.greenDark)
+  },
+
 });

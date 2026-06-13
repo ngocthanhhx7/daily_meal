@@ -642,16 +642,16 @@ export function HomeScreen({ navigation, route }: any) {
 
             <View style={styles.actionPill}>
               <BouncePress style={styles.pillBtn} onPress={handleComment} hitSlop={4}>
-                <Ionicons name="chatbubble" size={24} color={colors.white} />
+                <Ionicons name="chatbubble" size={26} color={colors.white} />
               </BouncePress>
               <Pressable style={styles.pillBtn} onPress={() => { bounceHeart(); handleLike(); }} hitSlop={4}>
                 <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-                  <Ionicons name={isLiked ? "heart" : "heart-outline"} size={26} color={isLiked ? colors.red : colors.white} />
+                  <Ionicons name={isLiked ? "heart" : "heart-outline"} size={28} color={isLiked ? colors.red : colors.white} />
                 </Animated.View>
               </Pressable>
               <Pressable style={styles.pillBtn} onPress={() => { bounceSave(); handleSave(); }} hitSlop={4}>
                 <Animated.View style={{ transform: [{ scale: saveScale }] }}>
-                  <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={25} color={isSaved ? colors.yellow : colors.white} />
+                  <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={27} color={isSaved ? colors.yellow : colors.white} />
                 </Animated.View>
               </Pressable>
             </View>
@@ -2129,14 +2129,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.black,
-    borderRadius: 24,
+    borderRadius: 26,
     paddingHorizontal: 24,
     paddingVertical: 7,
     gap: 14
   },
   pillBtn: {
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center"
   },

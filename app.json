@@ -6,7 +6,7 @@
       }
     },
     "android": {
-      "package": "com.ngocthanhhx7.dailymeal"
+      "package": "com.dailymeal.app"
     }
   }
 }

@@ -1,6 +1,6 @@
 import { StatusBar } from "expo-status-bar";
-import { useFonts } from "expo-font";
-import React, { useEffect, useRef } from "react";
+import * as Font from "expo-font";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
@@ -20,12 +20,42 @@ import { colors } from "./src/theme/colors";
 
 export default function App() {
   const sessionEndedRef = useRef(false);
-  const [fontsLoaded] = useFonts({
-    "WorkSans-Regular": require("./assets/fonts/WorkSans-Regular.ttf"),
-    "WorkSans-Medium": require("./assets/fonts/WorkSans-Medium.ttf"),
-    "WorkSans-Semibold": require("./assets/fonts/WorkSans-SemiBold.ttf"),
-    "WorkSans-Bold": require("./assets/fonts/WorkSans-Bold.ttf")
-  });
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadFonts() {
+      if (typeof Font.loadAsync !== "function") {
+        console.warn("Font.loadAsync is unavailable; continuing with system fonts.");
+        if (mounted) {
+          setFontsLoaded(true);
+        }
+        return;
+      }
+
+      try {
+        await Font.loadAsync({
+          "WorkSans-Regular": require("./assets/fonts/WorkSans-Regular.ttf"),
+          "WorkSans-Medium": require("./assets/fonts/WorkSans-Medium.ttf"),
+          "WorkSans-Semibold": require("./assets/fonts/WorkSans-SemiBold.ttf"),
+          "WorkSans-Bold": require("./assets/fonts/WorkSans-Bold.ttf")
+        });
+      } catch (error) {
+        console.warn("Failed to load custom fonts; continuing with system fonts.", error);
+      } finally {
+        if (mounted) {
+          setFontsLoaded(true);
+        }
+      }
+    }
+
+    loadFonts();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const cleanupRuntime = setupAnalyticsRuntime();

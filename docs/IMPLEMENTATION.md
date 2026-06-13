@@ -52,6 +52,34 @@ $env:EXPO_PUBLIC_API_URL="http://10.0.2.2:4000"
 npm.cmd run dev:client
 ```
 
+## Android APK Builds
+
+The Android app is not an Expo Go target because it uses custom native modules such as Google Sign-In. Use a development build for local Android testing and standalone APK/AAB builds for users.
+
+Build commands should run through the `client` workspace:
+
+```powershell
+npm.cmd run build:apk
+npm.cmd run build:aab
+```
+
+Production and preview APKs use the online API:
+
+```powershell
+EXPO_PUBLIC_API_URL=https://api.dailymeal.site
+```
+
+Local Android API URLs are debug/development-only:
+
+```powershell
+$env:EXPO_PUBLIC_API_URL="http://10.0.2.2:4000" # emulator
+$env:EXPO_PUBLIC_API_URL="http://<your-computer-lan-ip>:4000" # physical device on Wi-Fi
+```
+
+The committed Android project is the source of truth for native APK config. Keep `client/android` in sync when changing permissions, native plugins, splash/icon config, SecureStore backup rules, or Google/Firebase files.
+
+Before shipping Google Sign-In or Firebase-backed Android behavior, replace `client/android/app/google-services.json` with the real Firebase/Google Services file for package `com.dailymeal.app`. The checked-in placeholder is only suitable for compilation.
+
 ## Backend
 
 Server stack:

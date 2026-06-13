@@ -33,24 +33,44 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         : "http://localhost:4000"
       : api.baseUrl;
 
-    console.log(`🔌 Initializing Socket.io-client connection to: ${socketUrl}`);
+    console.log(`[socket] Connecting to ${socketUrl}`);
     const nextSocket = io(socketUrl, {
       auth: { token },
       transports: ["websocket"],
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000
+      reconnectionDelay: 1000,
+      timeout: 10000
     });
 
     nextSocket.on("connect", () => {
-      console.log("✅ Socket.io connected successfully:", nextSocket.id);
+      console.log("[socket] Connected:", nextSocket.id);
       setIsConnected(true);
     });
 
-    nextSocket.on("disconnect", () => {
-      console.log("❌ Socket.io disconnected");
+    nextSocket.on("disconnect", (reason) => {
+      console.log("[socket] Disconnected:", reason);
       setIsConnected(false);
+    });
+
+    nextSocket.on("connect_error", (error) => {
+      console.warn("[socket] Connection error:", error.message);
+    });
+
+    nextSocket.on("auth:error", (payload: { message?: string }) => {
+      console.warn("[socket] Authentication error:", payload?.message ?? "unknown");
+      setIsConnected(false);
+    });
+
+    nextSocket.io.on("reconnect_attempt", (attempt) => {
+      if (attempt <= 3 || attempt % 10 === 0) {
+        console.warn(`[socket] Reconnect attempt ${attempt} to ${socketUrl}`);
+      }
+    });
+
+    nextSocket.io.on("reconnect_failed", () => {
+      console.warn("[socket] Reconnect failed");
     });
 
     setSocket(nextSocket);

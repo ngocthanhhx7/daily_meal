@@ -23,6 +23,14 @@ declare const process: {
   env: Record<string, string | undefined>;
 };
 
+declare const __DEV__: boolean;
+
+const PRODUCTION_API_BASE_URL = "https://api.dailymeal.site";
+
+function isLocalDevelopmentUrl(value: string) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(\/.*)?$/i.test(value);
+}
+
 function getMetroHost() {
   const scriptURL = NativeModules.SourceCode?.scriptURL as string | undefined;
   const host = scriptURL?.match(/^[a-z]+:\/\/([^/:]+)/i)?.[1];
@@ -36,11 +44,19 @@ function getMetroHost() {
 
 function resolveApiBaseUrl() {
   if (process.env.EXPO_PUBLIC_API_URL) {
+    if (!__DEV__ && Platform.OS !== "web" && isLocalDevelopmentUrl(process.env.EXPO_PUBLIC_API_URL)) {
+      return PRODUCTION_API_BASE_URL;
+    }
+
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
   if (Platform.OS === "web" && typeof window !== "undefined") {
     return window.location.origin;
+  }
+
+  if (!__DEV__) {
+    return PRODUCTION_API_BASE_URL;
   }
 
   const metroHost = getMetroHost();

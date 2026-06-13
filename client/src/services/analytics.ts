@@ -568,7 +568,7 @@ export function setupAnalyticsRuntime() {
 
   const cleanups: Array<() => void> = [];
 
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
     const handleError = (event: ErrorEvent) => {
       analytics.track("runtime_error", {
         properties: {

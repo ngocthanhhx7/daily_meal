@@ -787,7 +787,7 @@ function PremiumTrialOfferModal({
         <View style={styles.trialOfferCard}>
           <View style={styles.trialOfferIconWrap}>
             <Image
-              source={require("../../assets/feed/Group.svg")}
+              source={require("../../assets/feed/Group.png")}
               style={[styles.trialOfferIcon, { width: 100, height: 54 }]}
               resizeMode="contain"
             />
@@ -1002,7 +1002,7 @@ function PostSlide({
 
           {(post.recipe?.title || post.recipe?.ingredients?.length || (post.recipes && post.recipes.length > 0)) ? (
             <Pressable
-              style={[styles.recipeChip, shouldShowTrialMascot && { top: 85 }]}
+              style={[styles.recipeChip, shouldShowTrialMascot && { top: 75 }]}
               onPress={(event) => {
                 event.stopPropagation();
                 onRecipePress();
@@ -1976,12 +1976,12 @@ const styles = StyleSheet.create({
   },
   premiumTicket: {
     position: "absolute",
-    top: -12,
-    left: -15,
-    width: 130,
-    height: 70,
+    top: 14,
+    left: 10,
+    width: 100,
+    height: 54,
     zIndex: 95,
-    transform: [{ rotate: "-10deg" }],
+    transform: [{ rotate: "-6deg" }],
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.16,

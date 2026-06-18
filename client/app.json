@@ -22,7 +22,8 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "NSMicrophoneUsageDescription": "Daily Meal needs microphone access to record short food videos."
       }
     },
     "android": {
@@ -36,6 +37,8 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.RECORD_AUDIO",
         "android.permission.POST_NOTIFICATIONS"
       ]
     },
@@ -53,7 +56,8 @@
         "expo-image-picker",
         {
           "photosPermission": "Daily Meal needs photo access to create posts and analyze meals.",
-          "cameraPermission": "Daily Meal needs camera access to capture meals."
+          "cameraPermission": "Daily Meal needs camera access to capture meals and short videos.",
+          "microphonePermission": "Daily Meal needs microphone access to record short videos."
         }
       ],
       "expo-camera"

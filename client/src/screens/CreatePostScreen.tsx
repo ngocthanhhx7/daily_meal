@@ -7,6 +7,7 @@ import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { NutritionCard } from "../components/NutritionCard";
 import { TextField } from "../components/TextField";
+import { PostVideoPlayer } from "../components/PostVideoPlayer";
 import { useAuth } from "../context/AuthContext";
 import { analytics } from "../services/analytics";
 import { colors } from "../theme/colors";
@@ -18,11 +19,12 @@ import type {
   PostVisibility,
   PostImageTransform,
   PostLayout,
+  PostVideo,
   Sticker,
   StickerPlacement,
   Upload
 } from "../types/api";
-import { getPendingPickedImageUris, pickMultipleImages, pickSingleImage } from "../utils/imagePicker";
+import { getPendingPickedImageUris, pickMultipleImages, pickSingleImage, pickSingleVideo } from "../utils/imagePicker";
 import { stickerImageSource } from "../utils/stickers";
 import { resolveRecentPhotoUri } from "./createPostAssets";
 import { combineNutritionTotals, mealToNutritionDetail } from "./postNutrition";
@@ -75,6 +77,7 @@ const DEFAULT_VIP_STICKERS: Sticker[] = [
 ];
 
 type Step = "capture" | "edit" | "sticker";
+type DraftMediaMode = "image" | "video";
 
 export function CreatePostScreen({ navigation, route }: any) {
   const { token, user } = useAuth();
@@ -109,7 +112,10 @@ export function CreatePostScreen({ navigation, route }: any) {
   ).current;
 
   const [step, setStep] = useState<Step>("capture");
+  const [mediaMode, setMediaMode] = useState<DraftMediaMode>("image");
   const [images, setImages] = useState<string[]>([]);
+  const [video, setVideo] = useState<PostVideo | undefined>();
+  const [videoUri, setVideoUri] = useState<string | undefined>();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [caption, setCaption] = useState("");
   const [tags, setTags] = useState("");
@@ -143,6 +149,7 @@ export function CreatePostScreen({ navigation, route }: any) {
 
   const [localGalleryImages, setLocalGalleryImages] = useState<string[]>([]);
   const nutritionTotal = useMemo(() => combineNutritionTotals(nutritionDetails), [nutritionDetails]);
+  const isVideoDraft = mediaMode === "video" && Boolean(videoUri);
 
   useEffect(() => {
     if (recentUris.length > 0 && localGalleryImages.length === 0) {
@@ -164,10 +171,11 @@ export function CreatePostScreen({ navigation, route }: any) {
       screen: "Create",
       properties: {
         step,
+        mediaMode,
         imageCount: images.length
       }
     });
-  }, [step, images.length]);
+  }, [step, images.length, mediaMode]);
 
   useEffect(() => {
     // Automatically select the first recent photo on mount if selection is empty
@@ -220,6 +228,9 @@ export function CreatePostScreen({ navigation, route }: any) {
   }, []);
 
   function appendImages(nextUris: string[]) {
+    setMediaMode("image");
+    setVideo(undefined);
+    setVideoUri(undefined);
     setImages((current) => {
       const unique = nextUris.filter((uri) => uri && !current.includes(uri));
       const openSlots = maxImagesLimit - current.length;
@@ -356,6 +367,65 @@ export function CreatePostScreen({ navigation, route }: any) {
     appendImages(uris);
   }
 
+  function acceptVideo(uri: string, durationMs?: number) {
+    if (typeof durationMs === "number" && durationMs > 30_000) {
+      Alert.alert("Video quá dài", "Video premium tối đa 30 giây.");
+      return;
+    }
+
+    setMediaMode("video");
+    setVideoUri(uri);
+    setVideo({ url: uri, durationMs });
+    setImages([]);
+    setTransforms([]);
+    setNutritionDetails([]);
+    setSelectedSticker(undefined);
+    setIncludeRecipe(false);
+    setStep("edit");
+  }
+
+  async function captureVideo() {
+    if (!isPremium) {
+      analytics.track("create_post_video_blocked", { screen: "Create", properties: { source: "camera" } });
+      Alert.alert("Chỉ dành cho VIP", "Video ngắn chỉ dành cho tài khoản VIP.");
+      return;
+    }
+
+    analytics.track("create_post_video_picker_opened", {
+      screen: "Create",
+      properties: { source: "camera" }
+    });
+    const result = await pickSingleVideo("camera");
+    if (result) {
+      analytics.track("create_post_video_selected", {
+        screen: "Create",
+        properties: { source: "camera" }
+      });
+      acceptVideo(result.uri, result.durationMs);
+    }
+  }
+
+  async function chooseVideoFromLibrary() {
+    if (!isPremium) {
+      analytics.track("create_post_video_blocked", { screen: "Create", properties: { source: "library" } });
+      Alert.alert("Chỉ dành cho VIP", "Video ngắn chỉ dành cho tài khoản VIP.");
+      return;
+    }
+
+    analytics.track("create_post_video_picker_opened", {
+      screen: "Create",
+      properties: { source: "library" }
+    });
+    const result = await pickSingleVideo("library");
+    if (result) {
+      analytics.track("create_post_video_selected", {
+        screen: "Create",
+        properties: { source: "library" }
+      });
+      acceptVideo(result.uri, result.durationMs);
+    }
+  }
+
   async function handleUploadCustomSticker() {
     if (!isPremium) {
       analytics.track("create_post_custom_sticker_blocked", { screen: "Create" });
@@ -456,7 +526,7 @@ export function CreatePostScreen({ navigation, route }: any) {
   }
 
   async function analyzeImages() {
-    if (!token || !images.length) {
+    if (!token || (!images.length && !isVideoDraft)) {
       analytics.track("create_post_analysis_blocked", {
         screen: "Create",
         properties: { reason: "missing_image" }
@@ -525,6 +595,14 @@ export function CreatePostScreen({ navigation, route }: any) {
       Alert.alert("Thiếu ảnh", "Bài viết cần ít nhất một ảnh.");
       return;
     }
+    if (mediaMode === "video" && !isPremium) {
+      analytics.track("create_post_publish_blocked", {
+        screen: "Create",
+        properties: { reason: "video_requires_premium" }
+      });
+      Alert.alert("Chỉ dành cho VIP", "Video ngắn chỉ dành cho tài khoản VIP.");
+      return;
+    }
     if (!isPremium && user?.counts?.posts !== undefined && user.counts.posts >= 6) {
       analytics.track("create_post_publish_blocked", {
         screen: "Create",
@@ -548,6 +626,36 @@ export function CreatePostScreen({ navigation, route }: any) {
     });
     try {
       const uploads: Upload[] = [];
+      if (isVideoDraft && videoUri) {
+        const result = await api.uploadVideo(token, videoUri, "post");
+        await api.createPost(token, {
+          mediaType: "video",
+          video: {
+            url: result.upload.url,
+            localPath: result.upload.localPath,
+            uploadId: result.upload._id,
+            mime: result.upload.mime,
+            size: result.upload.size,
+            durationMs: video?.durationMs
+          },
+          caption,
+          tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+          visibility
+        });
+        analytics.track("create_post_publish_succeeded", {
+          screen: "Create",
+          durationMs: Date.now() - startedAt,
+          value: 1,
+          properties: {
+            visibility,
+            mediaType: "video"
+          }
+        });
+        resetDraft();
+        navigation.goBack();
+        return;
+      }
+
       for (const uri of images) {
         const result = await api.uploadImage(token, uri, "post");
         uploads.push(result.upload);
@@ -628,7 +736,10 @@ export function CreatePostScreen({ navigation, route }: any) {
   }
 
   function resetDraft() {
+    setMediaMode("image");
     setImages([]);
+    setVideo(undefined);
+    setVideoUri(undefined);
     setTransforms([]);
     setCaption("");
     setTags("");
@@ -679,21 +790,46 @@ export function CreatePostScreen({ navigation, route }: any) {
         <>
           <PostPreview
             images={images}
+            videoUri={videoUri}
             layout="stack"
             transforms={transforms}
             sticker={undefined}
             stickerPlacement={stickerPlacement}
             selectedIndex={selectedIndex}
             onSelectImage={setSelectedIndex}
-            onCameraPress={captureImage}
+            onCameraPress={mediaMode === "video" ? captureVideo : captureImage}
           />
+
+          {isPremium ? (
+            <View style={styles.mediaModeRow}>
+              {(["image", "video"] as DraftMediaMode[]).map((mode) => {
+                const active = mediaMode === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    style={[styles.mediaModeButton, active && styles.mediaModeButtonActive]}
+                    onPress={() => setMediaMode(mode)}
+                  >
+                    <Ionicons
+                      name={mode === "video" ? "videocam-outline" : "camera-outline"}
+                      size={16}
+                      color={active ? colors.white : colors.ink}
+                    />
+                    <AppText variant="caption" style={active ? styles.mediaModeTextActive : undefined}>
+                      {mode === "video" ? "Video" : "Ảnh"}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
 
           {(isPremium || localGalleryImages.length > 0) ? (
             <>
               <View style={styles.captureMetaRow}>
                 <AppText variant="caption" style={styles.recentLabel}>Mới đây</AppText>
                 {isPremium ? (
-                  <Pressable onPress={chooseFromLibrary} hitSlop={8}>
+                  <Pressable onPress={mediaMode === "video" ? chooseVideoFromLibrary : chooseFromLibrary} hitSlop={8}>
                     <AppText variant="caption" style={styles.libraryLink}>Chọn từ album</AppText>
                   </Pressable>
                 ) : (
@@ -742,12 +878,12 @@ export function CreatePostScreen({ navigation, route }: any) {
           ) : null}
 
           <View style={styles.captureControlBar}>
-            <Pressable style={styles.shutterButton} onPress={captureImage}>
+            <Pressable style={styles.shutterButton} onPress={mediaMode === "video" ? captureVideo : captureImage}>
               <View style={styles.shutterInner} />
             </Pressable>
             <Pressable
-              style={[styles.nextButton, !images.length && styles.nextButtonDisabled]}
-              disabled={!images.length}
+              style={[styles.nextButton, !images.length && !isVideoDraft && styles.nextButtonDisabled]}
+              disabled={!images.length && !isVideoDraft}
               onPress={() => setStep("edit")}
             >
               <AppText variant="caption" style={styles.nextButtonText}>Tiếp tục</AppText>
@@ -758,6 +894,7 @@ export function CreatePostScreen({ navigation, route }: any) {
         <>
           <PostPreview
             images={images}
+            videoUri={videoUri}
             layout="stack"
             transforms={transforms}
             sticker={selectedStickerData}
@@ -766,21 +903,30 @@ export function CreatePostScreen({ navigation, route }: any) {
             onSelectImage={setSelectedIndex}
           />
 
-          <View style={styles.editRail}>
-            {images.map((uri, index) => (
-              <DraggableEditThumb
-                key={uri}
-                uri={uri}
-                index={index}
-                isActive={selectedIndex === index}
-                onPress={() => setSelectedIndex(index)}
-                onSwap={handleSwapImages}
-              />
-            ))}
-          </View>
+          {!isVideoDraft ? (
+            <View style={styles.editRail}>
+              {images.map((uri, index) => (
+                <DraggableEditThumb
+                  key={uri}
+                  uri={uri}
+                  index={index}
+                  isActive={selectedIndex === index}
+                  onPress={() => setSelectedIndex(index)}
+                  onSwap={handleSwapImages}
+                />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.videoInfoCard}>
+              <Ionicons name="videocam" size={18} color={colors.green} />
+              <AppText variant="caption" muted>
+                Video premium tối đa 30 giây, tự phát không âm thanh trong feed.
+              </AppText>
+            </View>
+          )}
 
           {/* Touch-drag sticker customization entry card */}
-          {isPremium ? (
+          {isPremium && !isVideoDraft ? (
             <Pressable style={styles.addStickerCard} onPress={() => setStep("sticker")}>
               <AppText style={styles.addStickerText}>
                 {selectedSticker ? `Nhãn dán: ${selectedStickerData?.name || "Đã chọn"}` : "Thêm nhãn dán"}
@@ -788,7 +934,8 @@ export function CreatePostScreen({ navigation, route }: any) {
             </Pressable>
           ) : null}
 
-          <View style={styles.aiHintPanel}>
+          {!isVideoDraft ? (
+            <View style={styles.aiHintPanel}>
             <View style={styles.aiHintHeader}>
               <Ionicons name="sparkles-outline" size={18} color={colors.green} />
               <View style={styles.aiHintCopy}>
@@ -811,9 +958,11 @@ export function CreatePostScreen({ navigation, route }: any) {
               multiline
               style={styles.multiline}
             />
-          </View>
+            </View>
+          ) : null}
 
-          <Pressable
+          {!isVideoDraft ? (
+            <Pressable
             disabled={loading}
             onPress={analyzeImages}
             style={({ pressed }) => [
@@ -824,9 +973,10 @@ export function CreatePostScreen({ navigation, route }: any) {
             <AppText style={styles.customAiButtonText}>
               Nhấn vào đây để đo calo từng món ăn
             </AppText>
-          </Pressable>
+            </Pressable>
+          ) : null}
 
-          <NutritionCard nutrition={nutritionTotal} />
+          {!isVideoDraft ? <NutritionCard nutrition={nutritionTotal} /> : null}
           <TextField label="Mô tả" value={caption} onChangeText={setCaption} multiline />
           <TextField label="Tags, cách nhau bằng dấu phẩy" value={tags} onChangeText={setTags} />
           <View style={styles.toolSection}>
@@ -852,7 +1002,8 @@ export function CreatePostScreen({ navigation, route }: any) {
               })}
             </View>
           </View>
-          <View style={styles.recipeToggle}>
+          {!isVideoDraft ? (
+            <View style={styles.recipeToggle}>
             <View style={styles.recipeCopy}>
               <AppText variant="button">Công thức của bạn</AppText>
               <AppText variant="caption" muted>
@@ -860,8 +1011,9 @@ export function CreatePostScreen({ navigation, route }: any) {
               </AppText>
             </View>
             <Switch value={includeRecipe} onValueChange={setIncludeRecipe} />
-          </View>
-          {includeRecipe ? (
+            </View>
+          ) : null}
+          {!isVideoDraft && includeRecipe ? (
             <View style={styles.recipeFields}>
               {/* Image selector tabs */}
               {images.length > 1 ? (
@@ -1030,6 +1182,7 @@ function Header({ title, onBack }: { title: string; onBack: () => void }) {
 
 function PostPreview({
   images,
+  videoUri,
   layout,
   transforms,
   sticker,
@@ -1040,6 +1193,7 @@ function PostPreview({
   panHandlers
 }: {
   images: string[];
+  videoUri?: string;
   layout: PostLayout;
   transforms: PostImageTransform[];
   sticker?: Sticker;
@@ -1107,6 +1261,13 @@ function PostPreview({
           {/* Glassmorphic camera button overlayed in the center */}
           <Pressable style={styles.centerCameraBtn} onPress={onCameraPress} hitSlop={8}>
             <Ionicons name="camera" size={24} color={colors.white} />
+          </Pressable>
+        </View>
+      ) : videoUri ? (
+        <View style={styles.artworkCanvas}>
+          <PostVideoPlayer uri={videoUri} active style={styles.artworkImage} />
+          <Pressable style={styles.centerCameraBtn} onPress={onCameraPress} hitSlop={8}>
+            <Ionicons name="videocam" size={24} color={colors.white} />
           </Pressable>
         </View>
       ) : (
@@ -1350,6 +1511,30 @@ const styles = StyleSheet.create({
     height: 64,
     zIndex: 80
   },
+  mediaModeRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignSelf: "center",
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: colors.canvasStrong
+  },
+  mediaModeButton: {
+    minWidth: 86,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 9
+  },
+  mediaModeButtonActive: {
+    backgroundColor: colors.green
+  },
+  mediaModeTextActive: {
+    color: colors.white
+  },
   captureMetaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1485,6 +1670,16 @@ const styles = StyleSheet.create({
   editRail: {
     flexDirection: "row",
     gap: 8
+  },
+  videoInfoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.canvas,
+    borderWidth: 1,
+    borderColor: colors.line
   },
   editThumb: {
     width: 56,

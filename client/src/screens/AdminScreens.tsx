@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, useWindowDimensions, View, ScrollView, Image } from "react-native";
 import { api } from "../api/client";
 import { AppButton } from "../components/AppButton";
@@ -161,11 +162,19 @@ function Card({ children, style }: { children: React.ReactNode; style?: object }
 
 function AdminPostPreview({ post, isDesktop }: { post: AdminPostSummary; isDesktop: boolean }) {
   const source = adminMediaSource(post.images?.[0]);
+  const isVideo = post.mediaType === "video";
   const extraCount = Math.max(0, post.imageCount - 1);
 
   return (
     <View style={[styles.adminPostPreview, isDesktop ? styles.adminPostPreviewDesktop : styles.adminPostPreviewMobile]}>
-      {source ? (
+      {isVideo ? (
+        <View style={styles.adminPostPreviewPlaceholder}>
+          <Ionicons name="play" size={22} color={colors.white} />
+          <AppText variant="caption" style={styles.adminPostImageCountText}>
+            Video
+          </AppText>
+        </View>
+      ) : source ? (
         <Image source={source} style={styles.adminPostPreviewImage} resizeMode="cover" />
       ) : (
         <View style={styles.adminPostPreviewPlaceholder}>
@@ -175,15 +184,23 @@ function AdminPostPreview({ post, isDesktop }: { post: AdminPostSummary; isDeskt
           </AppText>
         </View>
       )}
-      {extraCount > 0 ? (
+      {extraCount > 0 || isVideo ? (
         <View style={styles.adminPostImageCountBadge}>
           <AppText variant="caption" style={styles.adminPostImageCountText}>
-            +{extraCount}
+            {isVideo ? "Video" : `+${extraCount}`}
           </AppText>
         </View>
       ) : null}
     </View>
   );
+}
+
+function adminPostMediaLabel(post: AdminPostSummary) {
+  if (post.mediaType === "video") {
+    return "Video";
+  }
+
+  return `${post.imageCount} ảnh`;
 }
 
 function MetricCard({ label, value, note, isDesktop }: { label: string; value: string | number; note?: string; isDesktop?: boolean }) {
@@ -1073,7 +1090,7 @@ export function AdminDashboardScreen({ route, navigation }: any) {
                         {post.caption || "(Không có caption)"}
                       </AppText>
                       <AppText muted variant="caption">
-                        {post.author?.displayName || "Không rõ"} · {formatDate(post.createdAt)} · {post.imageCount} ảnh · {statusLabel(post.visibility)}
+                        {post.author?.displayName || "Không rõ"} · {formatDate(post.createdAt)} · {adminPostMediaLabel(post)} · {statusLabel(post.visibility)}
                       </AppText>
                     </View>
                     <Pill label={statusLabel(post.moderationStatus)} tone={post.moderationStatus === "hidden" ? "bad" : post.moderationStatus === "review" ? "warn" : "good"} />

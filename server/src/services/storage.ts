@@ -67,6 +67,9 @@ function extensionFor(file: UploadFile) {
   if (file.mimetype === "image/png") return ".png";
   if (file.mimetype === "image/webp") return ".webp";
   if (file.mimetype === "image/gif") return ".gif";
+  if (file.mimetype === "video/mp4") return ".mp4";
+  if (file.mimetype === "video/quicktime") return ".mov";
+  if (file.mimetype === "video/x-m4v") return ".m4v";
   return ".jpg";
 }
 
@@ -132,13 +135,15 @@ async function storeS3(file: UploadFile, category: string): Promise<StoredUpload
   };
 }
 
-export async function storeUploadedImage(file: UploadFile, category: string): Promise<StoredUpload> {
+export async function storeUploadedFile(file: UploadFile, category: string): Promise<StoredUpload> {
   if (env.STORAGE_DRIVER === "s3") {
     return storeS3(file, category);
   }
 
   return storeLocal(file, category);
 }
+
+export const storeUploadedImage = storeUploadedFile;
 
 async function bodyToBuffer(body: GetObjectCommandOutput["Body"]) {
   if (!body) {

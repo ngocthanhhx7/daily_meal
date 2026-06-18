@@ -2,10 +2,20 @@ import * as ImagePicker from "expo-image-picker";
 import { Alert, Linking, Platform } from "react-native";
 
 type ImageSource = "camera" | "library";
+type PickedVideo = {
+  uri: string;
+  durationMs?: number;
+};
 
 const imageOptions: ImagePicker.ImagePickerOptions = {
   mediaTypes: ["images"],
   quality: 0.85
+};
+
+const videoOptions: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ["videos"],
+  videoMaxDuration: 30,
+  quality: 0.8
 };
 
 async function ensureCameraPermission() {
@@ -106,6 +116,39 @@ export async function pickSingleImage(source: ImageSource) {
     }
 
     return result.assets[0]?.uri;
+  } catch (error) {
+    showPickerError(source, error);
+    return undefined;
+  }
+}
+
+export async function pickSingleVideo(source: ImageSource): Promise<PickedVideo | undefined> {
+  try {
+    const hasPermission =
+      source === "camera" ? await ensureCameraPermission() : await ensureLibraryPermission();
+
+    if (!hasPermission) {
+      return undefined;
+    }
+
+    const result =
+      source === "camera"
+        ? await ImagePicker.launchCameraAsync(videoOptions)
+        : await ImagePicker.launchImageLibraryAsync(videoOptions);
+
+    if (result.canceled) {
+      return undefined;
+    }
+
+    const asset = result.assets[0];
+    if (!asset?.uri) {
+      return undefined;
+    }
+
+    return {
+      uri: asset.uri,
+      durationMs: typeof asset.duration === "number" ? asset.duration : undefined
+    };
   } catch (error) {
     showPickerError(source, error);
     return undefined;

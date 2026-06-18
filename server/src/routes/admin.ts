@@ -306,6 +306,17 @@ function postDto(post: any) {
   return {
     id: post._id.toString(),
     caption: post.caption,
+    mediaType: post.mediaType ?? "image",
+    video: post.video
+      ? {
+          url: post.video.url,
+          localPath: post.video.localPath,
+          uploadId: post.video.uploadId,
+          mime: post.video.mime,
+          size: post.video.size,
+          durationMs: post.video.durationMs
+        }
+      : undefined,
     visibility: post.visibility,
     moderationStatus: post.moderationStatus ?? "visible",
     moderationReason: post.moderationReason ?? "",

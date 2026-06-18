@@ -452,6 +452,30 @@ export const api = {
       body: form
     });
   },
+  uploadVideo: async (token: string, uri: string, category: string) => {
+    const form = new FormData();
+    if (Platform.OS === "web") {
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        form.append("video", blob, `${category}-${Date.now()}.mp4`);
+      } catch (error) {
+        console.error("Failed to convert URI to blob on web", error);
+        throw new Error("Không thể xử lý dữ liệu video trên trình duyệt.");
+      }
+    } else {
+      form.append("video", {
+        uri,
+        name: `${category}-${Date.now()}.mp4`,
+        type: "video/mp4"
+      } as unknown as Blob);
+    }
+    return request<{ upload: Upload }>(`/api/uploads?category=${category}`, {
+      method: "POST",
+      token,
+      body: form
+    });
+  },
   analyzeMeal: (token: string, uploadId: string, hints?: MealAnalyzeHints) =>
     request<{ meal: Meal }>("/api/meals/analyze", {
       method: "POST",

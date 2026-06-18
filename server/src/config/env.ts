@@ -26,6 +26,10 @@ const envSchema = z.object({
   ADMIN_PASSWORD: optionalString,
   CLIENT_ORIGIN: z.string().default("*"),
   UPLOAD_DIR: z.string().default("uploads"),
+  VIDEO_MAX_BYTES: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.coerce.number().int().positive().default(50 * 1024 * 1024)
+  ),
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   AWS_REGION: z.preprocess((value) => (value === "" ? undefined : value), z.string().default("us-east-1")),
   AWS_ACCESS_KEY_ID: optionalString,

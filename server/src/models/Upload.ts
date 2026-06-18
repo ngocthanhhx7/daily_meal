@@ -8,6 +8,7 @@ const uploadSchema = new Schema(
       enum: ["post", "meal", "avatar", "cover", "sticker", "other"],
       default: "other"
     },
+    mediaType: { type: String, enum: ["image", "video"], default: "image", index: true },
     url: { type: String, required: true },
     storageProvider: {
       type: String,

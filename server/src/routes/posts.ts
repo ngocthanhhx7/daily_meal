@@ -23,6 +23,15 @@ const imageSchema = z.object({
   uploadId: z.string().optional()
 });
 
+const videoSchema = z.object({
+  url: z.string().min(1),
+  localPath: z.string().optional(),
+  uploadId: z.string().optional(),
+  mime: z.string().optional(),
+  size: z.number().int().nonnegative().optional(),
+  durationMs: z.number().int().nonnegative().max(30_000).optional()
+});
+
 const imageTransformSchema = z.object({
   scale: z.number().min(0.5).max(3).default(1),
   rotation: z.number().min(-180).max(180).default(0),
@@ -89,7 +98,9 @@ const imageRecipeValidation = z.object({
 });
 
 const postBodySchema = z.object({
-  images: z.array(imageSchema).min(1).max(3),
+  mediaType: z.enum(["image", "video"]).default("image"),
+  images: z.array(imageSchema).max(3).default([]),
+  video: videoSchema.optional(),
   layout: z.enum(["stack", "grid", "cascade"]).default("stack"),
   imageTransforms: z.array(imageTransformSchema).max(3).default([]),
   caption: z.string().max(2000).default(""),
@@ -149,6 +160,7 @@ function serializePost(post: any, likedPostIds: Set<string>, savedPostIds: Set<s
   return {
     ...post,
     _id: id,
+    mediaType: post.mediaType ?? "image",
     author,
     viewerState: {
       liked: likedPostIds.has(id),
@@ -316,9 +328,34 @@ postsRouter.post("/", requireAuth, async (req, res, next) => {
   try {
     const body = postBodySchema.parse(req.body);
     const isPremium = Boolean(req.user?.isPremium);
+    const mediaType = body.mediaType ?? "image";
+    const isVideoPost = mediaType === "video";
+
+    if (isVideoPost) {
+      if (!isPremium) {
+        throw new HttpError(403, "Premium is required to publish video posts");
+      }
+      if (!body.video) {
+        throw new HttpError(400, "Video is required for video posts");
+      }
+
+      body.images = [];
+      body.imageTransforms = [];
+      body.layout = "stack";
+      body.recipe = undefined;
+      body.recipes = [];
+      body.nutritionSummary = undefined;
+      body.nutritionDetails = [];
+      body.mealId = undefined;
+      body.stickerId = undefined;
+      body.stickerPlacement = undefined;
+    } else if (body.images.length < 1) {
+      throw new HttpError(400, "At least one image is required");
+    }
+
     const maxImages = isPremium ? 3 : 1;
 
-    if (body.images.length > maxImages) {
+    if (!isVideoPost && body.images.length > maxImages) {
       throw new HttpError(403, `Tài khoản miễn phí chỉ được đăng tối đa ${maxImages} ảnh mỗi bài viết. Hãy nâng cấp VIP để đăng tới 3 ảnh!`);
     }
 
@@ -333,6 +370,7 @@ postsRouter.post("/", requireAuth, async (req, res, next) => {
 
     const post = await Post.create({
       ...body,
+      mediaType,
       tags: normalizeTags(body.tags),
       author: req.user?.id
     });

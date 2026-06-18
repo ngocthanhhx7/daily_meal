@@ -7,6 +7,7 @@ import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
 import { AppText } from "./AppText";
 import { NutritionCard } from "./NutritionCard";
+import { PostVideoPlayer } from "./PostVideoPlayer";
 import { StickerBadge } from "./StickerBadge";
 import { TrackedImage } from "./TrackedImage";
 
@@ -28,6 +29,15 @@ function imageSource(post: Post) {
     return { uri: first };
   }
   return { uri: `${api.baseUrl}${first}` };
+}
+
+function videoSource(post: Post) {
+  const url = post.video?.url;
+  if (!url) return undefined;
+  if (url.startsWith("http") || url.startsWith("file:") || url.startsWith("data:")) {
+    return url;
+  }
+  return `${api.baseUrl}${url}`;
 }
 
 export function PostCard({
@@ -77,13 +87,16 @@ export function PostCard({
         ) : null}
       </Pressable>
 
-      {/* Image */}
-      <TrackedImage
-        metricName="post_card_image"
-        source={imageSource(post)}
-        style={styles.image}
-        resizeMode="cover"
-      />
+      {post.mediaType === "video" && videoSource(post) ? (
+        <PostVideoPlayer uri={videoSource(post)!} active style={styles.image} />
+      ) : (
+        <TrackedImage
+          metricName="post_card_image"
+          source={imageSource(post)}
+          style={styles.image}
+          resizeMode="cover"
+        />
+      )}
 
       {/* Body */}
       <View style={styles.body}>

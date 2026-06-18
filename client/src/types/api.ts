@@ -83,6 +83,17 @@ export type PostImage = {
   uploadId?: string;
 };
 
+export type PostVideo = {
+  url: string;
+  localPath?: string;
+  uploadId?: string;
+  mime?: string;
+  size?: number;
+  durationMs?: number;
+};
+
+export type PostMediaType = "image" | "video";
+
 export type PostLayout = "stack" | "grid" | "cascade";
 
 export type PostImageTransform = {
@@ -111,7 +122,9 @@ export type PostVisibility = "public" | "friends" | "private";
 export type Post = {
   _id: string;
   author: User;
+  mediaType?: PostMediaType;
   images: PostImage[];
+  video?: PostVideo;
   layout?: PostLayout;
   imageTransforms?: PostImageTransform[];
   caption: string;
@@ -142,6 +155,7 @@ export type Post = {
 
 export type Upload = {
   _id: string;
+  mediaType?: PostMediaType;
   url: string;
   localPath?: string;
   storageProvider?: "local" | "s3";
@@ -268,6 +282,8 @@ export type AdminAnalyticsSummary = {
 export type AdminPostSummary = {
   id: string;
   caption?: string;
+  mediaType?: PostMediaType;
+  video?: PostVideo;
   visibility: PostVisibility;
   moderationStatus: "visible" | "hidden" | "review";
   moderationReason?: string;

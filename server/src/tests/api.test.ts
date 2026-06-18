@@ -437,6 +437,46 @@ describe("Daily Meal API", () => {
       .expect(201);
   });
 
+  it("allows only premium accounts to upload short post videos", async () => {
+    const freeSession = await register("video-free-upload@example.com");
+    const premiumSession = await register("video-premium-upload@example.com");
+    await makePremium(premiumSession.user.id);
+
+    await request(app)
+      .post("/api/uploads?category=post")
+      .set("Authorization", `Bearer ${freeSession.token}`)
+      .attach("video", Buffer.from("fake mp4"), {
+        filename: "meal.mp4",
+        contentType: "video/mp4"
+      })
+      .expect(403);
+
+    await request(app)
+      .post("/api/uploads?category=post")
+      .set("Authorization", `Bearer ${premiumSession.token}`)
+      .attach("video", Buffer.from("not a video"), {
+        filename: "meal.txt",
+        contentType: "text/plain"
+      })
+      .expect(400);
+
+    const response = await request(app)
+      .post("/api/uploads?category=post")
+      .set("Authorization", `Bearer ${premiumSession.token}`)
+      .attach("video", Buffer.from("fake mp4"), {
+        filename: "meal.mp4",
+        contentType: "video/mp4"
+      })
+      .expect(201);
+
+    expect(response.body.upload).toMatchObject({
+      mediaType: "video",
+      mime: "video/mp4",
+      size: Buffer.byteLength("fake mp4")
+    });
+    expect(response.body.upload.url).toContain("/uploads/");
+  });
+
   it("protects admin APIs and returns dashboard plus user details", async () => {
     Object.assign(env, { ADMIN_EMAIL: "admin@example.com", ADMIN_PASSWORD: "admin-secret" });
     const alice = await register("admin-alice@example.com");
@@ -1163,6 +1203,100 @@ describe("Daily Meal API", () => {
         visibility: "public"
       })
       .expect(400);
+  });
+
+  it("creates premium video posts and exposes video metadata across post feeds", async () => {
+    const session = await register("video-post@example.com");
+    await makePremium(session.user.id);
+
+    const video = {
+      url: "/uploads/meal-video.mp4",
+      uploadId: "665000000000000000000010",
+      mime: "video/mp4",
+      size: 1024,
+      durationMs: 28_000
+    };
+
+    const response = await request(app)
+      .post("/api/posts")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({
+        mediaType: "video",
+        video,
+        caption: "Video món ngon",
+        tags: ["video"],
+        visibility: "public",
+        nutritionSummary: { calories: 999, protein: 99, carbs: 99, fat: 99, confidence: 1 },
+        recipes: [{ imageIndex: 0, title: "Ignore", ingredients: ["x"], steps: ["y"] }]
+      })
+      .expect(201);
+
+    expect(response.body.post).toMatchObject({
+      mediaType: "video",
+      video,
+      images: [],
+      nutritionDetails: []
+    });
+    expect(response.body.post.nutritionSummary).toBeUndefined();
+    expect(response.body.post.recipes).toEqual([]);
+
+    const feed = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${session.token}`)
+      .expect(200);
+    expect(feed.body.posts.find((post: any) => post._id === response.body.post._id)).toMatchObject({
+      mediaType: "video",
+      video
+    });
+
+    const search = await request(app)
+      .get("/api/posts/search?q=Video")
+      .set("Authorization", `Bearer ${session.token}`)
+      .expect(200);
+    expect(search.body.posts[0]).toMatchObject({ mediaType: "video", video });
+
+    const profile = await request(app)
+      .get(`/api/users/${session.user.id}/posts`)
+      .set("Authorization", `Bearer ${session.token}`)
+      .expect(200);
+    expect(profile.body.posts[0]).toMatchObject({ mediaType: "video", video });
+
+    Object.assign(env, { ADMIN_EMAIL: "video-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const admin = await request(app)
+      .post("/api/admin/login")
+      .send({ email: "video-admin@example.com", password: "admin-secret" })
+      .expect(200);
+    const adminPosts = await request(app)
+      .get("/api/admin/posts?q=Video")
+      .set("Authorization", `Bearer ${admin.body.token}`)
+      .expect(200);
+    expect(adminPosts.body.posts[0]).toMatchObject({
+      mediaType: "video",
+      video,
+      imageCount: 0
+    });
+  });
+
+  it("rejects video posts from free accounts", async () => {
+    const session = await register("video-post-free@example.com");
+
+    await request(app)
+      .post("/api/posts")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({
+        mediaType: "video",
+        video: {
+          url: "/uploads/free-video.mp4",
+          uploadId: "665000000000000000000011",
+          mime: "video/mp4",
+          size: 1024,
+          durationMs: 10_000
+        },
+        caption: "Free video",
+        tags: [],
+        visibility: "public"
+      })
+      .expect(403);
   });
 
   it("persists per-image nutrition details on posts and feed", async () => {

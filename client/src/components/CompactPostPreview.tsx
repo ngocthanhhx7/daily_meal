@@ -99,11 +99,17 @@ export function CompactPostPreview({
   const authorName = post.author?.displayName ?? "Daily Meal";
   const avatar = avatarSource(post.author?.avatarUrl);
   const imageIndexes = tidy ? [0, 1] : previewIndexes(post);
+  const isVideo = post.mediaType === "video";
 
   return (
     <View style={[styles.preview, tidy && styles.previewTidy, style]}>
       <View style={styles.imageStack} pointerEvents="none">
-        {imageIndexes
+        {isVideo ? (
+          <View style={[styles.imageLayer, styles.imageFront, styles.videoLayer]}>
+            <Ionicons name="play" size={28} color={colors.white} />
+          </View>
+        ) : (
+          imageIndexes
           .slice()
           .reverse()
           .map((imageIndex) => (
@@ -120,7 +126,8 @@ export function CompactPostPreview({
               ]}
               resizeMode="cover"
             />
-          ))}
+          ))
+        )}
       </View>
 
       {showStatsBadge && ((post.stats?.comments ?? 0) > 0 || (post.stats?.likes ?? 0) > 0) ? (
@@ -152,6 +159,12 @@ export function CompactPostPreview({
           <AppText numberOfLines={1} style={styles.authorName}>
             {authorName}
           </AppText>
+        </View>
+      ) : null}
+      {isVideo ? (
+        <View style={styles.videoBadge}>
+          <Ionicons name="videocam" size={11} color={colors.white} />
+          <AppText variant="caption" style={styles.videoBadgeText}>Video</AppText>
         </View>
       ) : null}
     </View>
@@ -230,6 +243,28 @@ const styles = StyleSheet.create({
     left: 15,
     opacity: 0.34,
     transform: [{ rotate: "7deg" }]
+  },
+  videoLayer: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.black
+  },
+  videoBadge: {
+    position: "absolute",
+    right: 8,
+    bottom: 8,
+    zIndex: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "rgba(0,0,0,0.58)"
+  },
+  videoBadgeText: {
+    color: colors.white,
+    fontSize: 10
   },
   captionChip: {
     position: "absolute",

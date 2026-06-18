@@ -136,6 +136,7 @@ function serializePost(post: any, likedPostIds: Set<string>, savedPostIds: Set<s
   return {
     ...post,
     _id: id,
+    mediaType: post.mediaType ?? "image",
     author,
     viewerState: {
       liked: likedPostIds.has(id),

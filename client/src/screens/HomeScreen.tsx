@@ -601,6 +601,8 @@ export function HomeScreen({ navigation, route }: any) {
                       navigation.navigate("Profile");
                     }
                   }}
+                  shouldShowTrialMascot={shouldShowTrialMascot}
+                  onPremiumTicketPress={handlePremiumTrialPress}
                 />
               )}
               pagingEnabled
@@ -623,9 +625,7 @@ export function HomeScreen({ navigation, route }: any) {
           ) : null}
         </View>
 
-        {shouldShowTrialMascot && (
-          <PremiumTrialMascot onPress={handlePremiumTrialPress} disabled={isClaimingTrial} />
-        )}
+        {/* Mascot replaced by ticket inside PostSlide */}
 
         <FadeSlideIn delay={200} slideDistance={20} duration={500}>
           <View style={[styles.bottomBar, showDesktopFrame && styles.desktopBottomBar]}>
@@ -777,8 +777,8 @@ function PremiumTrialOfferModal({
         <View style={styles.trialOfferCard}>
           <View style={styles.trialOfferIconWrap}>
             <Image
-              source={require("../../assets/stickers/b76f47fb-cc9c-41e7-ada3-39fc570671c9-cutout.png")}
-              style={styles.trialOfferIcon}
+              source={require("../../assets/feed/Group.png")}
+              style={[styles.trialOfferIcon, { width: 100, height: 54 }]}
               resizeMode="contain"
             />
           </View>
@@ -950,7 +950,9 @@ function PostSlide({
   onPress,
   onNutritionPress,
   onRecipePress,
-  onAuthorPress
+  onAuthorPress,
+  shouldShowTrialMascot,
+  onPremiumTicketPress
 }: {
   post: Post;
   index: number;
@@ -960,6 +962,8 @@ function PostSlide({
   onNutritionPress: () => void;
   onRecipePress: () => void;
   onAuthorPress: () => void;
+  shouldShowTrialMascot?: boolean;
+  onPremiumTicketPress?: () => void;
 }) {
   const artworkWidth = Math.min(Math.max(slideWidth - 36, 280), ARTWORK_MAX_WIDTH);
   const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 130, 320));
@@ -970,8 +974,30 @@ function PostSlide({
         <View style={[styles.feedArtwork, { transform: [{ rotate: cardRotation(index) }] }]}>
           <FeedArtwork post={post} />
 
+          {shouldShowTrialMascot && (
+            <Pressable
+              style={styles.premiumTicket}
+              onPress={(event) => {
+                event.stopPropagation();
+                onPremiumTicketPress?.();
+              }}
+            >
+              <Image
+                source={require("../../assets/feed/Group.png")}
+                style={styles.premiumTicketImage}
+                resizeMode="contain"
+              />
+            </Pressable>
+          )}
+
           {(post.recipe?.title || post.recipe?.ingredients?.length || (post.recipes && post.recipes.length > 0)) ? (
-            <Pressable style={styles.recipeChip} onPress={onRecipePress}>
+            <Pressable
+              style={[styles.recipeChip, shouldShowTrialMascot && { top: 85 }]}
+              onPress={(event) => {
+                event.stopPropagation();
+                onRecipePress();
+              }}
+            >
               <AppText style={styles.recipeChipText}>Công thức</AppText>
             </Pressable>
           ) : null}
@@ -1921,6 +1947,24 @@ const styles = StyleSheet.create({
   },
   desktopBottomBar: {
     maxWidth: PHONE_MAX_WIDTH
+  },
+  premiumTicket: {
+    position: "absolute",
+    top: -12,
+    left: -15,
+    width: 130,
+    height: 70,
+    zIndex: 95,
+    transform: [{ rotate: "-10deg" }],
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 6,
+    elevation: 5
+  },
+  premiumTicketImage: {
+    width: "100%",
+    height: "100%"
   },
   trialMascotRail: {
     position: "absolute",

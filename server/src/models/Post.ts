@@ -9,6 +9,18 @@ const imageSchema = new Schema(
   { _id: false }
 );
 
+const videoSchema = new Schema(
+  {
+    url: { type: String, required: true },
+    localPath: { type: String },
+    uploadId: { type: Types.ObjectId, ref: "Upload" },
+    mime: { type: String },
+    size: { type: Number },
+    durationMs: { type: Number }
+  },
+  { _id: false }
+);
+
 const imageTransformSchema = new Schema(
   {
     scale: { type: Number, default: 1 },
@@ -86,7 +98,9 @@ const imageRecipeSchema = new Schema(
 const postSchema = new Schema(
   {
     author: { type: Types.ObjectId, ref: "User", required: true, index: true },
+    mediaType: { type: String, enum: ["image", "video"], default: "image", index: true },
     images: { type: [imageSchema], default: [] },
+    video: { type: videoSchema },
     layout: { type: String, enum: ["stack", "grid", "cascade"], default: "stack" },
     imageTransforms: { type: [imageTransformSchema], default: [] },
     caption: { type: String, default: "" },

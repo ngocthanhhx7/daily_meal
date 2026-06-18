@@ -147,7 +147,7 @@ export async function pickSingleVideo(source: ImageSource): Promise<PickedVideo 
 
     return {
       uri: asset.uri,
-      durationMs: typeof asset.duration === "number" ? asset.duration : undefined
+      durationMs: typeof asset.duration === "number" ? Math.round(asset.duration) : undefined
     };
   } catch (error) {
     showPickerError(source, error);

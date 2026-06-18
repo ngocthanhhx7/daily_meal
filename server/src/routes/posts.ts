@@ -28,8 +28,8 @@ const videoSchema = z.object({
   localPath: z.string().optional(),
   uploadId: z.string().optional(),
   mime: z.string().optional(),
-  size: z.number().int().nonnegative().optional(),
-  durationMs: z.number().int().nonnegative().max(30_000).optional()
+  size: z.number().nonnegative().optional().transform(val => val !== undefined ? Math.round(val) : undefined),
+  durationMs: z.number().nonnegative().max(30_000).optional().transform(val => val !== undefined ? Math.round(val) : undefined)
 });
 
 const imageTransformSchema = z.object({

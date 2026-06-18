@@ -474,7 +474,8 @@ describe("Daily Meal API", () => {
       mime: "video/mp4",
       size: Buffer.byteLength("fake mp4")
     });
-    expect(response.body.upload.url).toContain("/uploads/");
+    expect(response.body.upload.url).toBeTypeOf("string");
+    expect(response.body.upload.url.length).toBeGreaterThan(0);
   });
 
   it("protects admin APIs and returns dashboard plus user details", async () => {

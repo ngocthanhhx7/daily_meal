@@ -79,8 +79,15 @@ export function EditPostScreen({ route, navigation }: any) {
       return;
     }
 
-    await api.deletePost(token, post._id);
-    navigation.navigate("Home");
+    setLoading(true);
+    try {
+      await api.deletePost(token, post._id);
+      navigation.navigate("Home");
+    } catch (error) {
+      Alert.alert("Không thể xóa bài", error instanceof Error ? error.message : "Thử lại sau");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function confirmRemove() {

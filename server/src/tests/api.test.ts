@@ -1300,6 +1300,39 @@ describe("Daily Meal API", () => {
       .expect(403);
   });
 
+  it("deletes a post when requested by owner and rejects others", async () => {
+    const ownerSession = await register("delete-owner@example.com");
+    const otherSession = await register("delete-other@example.com");
+
+    const postResponse = await request(app)
+      .post("/api/posts")
+      .set("Authorization", `Bearer ${ownerSession.token}`)
+      .send({
+        images: [{ url: "/uploads/demo.jpg" }],
+        caption: "Owner post to delete",
+        tags: [],
+        visibility: "public"
+      })
+      .expect(201);
+
+    const postId = postResponse.body.post._id;
+
+    await request(app)
+      .delete(`/api/posts/${postId}`)
+      .set("Authorization", `Bearer ${otherSession.token}`)
+      .expect(403);
+
+    await request(app)
+      .delete(`/api/posts/${postId}`)
+      .set("Authorization", `Bearer ${ownerSession.token}`)
+      .expect(204);
+
+    await request(app)
+      .delete(`/api/posts/${postId}`)
+      .set("Authorization", `Bearer ${ownerSession.token}`)
+      .expect(404);
+  });
+
   it("persists per-image nutrition details on posts and feed", async () => {
     const session = await register("nutrition-details@example.com");
     await makePremium(session.user.id);

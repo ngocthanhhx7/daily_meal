@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Image, Modal, Pressable, Share, StyleSheet, View } from "react-native";
 import { api } from "../api/client";
 import { AppScreen } from "../components/AppScreen";
@@ -75,20 +76,22 @@ export function ProfileScreen({ navigation }: any) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(true);
 
-  useEffect(() => {
-    if (!token || !user?.id) {
-      return;
-    }
+  useFocusEffect(
+    useCallback(() => {
+      if (!token || !user?.id) {
+        return;
+      }
 
-    setLoadingPosts(true);
-    Promise.all([api.getUserPosts(token, user.id), api.getUserSavedPosts(token, user.id)])
-      .then(([postsResult, savedResult]) => {
-        setPosts(postsResult.posts);
-        setSavedPosts(savedResult.posts);
-      })
-      .catch(() => undefined)
-      .finally(() => setLoadingPosts(false));
-  }, [token, user?.id]);
+      setLoadingPosts(true);
+      Promise.all([api.getUserPosts(token, user.id), api.getUserSavedPosts(token, user.id)])
+        .then(([postsResult, savedResult]) => {
+          setPosts(postsResult.posts);
+          setSavedPosts(savedResult.posts);
+        })
+        .catch(() => undefined)
+        .finally(() => setLoadingPosts(false));
+    }, [token, user?.id])
+  );
 
   const currentPosts = tab === "posts" ? posts : savedPosts;
   const contentState = getListContentState(loadingPosts, currentPosts.length);

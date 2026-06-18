@@ -91,6 +91,7 @@ export function EditPostScreen({ route, navigation }: any) {
   }
 
   function confirmRemove() {
+    console.log("Xóa bài viết clicked for post:", post?._id);
     Alert.alert("Xóa bài viết", "Bài viết sẽ bị xóa khỏi Daily Meal.", [
       { text: "Hủy", style: "cancel" },
       { text: "Xóa", style: "destructive", onPress: remove }
@@ -225,7 +226,10 @@ function ActionRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable style={styles.actionRow} onPress={onPress}>
+    <Pressable
+      style={({ pressed }) => [styles.actionRow, pressed && styles.actionRowPressed]}
+      onPress={onPress}
+    >
       <View style={[styles.actionIcon, danger && styles.actionIconDanger]}>
         <Ionicons name={icon} size={22} color={danger ? colors.red : colors.black} />
       </View>
@@ -281,7 +285,8 @@ function EditDetailsModal({
 
 const styles = StyleSheet.create({
   screen: {
-    gap: 18
+    gap: 18,
+    paddingBottom: 48
   },
   screenHeader: {
     flexDirection: "row",
@@ -407,6 +412,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12
+  },
+  actionRowPressed: {
+    opacity: 0.6
   },
   actionIcon: {
     width: 42,

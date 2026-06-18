@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { Alert, Image, Modal, Pressable, StyleSheet, View } from "react-native";
+import { Image, Modal, Pressable, StyleSheet, View } from "react-native";
 import { api } from "../api/client";
+import { Alert } from "../utils/alert";
 import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
@@ -45,7 +46,7 @@ function hasRecipe(post?: Post) {
 }
 
 export function EditPostScreen({ route, navigation }: any) {
-  const { token } = useAuth();
+  const { token, refreshUser } = useAuth();
   const post = route.params?.post as Post | undefined;
   const [caption, setCaption] = useState(post?.caption ?? "");
   const [tags, setTags] = useState(post?.tags?.join(", ") ?? "");
@@ -82,7 +83,12 @@ export function EditPostScreen({ route, navigation }: any) {
     setLoading(true);
     try {
       await api.deletePost(token, post._id);
-      navigation.navigate("Home");
+      try {
+        await refreshUser();
+      } catch (e) {
+        console.warn("Failed to refresh user counts after delete:", e);
+      }
+      navigation.goBack();
     } catch (error) {
       Alert.alert("Không thể xóa bài", error instanceof Error ? error.message : "Thử lại sau");
     } finally {

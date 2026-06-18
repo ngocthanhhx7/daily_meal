@@ -787,7 +787,7 @@ function PremiumTrialOfferModal({
         <View style={styles.trialOfferCard}>
           <View style={styles.trialOfferIconWrap}>
             <Image
-              source={require("../../assets/feed/Group.png")}
+              source={require("../../assets/feed/Group.svg")}
               style={[styles.trialOfferIcon, { width: 100, height: 54 }]}
               resizeMode="contain"
             />

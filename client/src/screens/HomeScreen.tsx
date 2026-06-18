@@ -34,6 +34,7 @@ import { getHomeTargetIndex, getPostViewerSets, mergeTargetPostIntoFeed } from "
 import { stickerImageSource } from "../utils/stickers";
 import { getNutritionDetailSections } from "./postNutrition";
 import { CameraIcon, CategoryIcon } from "../components/SvgIcons";
+import { PostVideoPlayer } from "../components/PostVideoPlayer";
 
 const PHONE_MAX_WIDTH = 383;
 const ARTWORK_MAX_WIDTH = 380;
@@ -85,6 +86,15 @@ function imageSource(post: Post, index: number) {
   if (!url) return DEMO_IMAGES[index % DEMO_IMAGES.length];
   if (url.startsWith("http")) return { uri: url };
   return { uri: `${api.baseUrl}${url}` };
+}
+
+function videoSource(post: Post) {
+  const url = post.video?.url;
+  if (!url) return undefined;
+  if (url.startsWith("http") || url.startsWith("file:") || url.startsWith("data:")) {
+    return url;
+  }
+  return `${api.baseUrl}${url}`;
 }
 
 function cardRotation(index: number) {
@@ -1058,6 +1068,22 @@ function FeedArtwork({ post }: { post: Post }) {
   const placement = post.stickerPlacement ?? { x: 0.78, y: 0.78, scale: 1, rotation: 0 };
   const imageLoadStartedAt = useRef<Record<number, number>>({});
   const reportedImageLoads = useRef<Set<number>>(new Set());
+
+  if (post.mediaType === "video" && videoSource(post)) {
+    const position = feedImagePosition("stack", 1, 0);
+    return (
+      <View style={styles.feedArtworkCanvas}>
+        <View style={[styles.feedImageWrap, position, { zIndex: 10 }]}>
+          <PostVideoPlayer
+            uri={videoSource(post)!}
+            active
+            style={styles.feedImage}
+            showBadge={false}
+          />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.feedArtworkCanvas}>

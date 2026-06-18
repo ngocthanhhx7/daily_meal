@@ -11,6 +11,7 @@ import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
 import { getFeedPostParams } from "../utils/postNavigation";
+import { PostVideoPlayer } from "../components/PostVideoPlayer";
 
 function imageSource(post: Post, index: number) {
   const url = post.images[index]?.url ?? post.images[0]?.url;
@@ -23,6 +24,15 @@ function imageSource(post: Post, index: number) {
   }
 
   return { uri: `${api.baseUrl}${url}` };
+}
+
+function videoSource(post?: Post) {
+  const url = post?.video?.url;
+  if (!url) return undefined;
+  if (url.startsWith("http") || url.startsWith("file:") || url.startsWith("data:")) {
+    return url;
+  }
+  return `${api.baseUrl}${url}`;
 }
 
 function hasRecipe(post?: Post) {
@@ -95,27 +105,36 @@ export function EditPostScreen({ route, navigation }: any) {
 
       <View style={styles.preview}>
         <View style={styles.imageDeck}>
-          {(post.images.length ? post.images.slice(0, 3) : [undefined]).map((_, index) => (
-            <View
-              key={`${post._id}-${index}`}
-              style={[
-                styles.imageCard,
-                index === 0 && styles.imageCardMain,
-                index === 1 && styles.imageCardSecond,
-                index === 2 && styles.imageCardThird
-              ]}
-            >
-              <Image source={imageSource(post, index)} style={styles.image} resizeMode="cover" />
+          {post.mediaType === "video" && videoSource(post) ? (
+            <View style={[styles.imageCard, styles.imageCardMain]}>
+              <PostVideoPlayer uri={videoSource(post)!} active style={styles.image} />
               <View style={styles.cameraBadge}>
-                <Ionicons name="camera" size={18} color={colors.white} />
+                <Ionicons name="videocam" size={18} color={colors.white} />
               </View>
-              {post.images.length > 1 ? (
-                <View style={styles.indexBadge}>
-                  <AppText style={styles.indexText}>{index + 1}</AppText>
-                </View>
-              ) : null}
             </View>
-          ))}
+          ) : (
+            (post.images.length ? post.images.slice(0, 3) : [undefined]).map((_, index) => (
+              <View
+                key={`${post._id}-${index}`}
+                style={[
+                  styles.imageCard,
+                  index === 0 && styles.imageCardMain,
+                  index === 1 && styles.imageCardSecond,
+                  index === 2 && styles.imageCardThird
+                ]}
+              >
+                <Image source={imageSource(post, index)} style={styles.image} resizeMode="cover" />
+                <View style={styles.cameraBadge}>
+                  <Ionicons name="camera" size={18} color={colors.white} />
+                </View>
+                {post.images.length > 1 ? (
+                  <View style={styles.indexBadge}>
+                    <AppText style={styles.indexText}>{index + 1}</AppText>
+                  </View>
+                ) : null}
+              </View>
+            ))
+          )}
         </View>
 
         <View style={styles.captionCard}>

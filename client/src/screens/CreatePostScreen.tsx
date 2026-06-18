@@ -586,22 +586,34 @@ export function CreatePostScreen({ navigation, route }: any) {
   }
 
   async function publish() {
-    if (!token || !images.length) {
-      analytics.track("create_post_publish_blocked", {
-        screen: "Create",
-        properties: { reason: "missing_image" }
-      });
-      setError("Bài viết cần ít nhất một ảnh.");
-      Alert.alert("Thiếu ảnh", "Bài viết cần ít nhất một ảnh.");
-      return;
-    }
-    if (mediaMode === "video" && !isPremium) {
-      analytics.track("create_post_publish_blocked", {
-        screen: "Create",
-        properties: { reason: "video_requires_premium" }
-      });
-      Alert.alert("Chỉ dành cho VIP", "Video ngắn chỉ dành cho tài khoản VIP.");
-      return;
+    if (mediaMode === "video") {
+      if (!token || !videoUri) {
+        analytics.track("create_post_publish_blocked", {
+          screen: "Create",
+          properties: { reason: "missing_video" }
+        });
+        setError("Bài viết cần ít nhất một video.");
+        Alert.alert("Thiếu video", "Bài viết cần ít nhất một video.");
+        return;
+      }
+      if (!isPremium) {
+        analytics.track("create_post_publish_blocked", {
+          screen: "Create",
+          properties: { reason: "video_requires_premium" }
+        });
+        Alert.alert("Chỉ dành cho VIP", "Video ngắn chỉ dành cho tài khoản VIP.");
+        return;
+      }
+    } else {
+      if (!token || !images.length) {
+        analytics.track("create_post_publish_blocked", {
+          screen: "Create",
+          properties: { reason: "missing_image" }
+        });
+        setError("Bài viết cần ít nhất một ảnh.");
+        Alert.alert("Thiếu ảnh", "Bài viết cần ít nhất một ảnh.");
+        return;
+      }
     }
     if (!isPremium && user?.counts?.posts !== undefined && user.counts.posts >= 6) {
       analytics.track("create_post_publish_blocked", {
@@ -791,6 +803,7 @@ export function CreatePostScreen({ navigation, route }: any) {
           <PostPreview
             images={images}
             videoUri={videoUri}
+            mediaMode={mediaMode}
             layout="stack"
             transforms={transforms}
             sticker={undefined}
@@ -882,8 +895,11 @@ export function CreatePostScreen({ navigation, route }: any) {
               <View style={styles.shutterInner} />
             </Pressable>
             <Pressable
-              style={[styles.nextButton, !images.length && !isVideoDraft && styles.nextButtonDisabled]}
-              disabled={!images.length && !isVideoDraft}
+              style={[
+                styles.nextButton,
+                !(mediaMode === "video" ? videoUri : images.length) && styles.nextButtonDisabled
+              ]}
+              disabled={!(mediaMode === "video" ? videoUri : images.length)}
               onPress={() => setStep("edit")}
             >
               <AppText variant="caption" style={styles.nextButtonText}>Tiếp tục</AppText>
@@ -895,6 +911,7 @@ export function CreatePostScreen({ navigation, route }: any) {
           <PostPreview
             images={images}
             videoUri={videoUri}
+            mediaMode={mediaMode}
             layout="stack"
             transforms={transforms}
             sticker={selectedStickerData}
@@ -903,7 +920,7 @@ export function CreatePostScreen({ navigation, route }: any) {
             onSelectImage={setSelectedIndex}
           />
 
-          {!isVideoDraft ? (
+          {mediaMode !== "video" ? (
             <View style={styles.editRail}>
               {images.map((uri, index) => (
                 <DraggableEditThumb
@@ -926,7 +943,7 @@ export function CreatePostScreen({ navigation, route }: any) {
           )}
 
           {/* Touch-drag sticker customization entry card */}
-          {isPremium && !isVideoDraft ? (
+          {isPremium && mediaMode !== "video" ? (
             <Pressable style={styles.addStickerCard} onPress={() => setStep("sticker")}>
               <AppText style={styles.addStickerText}>
                 {selectedSticker ? `Nhãn dán: ${selectedStickerData?.name || "Đã chọn"}` : "Thêm nhãn dán"}
@@ -934,7 +951,7 @@ export function CreatePostScreen({ navigation, route }: any) {
             </Pressable>
           ) : null}
 
-          {!isVideoDraft ? (
+          {mediaMode !== "video" ? (
             <View style={styles.aiHintPanel}>
             <View style={styles.aiHintHeader}>
               <Ionicons name="sparkles-outline" size={18} color={colors.green} />
@@ -961,7 +978,7 @@ export function CreatePostScreen({ navigation, route }: any) {
             </View>
           ) : null}
 
-          {!isVideoDraft ? (
+          {mediaMode !== "video" ? (
             <Pressable
             disabled={loading}
             onPress={analyzeImages}
@@ -976,7 +993,7 @@ export function CreatePostScreen({ navigation, route }: any) {
             </Pressable>
           ) : null}
 
-          {!isVideoDraft ? <NutritionCard nutrition={nutritionTotal} /> : null}
+          {mediaMode !== "video" ? <NutritionCard nutrition={nutritionTotal} /> : null}
           <TextField label="Mô tả" value={caption} onChangeText={setCaption} multiline />
           <TextField label="Tags, cách nhau bằng dấu phẩy" value={tags} onChangeText={setTags} />
           <View style={styles.toolSection}>
@@ -1002,7 +1019,7 @@ export function CreatePostScreen({ navigation, route }: any) {
               })}
             </View>
           </View>
-          {!isVideoDraft ? (
+          {mediaMode !== "video" ? (
             <View style={styles.recipeToggle}>
             <View style={styles.recipeCopy}>
               <AppText variant="button">Công thức của bạn</AppText>
@@ -1013,7 +1030,7 @@ export function CreatePostScreen({ navigation, route }: any) {
             <Switch value={includeRecipe} onValueChange={setIncludeRecipe} />
             </View>
           ) : null}
-          {!isVideoDraft && includeRecipe ? (
+          {mediaMode !== "video" && includeRecipe ? (
             <View style={styles.recipeFields}>
               {/* Image selector tabs */}
               {images.length > 1 ? (
@@ -1092,6 +1109,7 @@ export function CreatePostScreen({ navigation, route }: any) {
           {/* Interactive touch-dragging sticker placement screen */}
           <PostPreview
             images={images}
+            mediaMode={mediaMode}
             layout="stack"
             transforms={transforms}
             sticker={selectedStickerData}
@@ -1183,6 +1201,7 @@ function Header({ title, onBack }: { title: string; onBack: () => void }) {
 function PostPreview({
   images,
   videoUri,
+  mediaMode,
   layout,
   transforms,
   sticker,
@@ -1194,6 +1213,7 @@ function PostPreview({
 }: {
   images: string[];
   videoUri?: string;
+  mediaMode: DraftMediaMode;
   layout: PostLayout;
   transforms: PostImageTransform[];
   sticker?: Sticker;
@@ -1207,7 +1227,22 @@ function PostPreview({
 
   return (
     <View style={styles.previewStage} {...(panHandlers ?? {})}>
-      {images.length ? (
+      {mediaMode === "video" ? (
+        videoUri ? (
+          <View style={styles.artworkCanvas}>
+            <PostVideoPlayer uri={videoUri} active style={styles.artworkImage} />
+            <Pressable style={styles.centerCameraBtn} onPress={onCameraPress} hitSlop={8}>
+              <Ionicons name="videocam" size={24} color={colors.white} />
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable style={styles.emptyStage} onPress={onCameraPress}>
+            <View style={styles.centerCameraBtn}>
+              <Ionicons name="videocam" size={24} color={colors.white} />
+            </View>
+          </Pressable>
+        )
+      ) : images.length ? (
         <View style={styles.artworkCanvas}>
           {images.map((uri, index) => {
             const { baseRotation, ...position } = imagePosition(layout, images.length, index);
@@ -1261,13 +1296,6 @@ function PostPreview({
           {/* Glassmorphic camera button overlayed in the center */}
           <Pressable style={styles.centerCameraBtn} onPress={onCameraPress} hitSlop={8}>
             <Ionicons name="camera" size={24} color={colors.white} />
-          </Pressable>
-        </View>
-      ) : videoUri ? (
-        <View style={styles.artworkCanvas}>
-          <PostVideoPlayer uri={videoUri} active style={styles.artworkImage} />
-          <Pressable style={styles.centerCameraBtn} onPress={onCameraPress} hitSlop={8}>
-            <Ionicons name="videocam" size={24} color={colors.white} />
           </Pressable>
         </View>
       ) : (

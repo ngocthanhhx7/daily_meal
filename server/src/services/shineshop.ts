@@ -33,6 +33,8 @@ export const nutritionHintsSchema = z.object({
 
 export type NutritionHints = z.infer<typeof nutritionHintsSchema>;
 
+const AI_PROVIDER_TIMEOUT_MS = 20_000;
+
 const basePrompt = `
 You are a nutrition estimation assistant for a food photo app.
 Estimate visible foods and return only valid JSON with this shape:
@@ -93,7 +95,7 @@ function mockAnalysis(): MealAnalysis {
       fat: 16
     },
     warnings: [
-      "Chưa cấu hình SHINESHOP_API_KEY nên server trả kết quả mẫu để phục vụ phát triển."
+      "Chưa cấu hình GEMINI_API_KEY nên server trả kết quả mẫu để phục vụ phát triển."
     ],
     raw: { mocked: true }
   };
@@ -121,49 +123,50 @@ async function readImageData(input: { imagePath?: string; imageData?: Buffer }) 
   throw new Error("Image data is required for meal analysis");
 }
 
-type VisionProvider = {
-  providerName: string;
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-};
-
-async function runOpenAiCompatibleVisionModel(input: VisionProvider & {
-  model: string;
+async function runGeminiVisionModel(input: {
   imageBase64: string;
   mimeType: string;
   hints?: NutritionHints;
 }) {
-  if (!input.apiKey || !input.baseUrl) {
-    throw new HttpError(500, `${input.providerName} chưa được cấu hình trên server.`);
+  if (!env.GEMINI_API_KEY || !env.GEMINI_BASE_URL) {
+    throw new HttpError(500, "Gemini chưa được cấu hình trên server.");
   }
 
-  const response = await fetch(chatCompletionsUrl(input.baseUrl), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${input.apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: input.model,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: buildPrompt(input.hints) },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${input.mimeType};base64,${input.imageBase64}`
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AI_PROVIDER_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(chatCompletionsUrl(env.GEMINI_BASE_URL), {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${env.GEMINI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: env.GEMINI_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: buildPrompt(input.hints) },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${input.mimeType};base64,${input.imageBase64}`
+                }
               }
-            }
-          ]
-        }
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: env.SHINESHOP_MAX_TOKENS
-    })
-  });
+            ]
+          }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: env.AI_MAX_TOKENS
+      })
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const result = (await response.json().catch(() => ({}))) as {
     choices?: Array<{ message?: { content?: string } }>;
@@ -172,15 +175,15 @@ async function runOpenAiCompatibleVisionModel(input: VisionProvider & {
 
   if (!response.ok) {
     if (!result.error?.message) {
-      throw new HttpError(502, `Không thể phân tích ảnh bằng ${input.providerName}.`);
+      throw new HttpError(502, "Không thể phân tích ảnh bằng Gemini.");
     }
-    throw new HttpError(502, result.error?.message || "Không thể phân tích ảnh bằng Shineshop.");
+    throw new HttpError(502, result.error.message || "Không thể phân tích ảnh bằng Gemini.");
   }
 
   const content = result.choices?.[0]?.message?.content;
 
   if (!content) {
-    throw new HttpError(502, `${input.providerName} không trả nội dung phân tích ảnh.`);
+    throw new HttpError(502, "Gemini không trả nội dung phân tích ảnh.");
   }
 
   const parsed = parseJson(content);
@@ -196,54 +199,14 @@ export async function analyzeFoodImage(input: {
   mimeType: string;
   hints?: NutritionHints;
 }): Promise<MealAnalysis> {
-  const providers: VisionProvider[] = [];
-
-  if (env.SHINESHOP_API_KEY) {
-    providers.push({
-      providerName: "Shineshop",
-      apiKey: env.SHINESHOP_API_KEY,
-      baseUrl: env.SHINESHOP_BASE_URL,
-      model: env.SHINESHOP_MODEL
-    });
-
-    if (env.SHINESHOP_FALLBACK_MODEL && env.SHINESHOP_FALLBACK_MODEL !== env.SHINESHOP_MODEL) {
-      providers.push({
-        providerName: "Shineshop",
-        apiKey: env.SHINESHOP_API_KEY,
-        baseUrl: env.SHINESHOP_BASE_URL,
-        model: env.SHINESHOP_FALLBACK_MODEL
-      });
-    }
-  }
-
-  if (env.GEMINI_API_KEY) {
-    providers.push({
-      providerName: "Gemini",
-      apiKey: env.GEMINI_API_KEY,
-      baseUrl: env.GEMINI_BASE_URL,
-      model: env.GEMINI_MODEL
-    });
-  }
-
-  if (providers.length === 0) {
+  if (!env.GEMINI_API_KEY) {
     return mockAnalysis();
   }
 
   const imageBase64 = await readImageData(input);
-  let lastError: unknown;
-
-  for (const provider of providers) {
-    try {
-      return await runOpenAiCompatibleVisionModel({
-        ...provider,
-        imageBase64,
-        mimeType: input.mimeType,
-        hints: input.hints
-      });
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new HttpError(502, "Không thể phân tích ảnh bằng provider AI.");
+  return runGeminiVisionModel({
+    imageBase64,
+    mimeType: input.mimeType,
+    hints: input.hints
+  });
 }

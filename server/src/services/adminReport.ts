@@ -447,7 +447,7 @@ function normalizeSections(value: unknown): ReportSection[] {
 }
 
 export async function generateAdminReport(input: AdminReportInput) {
-  if (!env.SHINESHOP_API_KEY || !env.SHINESHOP_BASE_URL) {
+  if (!env.GEMINI_API_KEY || !env.GEMINI_BASE_URL) {
     return fallbackReport(input, "Provider AI chưa được cấu hình, hệ thống dùng fallback report để admin vẫn có báo cáo.");
   }
 
@@ -456,14 +456,14 @@ export async function generateAdminReport(input: AdminReportInput) {
 
   let response: Response;
   try {
-    response = await fetch(`${env.SHINESHOP_BASE_URL.replace(/\/+$/, "")}/chat/completions`, {
+    response = await fetch(`${env.GEMINI_BASE_URL.replace(/\/+$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.SHINESHOP_API_KEY}`,
+        Authorization: `Bearer ${env.GEMINI_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: env.SHINESHOP_MODEL,
+        model: env.GEMINI_MODEL,
         messages: [
           {
             role: "user",
@@ -471,7 +471,7 @@ export async function generateAdminReport(input: AdminReportInput) {
           }
       ],
       response_format: { type: "json_object" },
-      max_tokens: Math.max(env.SHINESHOP_MAX_TOKENS, 1800)
+      max_tokens: Math.max(env.AI_MAX_TOKENS, 1800)
       }),
       signal: controller.signal
     });

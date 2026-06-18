@@ -628,7 +628,7 @@ describe("Daily Meal API", () => {
 
     expect(payments.body.payments[0].orderCode).toBe(9234567890);
 
-    Object.assign(env, { SHINESHOP_API_KEY: undefined });
+    Object.assign(env, { GEMINI_API_KEY: undefined });
     const aiReport = await request(app)
       .post("/api/admin/reports/ai")
       .set("Authorization", `Bearer ${adminToken}`)

@@ -51,6 +51,15 @@ const envSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.coerce.number().int().positive().default(1200)
   ),
+  GEMINI_API_KEY: optionalString,
+  GEMINI_BASE_URL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().url().default("https://generativelanguage.googleapis.com/v1beta/openai")
+  ),
+  GEMINI_MODEL: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().default("gemini-3.1-flash-lite")
+  ),
   GOOGLE_WEB_CLIENT_ID: optionalString,
   GOOGLE_ANDROID_CLIENT_ID: optionalString,
   GOOGLE_IOS_CLIENT_ID: optionalString,

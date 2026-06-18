@@ -121,20 +121,27 @@ async function readImageData(input: { imagePath?: string; imageData?: Buffer }) 
   throw new Error("Image data is required for meal analysis");
 }
 
-async function runShineshopVisionModel(input: {
+type VisionProvider = {
+  providerName: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+};
+
+async function runOpenAiCompatibleVisionModel(input: VisionProvider & {
   model: string;
   imageBase64: string;
   mimeType: string;
   hints?: NutritionHints;
 }) {
-  if (!env.SHINESHOP_API_KEY || !env.SHINESHOP_BASE_URL) {
-    throw new HttpError(500, "Shineshop chưa được cấu hình trên server.");
+  if (!input.apiKey || !input.baseUrl) {
+    throw new HttpError(500, `${input.providerName} chưa được cấu hình trên server.`);
   }
 
-  const response = await fetch(chatCompletionsUrl(env.SHINESHOP_BASE_URL), {
+  const response = await fetch(chatCompletionsUrl(input.baseUrl), {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${env.SHINESHOP_API_KEY}`,
+      Authorization: `Bearer ${input.apiKey}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -164,13 +171,16 @@ async function runShineshopVisionModel(input: {
   };
 
   if (!response.ok) {
+    if (!result.error?.message) {
+      throw new HttpError(502, `Không thể phân tích ảnh bằng ${input.providerName}.`);
+    }
     throw new HttpError(502, result.error?.message || "Không thể phân tích ảnh bằng Shineshop.");
   }
 
   const content = result.choices?.[0]?.message?.content;
 
   if (!content) {
-    throw new HttpError(502, "Shineshop không trả nội dung phân tích ảnh.");
+    throw new HttpError(502, `${input.providerName} không trả nội dung phân tích ảnh.`);
   }
 
   const parsed = parseJson(content);
@@ -186,29 +196,54 @@ export async function analyzeFoodImage(input: {
   mimeType: string;
   hints?: NutritionHints;
 }): Promise<MealAnalysis> {
-  if (!env.SHINESHOP_API_KEY) {
+  const providers: VisionProvider[] = [];
+
+  if (env.SHINESHOP_API_KEY) {
+    providers.push({
+      providerName: "Shineshop",
+      apiKey: env.SHINESHOP_API_KEY,
+      baseUrl: env.SHINESHOP_BASE_URL,
+      model: env.SHINESHOP_MODEL
+    });
+
+    if (env.SHINESHOP_FALLBACK_MODEL && env.SHINESHOP_FALLBACK_MODEL !== env.SHINESHOP_MODEL) {
+      providers.push({
+        providerName: "Shineshop",
+        apiKey: env.SHINESHOP_API_KEY,
+        baseUrl: env.SHINESHOP_BASE_URL,
+        model: env.SHINESHOP_FALLBACK_MODEL
+      });
+    }
+  }
+
+  if (env.GEMINI_API_KEY) {
+    providers.push({
+      providerName: "Gemini",
+      apiKey: env.GEMINI_API_KEY,
+      baseUrl: env.GEMINI_BASE_URL,
+      model: env.GEMINI_MODEL
+    });
+  }
+
+  if (providers.length === 0) {
     return mockAnalysis();
   }
 
   const imageBase64 = await readImageData(input);
+  let lastError: unknown;
 
-  try {
-    return await runShineshopVisionModel({
-      model: env.SHINESHOP_MODEL,
-      imageBase64,
-      mimeType: input.mimeType,
-      hints: input.hints
-    });
-  } catch (error) {
-    if (!env.SHINESHOP_FALLBACK_MODEL || env.SHINESHOP_FALLBACK_MODEL === env.SHINESHOP_MODEL) {
-      throw error;
+  for (const provider of providers) {
+    try {
+      return await runOpenAiCompatibleVisionModel({
+        ...provider,
+        imageBase64,
+        mimeType: input.mimeType,
+        hints: input.hints
+      });
+    } catch (error) {
+      lastError = error;
     }
-
-    return runShineshopVisionModel({
-      model: env.SHINESHOP_FALLBACK_MODEL,
-      imageBase64,
-      mimeType: input.mimeType,
-      hints: input.hints
-    });
   }
+
+  throw lastError instanceof Error ? lastError : new HttpError(502, "Không thể phân tích ảnh bằng provider AI.");
 }

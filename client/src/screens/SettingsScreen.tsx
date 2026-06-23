@@ -1,20 +1,23 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, View } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { useAuth } from "../context/AuthContext";
 import { getGoogleIdToken } from "../services/googleSignIn";
 import { colors } from "../theme/colors";
+import { runSettingsLogout } from "./settingsLogout";
 
 export function SettingsScreen({ navigation }: any) {
   const { signOut, linkGoogle } = useAuth();
 
   function handleLogout() {
-    Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
-      { text: "Huỷ", style: "cancel" },
-      { text: "Đăng xuất", style: "destructive", onPress: signOut }
-    ]);
+    void runSettingsLogout({
+      platformOS: Platform.OS,
+      signOut,
+      confirm: typeof window !== "undefined" ? window.confirm.bind(window) : undefined,
+      showAlert: Alert.alert
+    });
   }
 
   async function handleLinkGoogle() {

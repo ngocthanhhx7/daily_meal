@@ -29,7 +29,7 @@ onboardingRouter.patch("/preferences", requireAuth, async (req, res, next) => {
     );
 
     if (!user) {
-      throw new HttpError(404, "User not found");
+      throw new HttpError(404, "Không tìm thấy người dùng");
     }
 
     res.json({

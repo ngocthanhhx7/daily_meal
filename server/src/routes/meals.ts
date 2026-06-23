@@ -20,7 +20,7 @@ mealsRouter.post("/analyze", requireAuth, async (req, res, next) => {
     const upload = await Upload.findOne({ _id: body.uploadId, owner: req.user?.id }).lean();
 
     if (!upload) {
-      throw new HttpError(404, "Uploaded image not found");
+      throw new HttpError(404, "Không tìm thấy hình ảnh đã tải lên");
     }
 
     const imageData = await readStoredUpload(upload);
@@ -61,7 +61,7 @@ mealsRouter.get("/:id", requireAuth, async (req, res, next) => {
     const meal = await Meal.findOne({ _id: req.params.id, user: req.user?.id }).lean();
 
     if (!meal) {
-      throw new HttpError(404, "Meal not found");
+      throw new HttpError(404, "Không tìm thấy món ăn");
     }
 
     res.json({ meal });

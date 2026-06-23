@@ -1,4 +1,4 @@
-﻿import type { RequestHandler } from "express";
+import type { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { User } from "../models/User.js";
@@ -15,7 +15,7 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
     const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
 
     if (!token) {
-      throw new HttpError(401, "Authentication required");
+      throw new HttpError(401, "Yêu cầu xác thực tài khoản");
     }
 
     const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
@@ -24,7 +24,7 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
       .lean();
 
     if (!user) {
-      throw new HttpError(401, "Invalid session");
+      throw new HttpError(401, "Phiên làm việc không hợp lệ");
     }
 
     req.user = {
@@ -35,7 +35,7 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
     };
     next();
   } catch (error) {
-    next(error instanceof HttpError ? error : new HttpError(401, "Invalid session"));
+    next(error instanceof HttpError ? error : new HttpError(401, "Phiên làm việc không hợp lệ"));
   }
 };
 

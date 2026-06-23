@@ -82,7 +82,7 @@ type DailyPoint = {
 
 function assertAdminConfigured() {
   if (!env.ADMIN_EMAIL || !env.ADMIN_PASSWORD) {
-    throw new HttpError(503, "Admin account is not configured.");
+    throw new HttpError(503, "Tài khoản Admin chưa được cấu hình.");
   }
 }
 
@@ -96,13 +96,13 @@ const requireAdmin: RequestHandler = (req, _res, next) => {
     const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
 
     if (!token) {
-      throw new HttpError(401, "Admin authentication required");
+      throw new HttpError(401, "Yêu cầu xác thực tài khoản Admin");
     }
 
     const payload = jwt.verify(token, env.JWT_SECRET) as Partial<AdminJwtPayload>;
 
     if (!payload.admin || !payload.email || payload.email !== env.ADMIN_EMAIL?.toLowerCase()) {
-      throw new HttpError(403, "Admin access required");
+      throw new HttpError(403, "Yêu cầu quyền truy cập Admin");
     }
 
     req.user = {
@@ -113,7 +113,7 @@ const requireAdmin: RequestHandler = (req, _res, next) => {
     };
     next();
   } catch (error) {
-    next(error instanceof HttpError ? error : new HttpError(401, "Invalid admin session"));
+    next(error instanceof HttpError ? error : new HttpError(401, "Phiên làm việc Admin không hợp lệ"));
   }
 };
 
@@ -579,7 +579,7 @@ adminRouter.post("/login", (req, res, next) => {
     const body = adminLoginSchema.parse(req.body);
 
     if (body.email !== env.ADMIN_EMAIL?.toLowerCase() || body.password !== env.ADMIN_PASSWORD) {
-      throw new HttpError(401, "Invalid admin credentials");
+      throw new HttpError(401, "Thông tin đăng nhập Admin không hợp lệ");
     }
 
     res.json({
@@ -595,7 +595,7 @@ adminRouter.get("/dashboard", requireAdmin, async (req, res, next) => {
   try {
     const { start, end, rangePreset } = await resolveRange(req.query);
     if (start >= end) {
-      throw new HttpError(400, "Dashboard start must be before end.");
+      throw new HttpError(400, "Thời gian bắt đầu bảng điều khiển phải trước thời gian kết thúc.");
     }
 
     res.json(await buildAdminDashboard(start, end, rangePreset));
@@ -617,7 +617,7 @@ adminRouter.post("/reports/ai", requireAdmin, async (req, res, next) => {
   try {
     const { start, end, rangePreset } = await resolveRange(req.body ?? {});
     if (start >= end) {
-      throw new HttpError(400, "Report start must be before end.");
+      throw new HttpError(400, "Thời gian bắt đầu báo cáo phải trước thời gian kết thúc.");
     }
 
     const [summary, dashboard] = await Promise.all([
@@ -691,7 +691,7 @@ adminRouter.patch("/users/:id/premium", requireAdmin, async (req, res, next) => 
     const user = await User.findByIdAndUpdate(req.params.id, update, { new: true });
 
     if (!user) {
-      throw new HttpError(404, "User not found");
+      throw new HttpError(404, "Không tìm thấy người dùng");
     }
 
     await logAdminAction({
@@ -714,7 +714,7 @@ adminRouter.get("/users/:id", requireAdmin, async (req, res, next) => {
     const user = await User.findById(req.params.id);
 
     if (!user) {
-      throw new HttpError(404, "User not found");
+      throw new HttpError(404, "Không tìm thấy người dùng");
     }
 
     const [stats, recentPosts, interactions, audit] = await Promise.all([
@@ -816,7 +816,7 @@ adminRouter.patch("/posts/:id/moderation", requireAdmin, async (req, res, next) 
     ).populate("author", "displayName email avatarUrl");
 
     if (!post) {
-      throw new HttpError(404, "Post not found");
+      throw new HttpError(404, "Không tìm thấy bài viết");
     }
 
     await logAdminAction({
@@ -884,7 +884,7 @@ adminRouter.patch("/reports/:id", requireAdmin, async (req, res, next) => {
       .populate("target", "displayName email");
 
     if (!report || report.type !== "report") {
-      throw new HttpError(404, "Report not found");
+      throw new HttpError(404, "Không tìm thấy báo cáo");
     }
 
     await logAdminAction({

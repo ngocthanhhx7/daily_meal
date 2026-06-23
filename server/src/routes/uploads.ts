@@ -21,19 +21,19 @@ uploadsRouter.post(
     const video = files?.video?.[0];
 
     if (image && video) {
-      throw new HttpError(400, "Upload either an image or a video, not both");
+      throw new HttpError(400, "Chỉ tải lên hình ảnh hoặc video, không tải lên cả hai");
     }
 
     const file = image ?? video;
 
     if (!file) {
-      throw new HttpError(400, "Image or video file is required");
+      throw new HttpError(400, "Yêu cầu tệp hình ảnh hoặc video");
     }
 
     const mediaType = video ? "video" : "image";
 
     if (mediaType === "video" && !req.user?.isPremium) {
-      throw new HttpError(403, "Premium is required to upload videos");
+      throw new HttpError(403, "Yêu cầu tài khoản Premium để tải lên video");
     }
 
     if (mediaType === "image") {

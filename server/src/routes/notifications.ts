@@ -51,7 +51,7 @@ notificationsRouter.patch("/:id/read", requireAuth, async (req, res, next) => {
     );
 
     if (!notification) {
-      throw new HttpError(404, "Notification not found");
+      throw new HttpError(404, "Không tìm thấy thông báo");
     }
 
     res.json({ notification });
@@ -66,7 +66,7 @@ notificationsRouter.delete("/:id", requireAuth, async (req, res, next) => {
     const notification = await Notification.findOneAndDelete({ _id: req.params.id, user: req.user?.id });
 
     if (!notification) {
-      throw new HttpError(404, "Notification not found");
+      throw new HttpError(404, "Không tìm thấy thông báo");
     }
 
     res.status(204).send();

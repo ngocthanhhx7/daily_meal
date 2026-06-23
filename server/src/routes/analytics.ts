@@ -137,7 +137,7 @@ async function authenticatedUserId(authorizationHeader: string | undefined) {
     const user = await User.findById(payload.sub).select("_id").lean();
 
     if (!user) {
-      throw new HttpError(401, "Invalid analytics session");
+      throw new HttpError(401, "Phiên làm việc phân tích không hợp lệ");
     }
 
     return user._id.toString();
@@ -146,7 +146,7 @@ async function authenticatedUserId(authorizationHeader: string | undefined) {
       throw error;
     }
 
-    throw new HttpError(401, "Invalid analytics session");
+    throw new HttpError(401, "Phiên làm việc phân tích không hợp lệ");
   }
 }
 
@@ -154,7 +154,7 @@ export async function buildAnalyticsSummary(options: SummaryOptions = {}) {
   const { start, end, rangePreset } = await resolveSummaryRange(options);
 
   if (start >= end) {
-    throw new HttpError(400, "Summary start must be before end.");
+    throw new HttpError(400, "Thời gian bắt đầu tóm tắt phải trước thời gian kết thúc.");
   }
 
   const baseFilter = { occurredAt: { $gte: start, $lt: end } };
@@ -359,7 +359,7 @@ analyticsRouter.post("/events", async (req, res, next) => {
 
     const documents = body.events.map((event) => {
       if (!userId && !event.anonymousId) {
-        throw new HttpError(400, "anonymousId is required for signed-out analytics events.");
+        throw new HttpError(400, "Yêu cầu anonymousId cho các sự kiện phân tích chưa đăng nhập.");
       }
 
       return {

@@ -1913,7 +1913,7 @@ describe("Daily Meal API", () => {
       .send({ idToken: "conflict-token" })
       .expect(409);
 
-    expect(response.body.message).toContain("Sign in with email and password first");
+    expect(response.body.message).toContain("Hãy đăng nhập bằng email và mật khẩu trước");
   });
 
   it("links Google to the current password account when email matches", async () => {

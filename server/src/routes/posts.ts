@@ -131,11 +131,11 @@ async function assertStickerAllowed(stickerId: string | undefined, isPremium: bo
   const sticker = await Sticker.findById(stickerId).lean();
 
   if (!sticker) {
-    throw new HttpError(404, "Sticker not found");
+    throw new HttpError(404, "Không tìm thấy nhãn dán");
   }
 
   if (sticker.premiumOnly && !isPremium) {
-    throw new HttpError(403, "Premium is required for this sticker");
+    throw new HttpError(403, "Yêu cầu tài khoản Premium để sử dụng nhãn dán này");
   }
 }
 
@@ -333,10 +333,10 @@ postsRouter.post("/", requireAuth, async (req, res, next) => {
 
     if (isVideoPost) {
       if (!isPremium) {
-        throw new HttpError(403, "Premium is required to publish video posts");
+        throw new HttpError(403, "Yêu cầu tài khoản Premium để đăng bài viết bằng video");
       }
       if (!body.video) {
-        throw new HttpError(400, "Video is required for video posts");
+        throw new HttpError(400, "Yêu cầu video cho bài viết bằng video");
       }
 
       body.images = [];
@@ -348,7 +348,7 @@ postsRouter.post("/", requireAuth, async (req, res, next) => {
       body.nutritionDetails = [];
       body.mealId = undefined;
     } else if (body.images.length < 1) {
-      throw new HttpError(400, "At least one image is required");
+      throw new HttpError(400, "Yêu cầu ít nhất một hình ảnh");
     }
 
     const maxImages = isPremium ? 3 : 1;
@@ -394,15 +394,16 @@ postsRouter.patch("/:id", requireAuth, async (req, res, next) => {
     const post = await Post.findById(req.params.id);
 
     if (!post) {
-      throw new HttpError(404, "Post not found");
+      throw new HttpError(404, "Không tìm thấy bài viết");
     }
 
     if (post.author.toString() !== req.user?.id) {
-      throw new HttpError(403, "Only the owner can edit this post");
+      throw new HttpError(403, "Chỉ người sở hữu mới có quyền chỉnh sửa bài viết này");
     }
 
-    if (body.images && body.images.length > 3) {
-      throw new HttpError(403, "Image limit exceeded for this account");
+    const maxImages = req.user.isPremium ? 3 : 1;
+    if ((body.images?.length ?? 0) > maxImages) {
+      throw new HttpError(403, "Tài khoản của bạn đã vượt quá giới hạn số lượng hình ảnh");
     }
 
     await assertStickerAllowed(body.stickerId, Boolean(req.user?.isPremium));
@@ -430,11 +431,11 @@ postsRouter.delete("/:id", requireAuth, async (req, res, next) => {
     const post = await Post.findById(req.params.id);
 
     if (!post) {
-      throw new HttpError(404, "Post not found");
+      throw new HttpError(404, "Không tìm thấy bài viết");
     }
 
     if (post.author.toString() !== req.user?.id) {
-      throw new HttpError(403, "Only the owner can delete this post");
+      throw new HttpError(403, "Chỉ người sở hữu mới có quyền xóa bài viết này");
     }
 
     await post.deleteOne();
@@ -455,7 +456,7 @@ postsRouter.post("/:id/like", requireAuth, async (req, res, next) => {
   try {
     const targetPost = await Post.findById(req.params.id).select("author").lean();
     if (!targetPost) {
-      throw new HttpError(404, "Post not found");
+      throw new HttpError(404, "Không tìm thấy bài viết");
     }
     await assertNotBlocked(req.user?.id, targetPost.author.toString());
 
@@ -534,7 +535,7 @@ postsRouter.post("/:id/save", requireAuth, async (req, res, next) => {
   try {
     const targetPost = await Post.findById(req.params.id).select("author").lean();
     if (!targetPost) {
-      throw new HttpError(404, "Post not found");
+      throw new HttpError(404, "Không tìm thấy bài viết");
     }
     await assertNotBlocked(req.user?.id, targetPost.author.toString());
 
@@ -566,7 +567,7 @@ postsRouter.get("/:id/comments", requireAuth, async (req, res, next) => {
   try {
     const post = await Post.findById(req.params.id).select("author").lean();
     if (!post) {
-      throw new HttpError(404, "Post not found");
+      throw new HttpError(404, "Không tìm thấy bài viết");
     }
     await assertNotBlocked(req.user?.id, post.author.toString());
 
@@ -586,7 +587,7 @@ postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
     const post = await Post.findById(req.params.id).select("_id author").lean();
 
     if (!post) {
-      throw new HttpError(404, "Post not found");
+      throw new HttpError(404, "Không tìm thấy bài viết");
     }
 
     await assertNotBlocked(req.user?.id, post.author?.toString?.());
@@ -615,7 +616,7 @@ postsRouter.post("/:id/comments", requireAuth, async (req, res, next) => {
       .lean();
 
     if (!populated) {
-      throw new HttpError(404, "Comment not found");
+      throw new HttpError(404, "Không tìm thấy bình luận");
     }
 
     // Broadcast new comment to all sockets viewing this post in real-time

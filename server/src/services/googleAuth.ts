@@ -23,7 +23,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdenti
   const audience = googleAudiences();
 
   if (!audience.length) {
-    throw new HttpError(500, "Google sign-in is not configured");
+    throw new HttpError(500, "Đăng nhập Google chưa được cấu hình");
   }
 
   const ticket = await client.verifyIdToken({
@@ -33,7 +33,7 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdenti
   const payload = ticket.getPayload();
 
   if (!payload?.sub || !payload.email) {
-    throw new HttpError(401, "Invalid Google account");
+    throw new HttpError(401, "Tài khoản Google không hợp lệ");
   }
 
   return {

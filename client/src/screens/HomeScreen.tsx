@@ -474,7 +474,7 @@ export function HomeScreen({ navigation, route }: any) {
       analytics.track("premium_trial_claimed", { screen: "Home" });
       setHideTrialMascot(true);
       setShowTrialOfferModal(false);
-      Alert.alert("\u0110\u00e3 n\u00e2ng Premium!", "Premium mi\u1ec5n ph\u00ed 1 th\u00e1ng \u0111\u00e3 \u0111\u01b0\u1ee3c k\u00edch ho\u1ea1t cho b\u1ea1n.");
+      Alert.alert("Đã nâng Premium!", "Premium miễn phí 1 tháng đã được kích hoạt cho bạn.");
     } catch (error: any) {
       analytics.track("premium_trial_failed", {
         screen: "Home",
@@ -482,7 +482,7 @@ export function HomeScreen({ navigation, route }: any) {
           message: error?.message ?? "unknown"
         }
       });
-      Alert.alert("Ch\u01b0a nh\u1eadn \u0111\u01b0\u1ee3c qu\u00e0", error?.message || "Vui l\u00f2ng th\u1eed l\u1ea1i sau nh\u00e9.");
+      Alert.alert("Chưa nhận được quà", error?.message || "Vui lòng thử lại sau nhé.");
       await refreshUser();
     } finally {
       setIsClaimingTrial(false);
@@ -761,10 +761,10 @@ export function HomeScreen({ navigation, route }: any) {
 }
 
 const TRIAL_MASCOT_LINES = [
-  "B\u1ea1n \u01a1i, c\u00f3 qu\u00e0 Premium n\u00e8!",
-  "Th\u1eed 1 th\u00e1ng VIP mi\u1ec5n ph\u00ed nha!",
-  "Nh\u1eadn qu\u00e0 \u0111\u1ec3 n\u1ea5u ngon h\u01a1n n\u00e0o!",
-  "Miu \u0111\u1ea7u b\u1ebfp \u0111ang \u0111\u1ee3i b\u1ea1n \u0111\u00f3!"
+  "Bạn ơi, có quà Premium nè!",
+  "Thử 1 tháng VIP miễn phí nha!",
+  "Nhận quà để nấu ngon hơn nào!",
+  "Miu đầu bếp đang đợi bạn đó!"
 ];
 
 function PremiumTrialOfferModal({
@@ -792,19 +792,19 @@ function PremiumTrialOfferModal({
               resizeMode="contain"
             />
           </View>
-          <AppText style={styles.trialOfferTitle}>{"Nh\u1eadn 1 th\u00e1ng Premium mi\u1ec5n ph\u00ed?"}</AppText>
-          <AppText style={styles.trialOfferMessage}>{"B\u1ea1n ch\u01b0a s\u1eed d\u1ee5ng \u01b0u \u0111\u00e3i l\u1ea7n \u0111\u1ea7u. N\u00e2ng l\u00ean Premium ngay \u0111\u1ec3 tr\u1ea3i nghi\u1ec7m \u0111\u1ea7y \u0111\u1ee7 t\u00ednh n\u0103ng Daily Meal trong 1 th\u00e1ng."}</AppText>
+          <AppText style={styles.trialOfferTitle}>{"Nhận 1 tháng Premium miễn phí?"}</AppText>
+          <AppText style={styles.trialOfferMessage}>{"Bạn chưa sử dụng ưu đãi lần đầu. Nâng lên Premium ngay để trải nghiệm đầy đủ tính năng Daily Meal trong 1 tháng."}</AppText>
           <View style={styles.trialOfferPerks}>
-            <AppText style={styles.trialOfferPerk}>{"\u2022 \u0110\u0103ng nhi\u1ec1u \u1ea3nh h\u01a1n"}</AppText>
-            <AppText style={styles.trialOfferPerk}>{"\u2022 D\u00f9ng sticker Premium"}</AppText>
-            <AppText style={styles.trialOfferPerk}>{"\u2022 Tr\u1ea3i nghi\u1ec7m c\u00e1c quy\u1ec1n l\u1ee3i VIP"}</AppText>
+            <AppText style={styles.trialOfferPerk}>{"• Đăng nhiều ảnh hơn"}</AppText>
+            <AppText style={styles.trialOfferPerk}>{"• Dùng sticker Premium"}</AppText>
+            <AppText style={styles.trialOfferPerk}>{"• Trải nghiệm các quyền lợi VIP"}</AppText>
           </View>
           <View style={styles.trialOfferActions}>
             <Pressable style={styles.trialOfferSecondaryButton} onPress={onDecline} disabled={isClaiming}>
-              <AppText style={styles.trialOfferSecondaryText}>{"\u0110\u1ec3 sau"}</AppText>
+              <AppText style={styles.trialOfferSecondaryText}>{"Để sau"}</AppText>
             </Pressable>
             <Pressable style={styles.trialOfferPrimaryButton} onPress={onAccept} disabled={isClaiming}>
-              <AppText style={styles.trialOfferPrimaryText}>{isClaiming ? "\u0110ang n\u00e2ng..." : "N\u00e2ng Premium"}</AppText>
+              <AppText style={styles.trialOfferPrimaryText}>{isClaiming ? "Đang nâng..." : "Nâng Premium"}</AppText>
             </Pressable>
           </View>
         </View>

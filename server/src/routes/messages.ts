@@ -64,7 +64,7 @@ async function assertParticipant(conversationId: string, viewerId: string) {
   });
 
   if (!conversation) {
-    throw new HttpError(404, "Conversation not found");
+    throw new HttpError(404, "Không tìm thấy cuộc trò chuyện");
   }
 
   return conversation;
@@ -105,13 +105,13 @@ messagesRouter.post("/conversations", requireAuth, async (req, res, next) => {
     const body = conversationBodySchema.parse(req.body);
 
     if (body.recipientId === req.user?.id) {
-      throw new HttpError(400, "Cannot message yourself");
+      throw new HttpError(400, "Bạn không thể nhắn tin cho chính mình");
     }
 
     const recipient = await User.findById(body.recipientId).select("_id").lean();
 
     if (!recipient) {
-      throw new HttpError(404, "User not found");
+      throw new HttpError(404, "Không tìm thấy người dùng");
     }
 
     await assertNotBlocked(req.user?.id, body.recipientId);
@@ -140,7 +140,7 @@ messagesRouter.get("/conversations/:id/messages", requireAuth, async (req, res, 
   try {
     const conversationId = req.params.id;
     if (!conversationId) {
-      throw new HttpError(400, "Conversation id is required");
+      throw new HttpError(400, "Yêu cầu ID cuộc trò chuyện");
     }
     const conversation = await assertParticipant(conversationId, req.user?.id ?? "");
     await assertConversationNotBlocked(conversation, req.user?.id ?? "");
@@ -162,7 +162,7 @@ messagesRouter.post("/conversations/:id/messages", requireAuth, async (req, res,
     const body = messageBodySchema.parse(req.body);
     const conversationId = req.params.id;
     if (!conversationId) {
-      throw new HttpError(400, "Conversation id is required");
+      throw new HttpError(400, "Yêu cầu ID cuộc trò chuyện");
     }
     const conversation = await assertParticipant(conversationId, req.user?.id ?? "");
     await assertConversationNotBlocked(conversation, req.user?.id ?? "");
@@ -186,7 +186,7 @@ messagesRouter.post("/conversations/:id/messages", requireAuth, async (req, res,
       .lean();
 
     if (!populated) {
-      throw new HttpError(404, "Message not found");
+      throw new HttpError(404, "Không tìm thấy tin nhắn");
     }
 
     const formattedMessage = messageDto(populated);

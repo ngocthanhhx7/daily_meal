@@ -225,7 +225,7 @@ usersRouter.patch("/me", requireAuth, async (req, res, next) => {
     const user = await User.findByIdAndUpdate(req.user?.id, { $set: update }, { new: true });
 
     if (!user) {
-      throw new HttpError(404, "User not found");
+      throw new HttpError(404, "Không tìm thấy người dùng");
     }
 
     res.json({ user: await publicUserDto(user, req.user?.id) });
@@ -386,7 +386,7 @@ usersRouter.get("/:id", requireAuth, async (req, res, next) => {
     const user = await User.findById(req.params.id).lean();
 
     if (!user) {
-      throw new HttpError(404, "User not found");
+      throw new HttpError(404, "Không tìm thấy người dùng");
     }
 
     res.json({ user: await publicUserDto(user, req.user?.id) });
@@ -438,13 +438,13 @@ usersRouter.post("/:id/follow", requireAuth, async (req, res, next) => {
     const targetId = req.params.id;
 
     if (targetId === req.user?.id) {
-      throw new HttpError(400, "You cannot follow yourself");
+      throw new HttpError(400, "Bạn không thể theo dõi chính mình");
     }
 
     const target = await User.findById(targetId);
 
     if (!target) {
-      throw new HttpError(404, "User not found");
+      throw new HttpError(404, "Không tìm thấy người dùng");
     }
 
     await assertNotBlocked(req.user?.id, targetId);
@@ -521,7 +521,7 @@ usersRouter.delete("/:id/follow", requireAuth, async (req, res, next) => {
     const targetId = req.params.id;
 
     if (targetId === req.user?.id) {
-      throw new HttpError(400, "You cannot unfollow yourself");
+      throw new HttpError(400, "Bạn không thể hủy theo dõi chính mình");
     }
 
     const deleted = await Follow.findOneAndDelete({ follower: req.user?.id, following: targetId });
@@ -560,7 +560,7 @@ usersRouter.delete("/:id/follow", requireAuth, async (req, res, next) => {
     const updatedTarget = await User.findById(targetId).lean();
 
     if (!updatedTarget) {
-      throw new HttpError(404, "User not found");
+      throw new HttpError(404, "Không tìm thấy người dùng");
     }
 
     res.json({ user: await publicUserDto(updatedTarget, req.user?.id) });
@@ -623,13 +623,13 @@ usersRouter.post("/:id/interactions", requireAuth, async (req, res, next) => {
     const body = interactionBodySchema.parse(req.body);
 
     if (req.params.id === req.user?.id) {
-      throw new HttpError(400, "Cannot apply this action to yourself");
+      throw new HttpError(400, "Không thể áp dụng hành động này cho bản thân");
     }
 
     const target = await User.findById(req.params.id).select("_id").lean();
 
     if (!target) {
-      throw new HttpError(404, "User not found");
+      throw new HttpError(404, "Không tìm thấy người dùng");
     }
 
     await UserInteraction.findOneAndUpdate(

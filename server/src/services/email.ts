@@ -15,7 +15,7 @@ function requireSmtpConfig() {
     if (env.NODE_ENV !== "production") {
       return undefined;
     }
-    throw new HttpError(500, "Email SMTP chua duoc cau hinh tren server.");
+    throw new HttpError(500, "Email SMTP chưa được cấu hình trên server.");
   }
 
   return {
@@ -50,18 +50,18 @@ async function sendMail(input: { to: string; subject: string; text: string; html
 export async function sendPasswordResetOtpEmail(to: string, otp: string) {
   await sendMail({
     to,
-    subject: "Daily Meal - Ma OTP quen mat khau",
-    text: `Ma OTP dat lai mat khau Daily Meal cua ban la ${otp}. Ma co hieu luc trong 5 phut.`,
-    html: `<p>Ma OTP dat lai mat khau Daily Meal cua ban la <strong>${otp}</strong>.</p><p>Ma co hieu luc trong 5 phut.</p>`
+    subject: "Daily Meal - Mã OTP quên mật khẩu",
+    text: `Mã OTP đặt lại mật khẩu Daily Meal của bạn là ${otp}. Mã có hiệu lực trong 5 phút.`,
+    html: `<p>Mã OTP đặt lại mật khẩu Daily Meal của bạn là <strong>${otp}</strong>.</p><p>Mã có hiệu lực trong 5 phút.</p>`
   });
 }
 
 export async function sendPasswordResetSuccessEmail(to: string) {
   await sendMail({
     to,
-    subject: "Daily Meal - Mat khau da duoc thay doi",
-    text: `Mat khau Daily Meal cua ban da duoc thay doi thanh cong.`,
-    html: `<p>Mat khau Daily Meal cua ban da duoc thay doi thanh cong.</p>`
+    subject: "Daily Meal - Mật khẩu đã được thay đổi",
+    text: `Mật khẩu Daily Meal của bạn đã được thay đổi thành công.`,
+    html: `<p>Mật khẩu Daily Meal của bạn đã được thay đổi thành công.</p>`
   });
 }
 

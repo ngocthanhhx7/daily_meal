@@ -47,7 +47,7 @@ export async function sendPhoneOtpSms(phone: string, otp: string) {
   }
 
   const provider = process.env.SMS_PROVIDER?.trim().toLowerCase();
-  const message = `Daily Meal OTP: ${otp}. Ma co hieu luc trong 5 phut.`;
+  const message = `Daily Meal OTP: ${otp}. Mã có hiệu lực trong 5 phút.`;
 
   if (provider === "twilio") {
     await sendWithTwilio(phone, message);

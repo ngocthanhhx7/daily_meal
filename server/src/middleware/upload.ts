@@ -19,7 +19,7 @@ export const uploadImage = multer({
     const ext = path.extname(file.originalname).toLowerCase();
 
     if (!allowedImageMimeTypes.has(file.mimetype) || (ext && !allowedImageExtensions.has(ext))) {
-      cb(new HttpError(400, "Only PNG, JPEG, WebP, and GIF uploads are supported"));
+      cb(new HttpError(400, "Chỉ hỗ trợ tải lên các tệp PNG, JPEG, WebP và GIF"));
       return;
     }
     cb(null, true);
@@ -38,7 +38,7 @@ export const uploadMedia = multer({
     const isVideo = allowedVideoMimeTypes.has(file.mimetype) && (!ext || allowedVideoExtensions.has(ext));
 
     if (!isImage && !isVideo) {
-      cb(new HttpError(400, "Only image and MP4, MOV, or M4V video uploads are supported"));
+      cb(new HttpError(400, "Chỉ hỗ trợ tải lên hình ảnh và video MP4, MOV hoặc M4V"));
       return;
     }
     cb(null, true);
@@ -47,7 +47,7 @@ export const uploadMedia = multer({
 
 export function assertImageUploadSize(file: Express.Multer.File) {
   if (file.size > maxImageBytes) {
-    throw new HttpError(400, "Image uploads must be 8MB or smaller");
+    throw new HttpError(400, "Hình ảnh tải lên phải từ 8MB trở xuống");
   }
 }
 
@@ -61,7 +61,7 @@ export const uploadVideo = multer({
     const ext = path.extname(file.originalname).toLowerCase();
 
     if (!allowedVideoMimeTypes.has(file.mimetype) || (ext && !allowedVideoExtensions.has(ext))) {
-      cb(new HttpError(400, "Only MP4, MOV, and M4V video uploads are supported"));
+      cb(new HttpError(400, "Chỉ hỗ trợ tải lên video MP4, MOV và M4V"));
       return;
     }
     cb(null, true);

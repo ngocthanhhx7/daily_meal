@@ -54,7 +54,7 @@ function getS3Client() {
 
 function assertS3Configured() {
   if (!env.S3_BUCKET) {
-    throw new HttpError(500, "S3 bucket is not configured");
+    throw new HttpError(500, "S3 bucket chưa được cấu hình");
   }
 }
 
@@ -147,7 +147,7 @@ export const storeUploadedImage = storeUploadedFile;
 
 async function bodyToBuffer(body: GetObjectCommandOutput["Body"]) {
   if (!body) {
-    throw new HttpError(404, "Stored upload body is empty");
+    throw new HttpError(404, "Nội dung tải lên được lưu trữ trống");
   }
 
   if ("transformToByteArray" in body && typeof body.transformToByteArray === "function") {
@@ -164,7 +164,7 @@ async function bodyToBuffer(body: GetObjectCommandOutput["Body"]) {
 export async function readStoredUpload(upload: UploadRecord) {
   if (upload.storageProvider === "s3") {
     if (!upload.s3Bucket || !upload.s3Key) {
-      throw new HttpError(500, "S3 upload metadata is incomplete");
+      throw new HttpError(500, "Metadata tải lên S3 không đầy đủ");
     }
 
     const object = await getS3Client().send(
@@ -177,7 +177,7 @@ export async function readStoredUpload(upload: UploadRecord) {
   }
 
   if (!upload.localPath) {
-    throw new HttpError(500, "Local upload path is missing");
+    throw new HttpError(500, "Đường dẫn tải lên cục bộ bị thiếu");
   }
 
   return fs.readFile(upload.localPath);

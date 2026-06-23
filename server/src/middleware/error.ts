@@ -11,7 +11,7 @@ export class HttpError extends Error {
 }
 
 export const notFoundHandler: RequestHandler = (req, _res, next) => {
-  next(new HttpError(404, `Route not found: ${req.method} ${req.originalUrl}`));
+  next(new HttpError(404, `Không tìm thấy tuyến đường: ${req.method} ${req.originalUrl}`));
 };
 
 function formatZodIssue(issue: ZodError["issues"][number]) {
@@ -65,6 +65,6 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
 
   const statusCode = error instanceof HttpError ? error.statusCode : 500;
   res.status(statusCode).json({
-    message: error instanceof Error ? error.message : "Unexpected server error"
+    message: error instanceof Error ? error.message : "Đã xảy ra lỗi máy chủ không mong muốn"
   });
 };

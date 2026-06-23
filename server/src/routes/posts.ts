@@ -347,8 +347,6 @@ postsRouter.post("/", requireAuth, async (req, res, next) => {
       body.nutritionSummary = undefined;
       body.nutritionDetails = [];
       body.mealId = undefined;
-      body.stickerId = undefined;
-      body.stickerPlacement = undefined;
     } else if (body.images.length < 1) {
       throw new HttpError(400, "At least one image is required");
     }

@@ -28,6 +28,7 @@ import { getPendingPickedImageUris, pickMultipleImages, pickSingleImage, pickSin
 import { stickerImageSource } from "../utils/stickers";
 import { resolveRecentPhotoUri } from "./createPostAssets";
 import { combineNutritionTotals, mealToNutritionDetail } from "./postNutrition";
+import { isStickerScaleMax, isStickerScaleMin, nextStickerRotation, nextStickerScale } from "./stickerPlacement";
 
 const MAX_IMAGES = 3;
 const DEFAULT_TRANSFORM: PostImageTransform = {
@@ -150,6 +151,8 @@ export function CreatePostScreen({ navigation, route }: any) {
   const [localGalleryImages, setLocalGalleryImages] = useState<string[]>([]);
   const nutritionTotal = useMemo(() => combineNutritionTotals(nutritionDetails), [nutritionDetails]);
   const isVideoDraft = mediaMode === "video" && Boolean(videoUri);
+  const isStickerAtMinScale = isStickerScaleMin(stickerPlacement.scale);
+  const isStickerAtMaxScale = isStickerScaleMax(stickerPlacement.scale);
 
   useEffect(() => {
     if (recentUris.length > 0 && localGalleryImages.length === 0) {
@@ -379,7 +382,6 @@ export function CreatePostScreen({ navigation, route }: any) {
     setImages([]);
     setTransforms([]);
     setNutritionDetails([]);
-    setSelectedSticker(undefined);
     setIncludeRecipe(false);
     setStep("edit");
   }
@@ -652,6 +654,8 @@ export function CreatePostScreen({ navigation, route }: any) {
           },
           caption,
           tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+          stickerId: isPremium ? selectedSticker : undefined,
+          stickerPlacement: isPremium && selectedSticker ? stickerPlacement : undefined,
           visibility
         });
         analytics.track("create_post_publish_succeeded", {
@@ -943,7 +947,7 @@ export function CreatePostScreen({ navigation, route }: any) {
           )}
 
           {/* Touch-drag sticker customization entry card */}
-          {isPremium && mediaMode !== "video" ? (
+          {isPremium ? (
             <Pressable style={styles.addStickerCard} onPress={() => setStep("sticker")}>
               <AppText style={styles.addStickerText}>
                 {selectedSticker ? `Nhãn dán: ${selectedStickerData?.name || "Đã chọn"}` : "Thêm nhãn dán"}
@@ -1126,22 +1130,24 @@ export function CreatePostScreen({ navigation, route }: any) {
           {/* Scale & rotation adjustment control bar */}
           <View style={styles.stickerControlRow}>
             <Pressable
-              style={styles.stickerControlBtn}
-              onPress={() => setStickerPlacement((curr) => ({ ...curr, scale: Math.max(0.5, curr.scale - 0.1) }))}
+              style={[styles.stickerControlBtn, isStickerAtMinScale && styles.stickerControlBtnDisabled]}
+              disabled={isStickerAtMinScale}
+              onPress={() => setStickerPlacement((curr) => ({ ...curr, scale: nextStickerScale(curr.scale, -0.1) }))}
             >
               <Ionicons name="remove" size={16} color={colors.ink} />
               <AppText variant="caption" style={{ fontFamily: fonts.bold }}>Thu nhỏ</AppText>
             </Pressable>
             <Pressable
-              style={styles.stickerControlBtn}
-              onPress={() => setStickerPlacement((curr) => ({ ...curr, scale: Math.min(2.5, curr.scale + 0.1) }))}
+              style={[styles.stickerControlBtn, isStickerAtMaxScale && styles.stickerControlBtnDisabled]}
+              disabled={isStickerAtMaxScale}
+              onPress={() => setStickerPlacement((curr) => ({ ...curr, scale: nextStickerScale(curr.scale, 0.1) }))}
             >
               <Ionicons name="add" size={16} color={colors.ink} />
               <AppText variant="caption" style={{ fontFamily: fonts.bold }}>Phóng to</AppText>
             </Pressable>
             <Pressable
               style={styles.stickerControlBtn}
-              onPress={() => setStickerPlacement((curr) => ({ ...curr, rotation: (curr.rotation + 15) % 360 }))}
+              onPress={() => setStickerPlacement((curr) => ({ ...curr, rotation: nextStickerRotation(curr.rotation, 15) }))}
             >
               <Ionicons name="refresh" size={16} color={colors.ink} />
               <AppText variant="caption" style={{ fontFamily: fonts.bold }}>Xoay</AppText>
@@ -1231,6 +1237,24 @@ function PostPreview({
         videoUri ? (
           <View style={styles.artworkCanvas}>
             <PostVideoPlayer uri={videoUri} active style={styles.artworkImage} />
+            {stickerSource ? (
+              <Image
+                source={stickerSource}
+                style={[
+                  styles.previewSticker,
+                  {
+                    left: `${stickerPlacement.x * 100}%`,
+                    top: `${stickerPlacement.y * 100}%`,
+                    transform: [
+                      { translateX: -28 },
+                      { translateY: -28 },
+                      { rotate: `${stickerPlacement.rotation}deg` },
+                      { scale: stickerPlacement.scale }
+                    ]
+                  }
+                ]}
+              />
+            ) : null}
             <Pressable style={styles.centerCameraBtn} onPress={onCameraPress} hitSlop={8}>
               <Ionicons name="videocam" size={24} color={colors.white} />
             </Pressable>
@@ -1920,6 +1944,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
     borderWidth: 1,
     borderColor: colors.line
+  },
+  stickerControlBtnDisabled: {
+    opacity: 0.45
   },
   stickerScroll: {
     marginHorizontal: -20,

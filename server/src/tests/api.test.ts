@@ -1209,6 +1209,7 @@ describe("Daily Meal API", () => {
   it("creates premium video posts and exposes video metadata across post feeds", async () => {
     const session = await register("video-post@example.com");
     await makePremium(session.user.id);
+    const sticker = await Sticker.findOne({ premiumOnly: true }).lean();
 
     const video = {
       url: "/uploads/meal-video.mp4",
@@ -1227,6 +1228,8 @@ describe("Daily Meal API", () => {
         caption: "Video món ngon",
         tags: ["video"],
         visibility: "public",
+        stickerId: sticker?._id.toString(),
+        stickerPlacement: { x: 0.2, y: 0.3, scale: 1.5, rotation: 15 },
         nutritionSummary: { calories: 999, protein: 99, carbs: 99, fat: 99, confidence: 1 },
         recipes: [{ imageIndex: 0, title: "Ignore", ingredients: ["x"], steps: ["y"] }]
       })
@@ -1236,7 +1239,12 @@ describe("Daily Meal API", () => {
       mediaType: "video",
       video,
       images: [],
-      nutritionDetails: []
+      nutritionDetails: [],
+      stickerPlacement: { x: 0.2, y: 0.3, scale: 1.5, rotation: 15 }
+    });
+    expect(response.body.post.stickerId).toMatchObject({
+      _id: sticker?._id.toString(),
+      premiumOnly: true
     });
     expect(response.body.post.nutritionSummary).toBeUndefined();
     expect(response.body.post.recipes).toEqual([]);
@@ -1247,20 +1255,22 @@ describe("Daily Meal API", () => {
       .expect(200);
     expect(feed.body.posts.find((post: any) => post._id === response.body.post._id)).toMatchObject({
       mediaType: "video",
-      video
+      video,
+      stickerPlacement: { x: 0.2, y: 0.3, scale: 1.5, rotation: 15 },
+      stickerId: { _id: sticker?._id.toString() }
     });
 
     const search = await request(app)
       .get("/api/posts/search?q=Video")
       .set("Authorization", `Bearer ${session.token}`)
       .expect(200);
-    expect(search.body.posts[0]).toMatchObject({ mediaType: "video", video });
+    expect(search.body.posts[0]).toMatchObject({ mediaType: "video", video, stickerId: { _id: sticker?._id.toString() } });
 
     const profile = await request(app)
       .get(`/api/users/${session.user.id}/posts`)
       .set("Authorization", `Bearer ${session.token}`)
       .expect(200);
-    expect(profile.body.posts[0]).toMatchObject({ mediaType: "video", video });
+    expect(profile.body.posts[0]).toMatchObject({ mediaType: "video", video, stickerId: { _id: sticker?._id.toString() } });
 
     Object.assign(env, { ADMIN_EMAIL: "video-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
     const admin = await request(app)
@@ -1298,6 +1308,31 @@ describe("Daily Meal API", () => {
         visibility: "public"
       })
       .expect(403);
+  });
+
+  it("rejects video posts with missing stickers", async () => {
+    const session = await register("video-post-missing-sticker@example.com");
+    await makePremium(session.user.id);
+
+    await request(app)
+      .post("/api/posts")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({
+        mediaType: "video",
+        video: {
+          url: "/uploads/missing-sticker-video.mp4",
+          uploadId: "665000000000000000000012",
+          mime: "video/mp4",
+          size: 1024,
+          durationMs: 10_000
+        },
+        caption: "Missing sticker video",
+        tags: [],
+        stickerId: "665000000000000000009999",
+        stickerPlacement: { x: 0.2, y: 0.3, scale: 1, rotation: 0 },
+        visibility: "public"
+      })
+      .expect(404);
   });
 
   it("deletes a post when requested by owner and rejects others", async () => {

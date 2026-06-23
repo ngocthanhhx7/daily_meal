@@ -1081,6 +1081,29 @@ function FeedArtwork({ post }: { post: Post }) {
             showBadge={false}
           />
         </View>
+        {stickerSource ? (
+          <Wiggle
+            style={[
+              styles.feedSticker,
+              {
+                left: `${placement.x * 100}%`,
+                top: `${placement.y * 100}%`,
+                transform: [
+                  { translateX: -25 },
+                  { translateY: -25 },
+                  { rotate: `${placement.rotation}deg` },
+                  { scale: placement.scale }
+                ]
+              }
+            ]}
+          >
+            <Image
+              source={stickerSource}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="contain"
+            />
+          </Wiggle>
+        ) : null}
       </View>
     );
   }

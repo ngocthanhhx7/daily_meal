@@ -983,6 +983,11 @@ function FeedAuthorChip({
           <Image source={STREAK_BADGE} style={streakImageStyle} resizeMode="contain" />
         </View>
       ) : null}
+      {showStreak ? (
+        <View style={streakCountWrapStyle} pointerEvents="none">
+          <AppText style={streakCountTextStyle}>{streakDays}</AppText>
+        </View>
+      ) : null}
       <Pressable
         style={[
           chipStyle,
@@ -1009,11 +1014,6 @@ function FeedAuthorChip({
           {post.author?.displayName ?? "Daily Meal"}
         </AppText>
       </Pressable>
-      {showStreak ? (
-        <View style={streakCountWrapStyle} pointerEvents="none">
-          <AppText style={streakCountTextStyle}>{streakDays}</AppText>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -1546,10 +1546,10 @@ const expandedStyles = StyleSheet.create({
   },
   authorStreakBadge: {
     position: "absolute",
-    left: -20,
-    top: -22,
-    width: 58,
-    height: 58,
+    left: -40,
+    top: -43,
+    width: 78,
+    height: 78,
     zIndex: 1,
     elevation: 1,
     alignItems: "center",
@@ -1561,25 +1561,26 @@ const expandedStyles = StyleSheet.create({
   },
   authorStreakCountWrap: {
     position: "absolute",
-    left: -20,
-    top: -22,
-    width: 58,
-    height: 58,
-    zIndex: 3,
-    elevation: 6,
+    left: -40,
+    top: -43,
+    width: 78,
+    height: 78,
+    zIndex: 1,
+    elevation: 1,
     alignItems: "center",
     justifyContent: "center"
   },
   authorStreakCountText: {
-    marginTop: 0,
-    marginLeft: 0,
+    marginTop: 20,
+    marginLeft: -2,
     color: colors.white,
     fontFamily: fonts.bold,
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 17,
+    lineHeight: 19,
     textShadowColor: "rgba(0,0,0,0.35)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+    textShadowRadius: 2,
+    transform: [{ rotate: "-30deg" }]
   },
   authorAvatar: {
     width: 36,
@@ -2039,10 +2040,10 @@ const styles = StyleSheet.create({
   },
   authorStreakBadge: {
     position: "absolute",
-    left: -22,
-    top: -22,
-    width: 60,
-    height: 60,
+    left: -42,
+    top: -45,
+    width: 82,
+    height: 82,
     zIndex: 1,
     elevation: 1,
     alignItems: "center",
@@ -2054,25 +2055,26 @@ const styles = StyleSheet.create({
   },
   authorStreakCountWrap: {
     position: "absolute",
-    left: -22,
-    top: -22,
-    width: 60,
-    height: 60,
-    zIndex: 3,
-    elevation: 6,
+    left: -42,
+    top: -45,
+    width: 82,
+    height: 82,
+    zIndex: 1,
+    elevation: 1,
     alignItems: "center",
     justifyContent: "center"
   },
   authorStreakCountText: {
-    marginTop: 0,
-    marginLeft: 0,
+    marginTop: 10,
+    marginLeft: 8,
     color: colors.white,
     fontFamily: fonts.bold,
-    fontSize: 13,
-    lineHeight: 15,
+    fontSize: 20,
+    lineHeight: 20,
     textShadowColor: "rgba(0,0,0,0.35)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+    textShadowRadius: 2,
+    transform: [{ rotate: "-30deg" }]
   },
   authorAvatar: {
     width: 38,

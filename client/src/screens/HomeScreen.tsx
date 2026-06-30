@@ -962,7 +962,8 @@ function FeedAuthorChip({
   onAuthorPress: () => void;
   expanded?: boolean;
 }) {
-  const showStreak = (post.author?.streakDays ?? 0) >= 3;
+  const streakDays = post.author?.streakDays ?? 0;
+  const showStreak = streakDays >= 3;
   const chipStyle = expanded ? expandedStyles.authorChip : styles.authorChip;
   const chipWithStreakStyle = expanded ? expandedStyles.authorChipWithStreak : styles.authorChipWithStreak;
   const avatarStyle = expanded ? expandedStyles.authorAvatar : styles.authorAvatar;
@@ -970,6 +971,8 @@ function FeedAuthorChip({
   const avatarTextStyle = expanded ? expandedStyles.authorInitial : styles.authorAvatarText;
   const nameStyle = expanded ? expandedStyles.authorName : styles.authorName;
   const streakBadgeStyle = expanded ? expandedStyles.authorStreakBadge : styles.authorStreakBadge;
+  const streakImageStyle = expanded ? expandedStyles.authorStreakImage : styles.authorStreakImage;
+  const streakCountStyle = expanded ? expandedStyles.authorStreakCount : styles.authorStreakCount;
 
   return (
     <Pressable
@@ -980,7 +983,12 @@ function FeedAuthorChip({
       ]}
       onPress={onAuthorPress}
     >
-      {showStreak ? <Image source={STREAK_BADGE} style={streakBadgeStyle} resizeMode="contain" /> : null}
+      {showStreak ? (
+        <View style={streakBadgeStyle} pointerEvents="none">
+          <Image source={STREAK_BADGE} style={streakImageStyle} resizeMode="contain" />
+          <AppText style={streakCountStyle}>{streakDays}</AppText>
+        </View>
+      ) : null}
       <View style={avatarStyle}>
         {post.author?.avatarUrl ? (
           <Image
@@ -1522,16 +1530,36 @@ const expandedStyles = StyleSheet.create({
     marginTop: 4
   },
   authorChipWithStreak: {
-    marginLeft: 18
+    marginLeft: 28
   },
   authorStreakBadge: {
     position: "absolute",
-    left: -22,
+    left: -30,
     top: -18,
-    width: 44,
-    height: 44,
-    zIndex: 3,
-    elevation: 8
+    width: 50,
+    height: 50,
+    zIndex: -1,
+    elevation: 0,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  authorStreakImage: {
+    width: "100%",
+    height: "100%"
+  },
+  authorStreakCount: {
+    position: "absolute",
+    right: 8,
+    bottom: 6,
+    minWidth: 16,
+    textAlign: "center",
+    color: colors.white,
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    lineHeight: 14,
+    textShadowColor: "rgba(0,0,0,0.35)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2
   },
   authorAvatar: {
     width: 36,
@@ -1982,16 +2010,36 @@ const styles = StyleSheet.create({
     elevation: 4
   },
   authorChipWithStreak: {
-    marginLeft: 20
+    marginLeft: 30
   },
   authorStreakBadge: {
     position: "absolute",
-    left: -24,
+    left: -32,
     top: -20,
-    width: 48,
-    height: 48,
-    zIndex: 3,
-    elevation: 8
+    width: 54,
+    height: 54,
+    zIndex: -1,
+    elevation: 0,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  authorStreakImage: {
+    width: "100%",
+    height: "100%"
+  },
+  authorStreakCount: {
+    position: "absolute",
+    right: 9,
+    bottom: 7,
+    minWidth: 17,
+    textAlign: "center",
+    color: colors.white,
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    lineHeight: 15,
+    textShadowColor: "rgba(0,0,0,0.35)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2
   },
   authorAvatar: {
     width: 38,

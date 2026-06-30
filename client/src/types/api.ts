@@ -235,9 +235,17 @@ export type AdminDailyPoint = {
   apiErrors: number;
 };
 
+export type AdminRangePreset = "1d" | "7d" | "30d" | "all";
+
+export type AdminPostMediaKind = "single_image" | "multi_image" | "video" | "all";
+
+export type AdminPostSortBy = "createdAt" | "interactions";
+
+export type AdminSortOrder = "asc" | "desc";
+
 export type AdminAnalyticsSummary = {
   range: { start: string; end: string };
-  rangePreset: "1d" | "7d" | "all";
+  rangePreset: AdminRangePreset;
   activeUsers: { dau: number; wau: number; mau: number; returning: number };
   sessions: {
     total: number;
@@ -360,7 +368,7 @@ export type AdminReport = {
   report: AdminAiReportBody;
   generatedAt: string;
   range: { start: string; end: string };
-  rangePreset: "1d" | "7d" | "all";
+  rangePreset: AdminRangePreset;
 };
 
 export type AdminPagination = {
@@ -372,7 +380,11 @@ export type AdminPagination = {
 
 export type AdminDashboard = {
   range: { start: string; end: string };
-  rangePreset: "1d" | "7d" | "all";
+  rangePreset: AdminRangePreset;
+  timeFilter?: {
+    startTime?: string;
+    endTime?: string;
+  };
   totalsAllTime: {
     users: number;
     posts: number;
@@ -423,6 +435,75 @@ export type AdminDashboard = {
     payments: AdminPayment[];
     audit: Array<{ id: string; adminEmail: string; action: string; targetType: string; targetId: string; note?: string; createdAt?: string }>;
   };
+};
+
+export type AdminUserInsights = {
+  range: { start: string; end: string };
+  rangePreset: AdminRangePreset;
+  timeFilter?: {
+    startTime?: string;
+    endTime?: string;
+  };
+  summary: {
+    totalSessions: number;
+    totalDurationMs?: number;
+    averageSessionDurationMs: number;
+    activeUsers: number;
+    returningUsers: number;
+  };
+  dailyUsage: Array<{
+    date: string;
+    sessions: number;
+    activeUsers: number;
+    totalDurationMs: number;
+    averageSessionDurationMs: number;
+  }>;
+  hourlyActivity: Array<{
+    hour: number;
+    label: string;
+    sessions: number;
+    activeUsers: number;
+    totalDurationMs: number;
+    averageSessionDurationMs: number;
+  }>;
+  peakActivityWindow?: {
+    hour: number;
+    label: string;
+    sessions: number;
+    activeUsers: number;
+    totalDurationMs: number;
+    averageSessionDurationMs: number;
+  };
+  topUsers: Array<{
+    id: string;
+    displayName: string;
+    email?: string;
+    phone?: string;
+    avatarUrl?: string;
+    isPremium: boolean;
+    sessions: number;
+    totalDurationMs: number;
+    averageSessionDurationMs: number;
+    posts: number;
+    interactions: number;
+    score: number;
+    returning: boolean;
+  }>;
+};
+
+export type AdminPostInsights = {
+  range: { start?: string; end?: string };
+  filters: { mediaKind: AdminPostMediaKind };
+  summary: {
+    totalPosts: number;
+    totalInteractions: number;
+  };
+  mediaBreakdown: Array<{
+    key: AdminPostMediaKind;
+    count: number;
+    interactions: number;
+  }>;
+  topPosts: AdminPostSummary[];
 };
 
 export type AdminUserSummary = {

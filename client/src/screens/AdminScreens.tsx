@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, useWindowDimensions, View, ScrollView, Image } from "react-native";
+import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, useWindowDimensions, View, ScrollView, Image } from "react-native";
 import { api } from "../api/client";
 import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
@@ -13,13 +13,18 @@ import type {
   AdminDashboard,
   AdminAiReportMetric,
   AdminAiReportSection,
+  AdminPostInsights,
+  AdminPostMediaKind,
+  AdminPostSortBy,
   AdminPayment,
   AdminPagination,
   AdminPostSummary,
+  AdminRangePreset,
   PostImage,
   AdminReport,
   AdminReportItem,
   AdminUserDetail,
+  AdminUserInsights,
   AdminUserSummary
 } from "../types/api";
 import {
@@ -41,9 +46,10 @@ import {
 } from "../components/AdminIcons";
 
 type AdminTab = "overview" | "analytics" | "posts" | "reports" | "payments" | "ai";
-type AdminRange = "1d" | "7d" | "all";
+type AdminRange = AdminRangePreset;
 
 const USER_PAGE_SIZE = 50;
+const POST_PAGE_SIZE = 20;
 
 const tabs: Array<{ key: AdminTab; label: string }> = [
   { key: "overview", label: "Tổng quan" },
@@ -66,6 +72,7 @@ const tabIcons: Record<AdminTab, React.ComponentType<{ size?: number; color?: st
 const rangeOptions: Array<{ key: AdminRange; label: string }> = [
   { key: "1d", label: "1 ngày" },
   { key: "7d", label: "7 ngày" },
+  { key: "30d", label: "30 ngày" },
   { key: "all", label: "Tất cả" }
 ];
 
@@ -78,6 +85,8 @@ const metricVectorIcons: Record<string, React.ComponentType<{ size?: number; col
   "AI meal trong khoảng": BagIcon,
   "DAU / WAU / MAU": KPIIcon,
   "Phiên trung bình": ClockIcon,
+  "Tổng thời gian dùng": ClockIcon,
+  "Khung giờ cao điểm": ClockIcon,
   "Tỷ lệ bấm bảng tin": CompassIcon,
   "Phản hồi API": CompassIcon,
   "Tải ảnh": PostsIcon,
@@ -88,8 +97,102 @@ const metricVectorIcons: Record<string, React.ComponentType<{ size?: number; col
   "Thanh toán premium": PaymentsIcon
 };
 
-function rangeParams(range: AdminRange) {
+type AdminRangeParams = { range?: AdminRange; start?: string; end?: string; startTime?: string; endTime?: string };
+
+function isoStartOfDate(value: string) {
+  if (!value.trim()) return undefined;
+  const date = new Date(`${value.trim()}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function isoEndOfDate(value: string) {
+  if (!value.trim()) return undefined;
+  const date = new Date(`${value.trim()}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return undefined;
+  date.setDate(date.getDate() + 1);
+  return date.toISOString();
+}
+
+function rangeParams(range: AdminRange, startDate?: string, endDate?: string): AdminRangeParams {
+  const start = startDate ? isoStartOfDate(startDate) : undefined;
+  const end = endDate ? isoEndOfDate(endDate) : undefined;
+  if (start || end) {
+    return { range, start, end };
+  }
   return { range };
+}
+
+function formatDuration(ms?: number) {
+  const seconds = Math.round((ms ?? 0) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest ? `${minutes}m ${rest}s` : `${minutes}m`;
+}
+
+function formatHourLabel(hour?: number) {
+  if (typeof hour !== "number" || !Number.isFinite(hour)) return "--:00";
+  return `${String(hour).padStart(2, "0")}:00-${String((hour + 1) % 24).padStart(2, "0")}:00`;
+}
+
+function useWebGsapStagger(deps: React.DependencyList) {
+  const rootRef = useRef<View | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return undefined;
+    let cancelled = false;
+    let context: { revert: () => void } | undefined;
+
+    import("gsap").then(({ gsap }) => {
+      if (cancelled || !rootRef.current) return;
+      const root = rootRef.current as unknown as HTMLElement;
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      const targets = Array.from(root.querySelectorAll?.('[data-testid="admin-animate-card"], [data-testid="admin-animate-row"]') ?? []);
+      const chartBars = Array.from(root.querySelectorAll?.('[data-testid="admin-chart-bar-fill"]') ?? []);
+      if (!targets.length && !chartBars.length) return;
+
+      context = gsap.context(() => {
+        if (reduceMotion) {
+          if (targets.length) {
+            gsap.set(targets, { autoAlpha: 1, y: 0, scale: 1 });
+          }
+          if (chartBars.length) {
+            gsap.set(chartBars, { scaleY: 1 });
+          }
+          return;
+        }
+        if (targets.length) {
+          gsap.fromTo(
+            targets,
+            { autoAlpha: 0, y: 12, scale: 0.985 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              scale: 1,
+              duration: 0.38,
+              ease: "power2.out",
+              stagger: 0.035,
+              clearProps: "transform,opacity,visibility"
+            }
+          );
+        }
+        if (chartBars.length) {
+          gsap.fromTo(
+            chartBars,
+            { scaleY: 0, transformOrigin: "bottom center" },
+            { scaleY: 1, duration: 0.5, ease: "power3.out", stagger: 0.025, delay: 0.05, clearProps: "transform" }
+          );
+        }
+      }, root);
+    });
+
+    return () => {
+      cancelled = true;
+      context?.revert();
+    };
+  }, deps);
+
+  return rootRef;
 }
 
 function formatDate(value?: string) {
@@ -136,6 +239,10 @@ function statusLabel(value?: string) {
     public: "Công khai",
     friends: "Bạn bè",
     private: "Riêng tư",
+    single_image: "1 hình",
+    multi_image: "Nhiều hình",
+    video: "Video",
+    all: "Tất cả",
     report: "Báo cáo",
     restrict: "Hạn chế",
     block: "Chặn"
@@ -157,7 +264,7 @@ function adminMediaSource(image?: PostImage) {
 }
 
 function Card({ children, style }: { children: React.ReactNode; style?: object }) {
-  return <View style={[styles.card, style]}>{children}</View>;
+  return <View testID="admin-animate-card" style={[styles.card, style]}>{children}</View>;
 }
 
 function AdminPostPreview({ post, isDesktop }: { post: AdminPostSummary; isDesktop: boolean }) {
@@ -206,7 +313,7 @@ function adminPostMediaLabel(post: AdminPostSummary) {
 function MetricCard({ label, value, note, isDesktop }: { label: string; value: string | number; note?: string; isDesktop?: boolean }) {
   const Icon = metricVectorIcons[label] || KPIIcon;
   return (
-    <Card style={[styles.metricCard, { width: isDesktop ? "31%" : "47%" }]}>
+    <Card style={[styles.metricCard, isDesktop ? styles.metricCardDesktop : styles.metricCardMobile]}>
       <View style={styles.metricHeader}>
         <AppText variant="caption" muted style={styles.metricLabel}>
           {label}
@@ -290,6 +397,204 @@ function RangeSelector({ value, onChange }: { value: AdminRange; onChange: (rang
   );
 }
 
+const webDateInputStyle = {
+  width: "100%",
+  height: 42,
+  border: "0",
+  outline: "none",
+  background: "transparent",
+  color: colors.ink,
+  fontFamily: fonts.regular,
+  fontSize: 14
+};
+
+function DatePickerField({
+  label,
+  value,
+  onChange
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  if (Platform.OS === "web") {
+    return (
+      <View style={styles.datePickerField}>
+        <AppText variant="caption" muted style={styles.datePickerLabel}>
+          {label}
+        </AppText>
+        <View style={styles.webDateInputShell}>
+          {React.createElement("input", {
+            type: "date",
+            value,
+            name: label,
+            onChange: (event: any) => onChange(event.currentTarget.value),
+            style: webDateInputStyle,
+            "aria-label": label
+          } as any)}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.datePickerField}>
+      <TextField label={label} value={value} onChangeText={onChange} placeholder="Chọn ngày" />
+    </View>
+  );
+}
+
+function TimePickerField({
+  label,
+  value,
+  onChange
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const handleChange = (event: any) => onChange(event.currentTarget.value);
+
+  if (Platform.OS === "web") {
+    return (
+      <View style={styles.datePickerField}>
+        <AppText variant="caption" muted style={styles.datePickerLabel}>
+          {label}
+        </AppText>
+        <View style={styles.webDateInputShell}>
+          {React.createElement("input", {
+            type: "time",
+            value,
+            name: label,
+            onChange: handleChange,
+            onInput: handleChange,
+            style: webDateInputStyle,
+            "aria-label": label
+          } as any)}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.datePickerField}>
+      <TextField label={label} value={value} onChangeText={onChange} placeholder="HH:mm" />
+    </View>
+  );
+}
+
+function DateRangeControls({
+  range,
+  onRangeChange,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
+  compact
+}: {
+  range: AdminRange;
+  onRangeChange: (range: AdminRange) => void;
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (value: string) => void;
+  onEndDateChange: (value: string) => void;
+  compact?: boolean;
+}) {
+  const hasCustomDate = Boolean(startDate || endDate);
+
+  return (
+    <View style={[styles.dateFilterPanel, compact && styles.dateFilterPanelCompact]}>
+      <RangeSelector value={range} onChange={onRangeChange} />
+      <View style={[styles.customDateRow, compact && styles.customDateRowCompact]}>
+        <DatePickerField label="Từ ngày" value={startDate} onChange={onStartDateChange} />
+        <DatePickerField label="Đến ngày" value={endDate} onChange={onEndDateChange} />
+      </View>
+      {hasCustomDate ? (
+        <Pressable
+          onPress={() => {
+            onStartDateChange("");
+            onEndDateChange("");
+          }}
+          style={({ pressed }) => [styles.clearDateButton, pressed && styles.pressed]}
+        >
+          <AppText variant="caption" style={styles.clearDateText}>
+            Xóa ngày
+          </AppText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function TimeRangeControls({
+  startTime,
+  endTime,
+  onStartTimeChange,
+  onEndTimeChange,
+  compact
+}: {
+  startTime: string;
+  endTime: string;
+  onStartTimeChange: (value: string) => void;
+  onEndTimeChange: (value: string) => void;
+  compact?: boolean;
+}) {
+  const hasTime = Boolean(startTime || endTime);
+
+  return (
+    <View style={[styles.timeFilterPanel, compact && styles.dateFilterPanelCompact]}>
+      <View style={styles.timeFilterHeader}>
+        <ClockIcon size={15} color={colors.greenDark} />
+        <AppText variant="caption" muted style={styles.filterGroupLabel}>
+          Khung giờ trong ngày
+        </AppText>
+      </View>
+      <View style={[styles.customDateRow, compact && styles.customDateRowCompact]}>
+        <TimePickerField label="Từ giờ" value={startTime} onChange={onStartTimeChange} />
+        <TimePickerField label="Đến giờ" value={endTime} onChange={onEndTimeChange} />
+      </View>
+      {hasTime ? (
+        <Pressable
+          onPress={() => {
+            onStartTimeChange("");
+            onEndTimeChange("");
+          }}
+          style={({ pressed }) => [styles.clearDateButton, pressed && styles.pressed]}
+        >
+          <AppText variant="caption" style={styles.clearDateText}>
+            Xóa giờ
+          </AppText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function SmallFilterButton({
+  label,
+  detail,
+  active,
+  onPress
+}: {
+  label: string;
+  detail?: string | number;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.filterChip, active && styles.filterChipActive, pressed && styles.pressed]}>
+      <AppText variant="caption" style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+        {label}
+      </AppText>
+      {detail !== undefined ? (
+        <AppText variant="caption" style={[styles.filterChipDetail, active && styles.filterChipTextActive]}>
+          {detail}
+        </AppText>
+      ) : null}
+    </Pressable>
+  );
+}
+
 function AdminTabs({ activeTab, onChange }: { activeTab: AdminTab; onChange: (tab: AdminTab) => void }) {
   return (
     <View style={styles.tabs}>
@@ -370,36 +675,48 @@ function DetailedChart({
         </View>
       </View>
 
-      <View style={styles.chartBody}>
-        <View style={styles.chartGrid}>
-          {[0.25, 0.5, 0.75, 1].map((ratio) => (
-            <View key={ratio} style={[styles.chartGridLine, { bottom: `${ratio * 100}%` }]}>
-              <AppText variant="caption" style={styles.chartGridLabel} muted>
-                {formatVal(max * ratio)}
-              </AppText>
-            </View>
-          ))}
-        </View>
-        <View style={styles.barChart}>
-          {compactData.map((item) => {
-            const value = Number(item[field] ?? 0);
-            const heightPercent = (value / max) * 100;
-            return (
-              <View key={`${field}-${item.date}`} style={styles.barColumn}>
-                <AppText variant="caption" style={styles.chartBarValue} numberOfLines={1}>
-                  {value > 0 ? formatVal(value) : ""}
-                </AppText>
-                <View style={styles.barTrack}>
-                  <View style={[styles.barFill, { height: `${Math.max(4, heightPercent)}%`, backgroundColor: color }]} />
-                </View>
-                <AppText variant="caption" style={styles.chartDateLabel} muted numberOfLines={1}>
-                  {item.date.slice(5)}
+      {total > 0 ? (
+        <View style={styles.chartBody}>
+          <View style={styles.chartGrid}>
+            {[0.5, 1].map((ratio) => (
+              <View key={ratio} style={[styles.chartGridLine, { bottom: `${ratio * 100}%` }]}>
+                <AppText variant="caption" style={styles.chartGridLabel} muted>
+                  {formatVal(max * ratio)}
                 </AppText>
               </View>
-            );
-          })}
+            ))}
+          </View>
+          <View style={styles.barChart}>
+            {compactData.map((item) => {
+              const value = Number(item[field] ?? 0);
+              const heightPercent = (value / max) * 100;
+              return (
+                <View key={`${field}-${item.date}`} style={styles.barColumn}>
+                  <AppText variant="caption" style={styles.chartBarValue} numberOfLines={1}>
+                    {value > 0 ? formatVal(value) : ""}
+                  </AppText>
+                  <View style={styles.barTrack}>
+                    {value > 0 ? (
+                      <View
+                        testID="admin-chart-bar-fill"
+                        style={[styles.barFill, { height: `${Math.max(5, heightPercent)}%`, backgroundColor: color }]}
+                      />
+                    ) : null}
+                  </View>
+                  <AppText variant="caption" style={styles.chartDateLabel} muted numberOfLines={1}>
+                    {item.date.slice(5)}
+                  </AppText>
+                </View>
+              );
+            })}
+          </View>
         </View>
-      </View>
+      ) : (
+        <View style={styles.chartEmptyState}>
+          <AppText variant="button" style={styles.chartEmptyTitle}>Chưa có dữ liệu trong khoảng này</AppText>
+          <AppText variant="caption" muted>Đổi bộ lọc thời gian để xem xu hướng.</AppText>
+        </View>
+      )}
     </Card>
   );
 }
@@ -842,7 +1159,14 @@ export function AdminDashboardScreen({ route, navigation }: any) {
   const { width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [range, setRange] = useState<AdminRange>("7d");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [dashboardStartTime, setDashboardStartTime] = useState("");
+  const [dashboardEndTime, setDashboardEndTime] = useState("");
+  const [postMediaKind, setPostMediaKind] = useState<AdminPostMediaKind>("all");
+  const [postSortBy, setPostSortBy] = useState<AdminPostSortBy>("createdAt");
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
+  const [postInsights, setPostInsights] = useState<AdminPostInsights | null>(null);
   const [posts, setPosts] = useState<AdminPostSummary[]>([]);
   const [reports, setReports] = useState<AdminReportItem[]>([]);
   const [payments, setPayments] = useState<AdminPayment[]>([]);
@@ -856,39 +1180,68 @@ export function AdminDashboardScreen({ route, navigation }: any) {
 
   const isDesktop = width >= 992;
   const compactHeader = width < 760;
+  const dashboardAnimationRef = useWebGsapStagger([
+    activeTab,
+    range,
+    customStartDate,
+    customEndDate,
+    dashboardStartTime,
+    dashboardEndTime,
+    posts.length,
+    postInsights?.summary.totalPosts ?? 0
+  ]);
+  const dashboardRangeParams = useMemo(
+    () => ({
+      ...rangeParams(range, customStartDate, customEndDate),
+      startTime: dashboardStartTime || undefined,
+      endTime: dashboardEndTime || undefined
+    }),
+    [range, customStartDate, customEndDate, dashboardStartTime, dashboardEndTime]
+  );
+  const postQueryParams = useMemo(
+    () => ({
+      ...dashboardRangeParams,
+      mediaKind: postMediaKind,
+      sortBy: postSortBy,
+      sortOrder: "desc" as const
+    }),
+    [dashboardRangeParams, postMediaKind, postSortBy]
+  );
 
   const loadDashboard = useCallback(async () => {
     if (!adminToken) return;
     setError(null);
     setLoading(true);
     try {
-      const [dashboardResult, postsResult, reportsResult, paymentsResult] = await Promise.all([
-        api.adminDashboard(adminToken, rangeParams(range)),
-        api.adminPosts(adminToken, { limit: 20 }),
+      const [dashboardResult, postsResult, reportsResult, paymentsResult, postInsightsResult] = await Promise.all([
+        api.adminDashboard(adminToken, dashboardRangeParams),
+        api.adminPosts(adminToken, { ...postQueryParams, limit: POST_PAGE_SIZE }),
         api.adminReports(adminToken, { status: "open", limit: 20 }),
-        api.adminPayments(adminToken, { limit: 20 })
+        api.adminPayments(adminToken, { limit: 20 }),
+        api.adminPostInsights(adminToken, postQueryParams)
       ]);
       setDashboard(dashboardResult);
       setPosts(postsResult.posts);
       setPostsPagination(postsResult.pagination);
       setReports(reportsResult.reports);
       setPayments(paymentsResult.payments);
+      setPostInsights(postInsightsResult);
     } catch (err: any) {
       setError(err?.message ?? "Không tải được dashboard admin");
     } finally {
       setLoading(false);
     }
-  }, [adminToken, range]);
+  }, [adminToken, dashboardRangeParams, postQueryParams]);
 
   const loadMorePosts = useCallback(async () => {
     if (!adminToken || !postsPagination || loadingMorePosts || posts.length >= postsPagination.total || postsPagination.page >= postsPagination.pages) {
       return;
     }
 
-    setLoadingMorePosts(true);
+      setLoadingMorePosts(true);
     try {
       const nextPage = postsPagination.page + 1;
-      const result = await api.adminPosts(adminToken, { limit: postsPagination.limit, page: nextPage });
+      const result = await api.adminPosts(adminToken, { ...postQueryParams, limit: postsPagination.limit, page: nextPage });
       setPosts((current) => [...current, ...result.posts]);
       setPostsPagination(result.pagination);
     } catch (err: any) {
@@ -896,7 +1249,7 @@ export function AdminDashboardScreen({ route, navigation }: any) {
     } finally {
       setLoadingMorePosts(false);
     }
-  }, [adminToken, loadingMorePosts, posts.length, postsPagination]);
+  }, [adminToken, loadingMorePosts, postQueryParams, posts.length, postsPagination]);
 
   useEffect(() => {
     if (route?.params?.tab) {
@@ -932,8 +1285,12 @@ export function AdminDashboardScreen({ route, navigation }: any) {
       });
       setPosts((current) => current.map((item) => (item.id === post.id ? result.post : item)));
       if (dashboard) {
-        const refreshedDashboard = await api.adminDashboard(adminToken, rangeParams(range));
+        const [refreshedDashboard, refreshedPostInsights] = await Promise.all([
+          api.adminDashboard(adminToken, dashboardRangeParams),
+          api.adminPostInsights(adminToken, postQueryParams)
+        ]);
         setDashboard(refreshedDashboard);
+        setPostInsights(refreshedPostInsights);
       }
     } catch (err: any) {
       setActionError(err?.message ?? "Không cập nhật được trạng thái bài đăng.");
@@ -965,7 +1322,7 @@ export function AdminDashboardScreen({ route, navigation }: any) {
     setBusyAction("ai-report");
     setActionError(null);
     try {
-      const result = await api.adminAiReport(adminToken, rangeParams(range));
+      const result = await api.adminAiReport(adminToken, dashboardRangeParams);
       setGeneratedReport(result);
     } catch (err: any) {
       setActionError(err?.message ?? "Không tạo được báo cáo AI");
@@ -995,6 +1352,12 @@ export function AdminDashboardScreen({ route, navigation }: any) {
   );
   const loadedPostCount = posts.length;
   const totalPostCount = postsPagination?.total ?? posts.length;
+  const showDashboardTimeControls = activeTab === "overview" || activeTab === "analytics";
+  const postMediaBreakdown = useMemo(() => {
+    const counts = new Map<AdminPostMediaKind, number>();
+    postInsights?.mediaBreakdown.forEach((item) => counts.set(item.key, item.count));
+    return counts;
+  }, [postInsights]);
 
   if (loading && !dashboard) {
     return (
@@ -1079,6 +1442,55 @@ export function AdminDashboardScreen({ route, navigation }: any) {
       {activeTab === "posts" && (
         <View style={{ gap: 14 }}>
           <SectionHeader title="Quản lý bài đăng" subtitle="Kiểm duyệt mềm: ẩn, đưa vào review hoặc khôi phục." />
+          <Card style={styles.filterPanelCard}>
+            <View style={styles.filterPanelHeader}>
+              <View style={styles.flex}>
+                <AppText variant="subtitle" style={styles.filterPanelTitle}>Bộ lọc bài đăng</AppText>
+                <AppText muted variant="caption">Chọn khoảng ngày, loại media và cách sắp xếp danh sách.</AppText>
+              </View>
+            </View>
+            <DateRangeControls
+              range={range}
+              onRangeChange={setRange}
+              startDate={customStartDate}
+              endDate={customEndDate}
+              onStartDateChange={setCustomStartDate}
+              onEndDateChange={setCustomEndDate}
+              compact={compactHeader}
+            />
+            <View style={isDesktop ? styles.filterPanelGrid : styles.filterPanelStack}>
+              <View style={styles.filterGroup}>
+                <AppText variant="caption" muted style={styles.filterGroupLabel}>Loại bài</AppText>
+                <View style={styles.filterChipRow}>
+                  <SmallFilterButton label="Tất cả" detail={postInsights ? formatNumber(postInsights.summary.totalPosts) : undefined} active={postMediaKind === "all"} onPress={() => setPostMediaKind("all")} />
+                  <SmallFilterButton label="1 hình" detail={postMediaBreakdown.get("single_image")} active={postMediaKind === "single_image"} onPress={() => setPostMediaKind("single_image")} />
+                  <SmallFilterButton label="Nhiều hình" detail={postMediaBreakdown.get("multi_image")} active={postMediaKind === "multi_image"} onPress={() => setPostMediaKind("multi_image")} />
+                  <SmallFilterButton label="Video" detail={postMediaBreakdown.get("video")} active={postMediaKind === "video"} onPress={() => setPostMediaKind("video")} />
+                </View>
+              </View>
+              <View style={styles.filterGroup}>
+                <AppText variant="caption" muted style={styles.filterGroupLabel}>Hiển thị</AppText>
+                <View style={styles.filterChipRow}>
+                  <SmallFilterButton label="Mới nhất" active={postSortBy === "createdAt"} onPress={() => setPostSortBy("createdAt")} />
+                  <SmallFilterButton label="Nổi bật" detail="tương tác cao" active={postSortBy === "interactions"} onPress={() => setPostSortBy("interactions")} />
+                </View>
+              </View>
+            </View>
+          </Card>
+          {postInsights ? (
+            <>
+              <View style={isDesktop ? styles.desktopGrid3 : styles.grid}>
+                <MetricCard label="Bài đăng trong khoảng" value={postInsights.summary.totalPosts} note="Theo bộ lọc hiện tại" isDesktop={isDesktop} />
+                <MetricCard label="Tương tác trong khoảng" value={postInsights.summary.totalInteractions} note="Like + bình luận + lưu" isDesktop={isDesktop} />
+                <MetricCard
+                  label="Bài nhiều tương tác nhất"
+                  value={postInsights.topPosts[0] ? formatNumber((postInsights.topPosts[0].stats.likes ?? 0) + (postInsights.topPosts[0].stats.comments ?? 0) + (postInsights.topPosts[0].stats.saves ?? 0)) : 0}
+                  note={postInsights.topPosts[0]?.caption || "Chưa có dữ liệu"}
+                  isDesktop={isDesktop}
+                />
+              </View>
+            </>
+          ) : null}
           {posts.length ? (
             <>
               {posts.map((post) => (
@@ -1232,12 +1644,35 @@ export function AdminDashboardScreen({ route, navigation }: any) {
                 <AppText muted variant="caption">Hệ thống giám sát và vận hành Daily Meal</AppText>
               </View>
               <View style={styles.desktopTopActions}>
-                <RangeSelector value={range} onChange={setRange} />
+                {activeTab !== "posts" ? (
+                  <>
+                    <DateRangeControls
+                      range={range}
+                      onRangeChange={setRange}
+                      startDate={customStartDate}
+                      endDate={customEndDate}
+                      onStartDateChange={setCustomStartDate}
+                      onEndDateChange={setCustomEndDate}
+                      compact={compactHeader}
+                    />
+                    {showDashboardTimeControls ? (
+                      <TimeRangeControls
+                        startTime={dashboardStartTime}
+                        endTime={dashboardEndTime}
+                        onStartTimeChange={setDashboardStartTime}
+                        onEndTimeChange={setDashboardEndTime}
+                        compact={compactHeader}
+                      />
+                    ) : null}
+                  </>
+                ) : null}
               </View>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.workspaceContent}>
               <ErrorText message={error || actionError} />
-              {dashboardContent}
+              <View ref={dashboardAnimationRef}>
+                {dashboardContent}
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -1261,10 +1696,33 @@ export function AdminDashboardScreen({ route, navigation }: any) {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mobileScrollContent}>
-          <RangeSelector value={range} onChange={setRange} />
+          {activeTab !== "posts" ? (
+            <>
+              <DateRangeControls
+                range={range}
+                onRangeChange={setRange}
+                startDate={customStartDate}
+                endDate={customEndDate}
+                onStartDateChange={setCustomStartDate}
+                onEndDateChange={setCustomEndDate}
+                compact
+              />
+              {showDashboardTimeControls ? (
+                <TimeRangeControls
+                  startTime={dashboardStartTime}
+                  endTime={dashboardEndTime}
+                  onStartTimeChange={setDashboardStartTime}
+                  onEndTimeChange={setDashboardEndTime}
+                  compact
+                />
+              ) : null}
+            </>
+          ) : null}
           <ErrorText message={error || actionError} />
           <AdminTabs activeTab={activeTab} onChange={setActiveTab} />
-          {dashboardContent}
+          <View ref={dashboardAnimationRef}>
+            {dashboardContent}
+          </View>
         </ScrollView>
       </View>
     </AppScreen>
@@ -1275,6 +1733,12 @@ export function AdminUsersScreen({ navigation }: any) {
   const { adminToken, signOut } = useAuth();
   const { width } = useWindowDimensions();
   const [query, setQuery] = useState("");
+  const [insightRange, setInsightRange] = useState<AdminRange>("7d");
+  const [insightStartDate, setInsightStartDate] = useState("");
+  const [insightEndDate, setInsightEndDate] = useState("");
+  const [insightStartTime, setInsightStartTime] = useState("");
+  const [insightEndTime, setInsightEndTime] = useState("");
+  const [userInsights, setUserInsights] = useState<AdminUserInsights | null>(null);
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [pagination, setPagination] = useState<AdminPagination | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1286,6 +1750,23 @@ export function AdminUsersScreen({ navigation }: any) {
 
   const isDesktop = width >= 992;
   const compactHeader = width < 760;
+  const usersAnimationRef = useWebGsapStagger([
+    users.length,
+    userInsights?.summary.totalSessions ?? 0,
+    insightRange,
+    insightStartDate,
+    insightEndDate,
+    insightStartTime,
+    insightEndTime
+  ]);
+  const userInsightParams = useMemo(
+    () => ({
+      ...rangeParams(insightRange, insightStartDate, insightEndDate),
+      startTime: insightStartTime || undefined,
+      endTime: insightEndTime || undefined
+    }),
+    [insightRange, insightStartDate, insightEndDate, insightStartTime, insightEndTime]
+  );
 
   const numColumns = isDesktop && width >= 1150 ? 2 : 1;
 
@@ -1318,9 +1799,23 @@ export function AdminUsersScreen({ navigation }: any) {
     [adminToken, query]
   );
 
+  const loadUserInsights = useCallback(async () => {
+    if (!adminToken) return;
+    try {
+      const result = await api.adminUserInsights(adminToken, userInsightParams);
+      setUserInsights(result);
+    } catch (err: any) {
+      setError(err?.message ?? "Không tải được báo cáo người dùng");
+    }
+  }, [adminToken, userInsightParams]);
+
   useEffect(() => {
     loadUsers({ page: 1, append: false });
   }, [loadUsers]);
+
+  useEffect(() => {
+    loadUserInsights();
+  }, [loadUserInsights]);
 
   async function loadMore() {
     if (!pagination || pagination.page >= pagination.pages) return;
@@ -1379,8 +1874,119 @@ export function AdminUsersScreen({ navigation }: any) {
     }
   }
 
+  const latestDailyUsage = userInsights?.dailyUsage.slice(-7) ?? [];
+  const activeHours = userInsights?.hourlyActivity
+    .filter((item) => item.sessions > 0)
+    .sort((a, b) => b.sessions - a.sessions || b.totalDurationMs - a.totalDurationMs)
+    .slice(0, 5) ?? [];
+  const peakActivity = userInsights?.peakActivityWindow;
+
   const headerControls = (
     <View style={styles.usersHeaderControls}>
+      <Card style={styles.filterPanelCard}>
+        <View style={styles.filterPanelHeader}>
+          <View style={styles.flex}>
+            <AppText variant="subtitle" style={styles.filterPanelTitle}>Báo cáo người dùng</AppText>
+            <AppText muted variant="caption">Theo dõi thời lượng phiên và user hoạt động tiêu biểu.</AppText>
+          </View>
+        </View>
+        <DateRangeControls
+          range={insightRange}
+          onRangeChange={setInsightRange}
+          startDate={insightStartDate}
+          endDate={insightEndDate}
+          onStartDateChange={setInsightStartDate}
+          onEndDateChange={setInsightEndDate}
+          compact={compactHeader}
+        />
+        <TimeRangeControls
+          startTime={insightStartTime}
+          endTime={insightEndTime}
+          onStartTimeChange={setInsightStartTime}
+          onEndTimeChange={setInsightEndTime}
+          compact={compactHeader}
+        />
+      </Card>
+      {userInsights ? (
+        <>
+          <View style={isDesktop ? styles.desktopGrid4 : styles.grid}>
+            <MetricCard label="Phiên trung bình" value={formatDuration(userInsights.summary.averageSessionDurationMs)} note={`${formatNumber(userInsights.summary.totalSessions)} phiên`} isDesktop={isDesktop} />
+            <MetricCard label="Tổng thời gian dùng" value={formatDuration(userInsights.summary.totalDurationMs)} note="Tổng thời lượng phiên" isDesktop={isDesktop} />
+            <MetricCard label="Người dùng trong khoảng" value={userInsights.summary.activeUsers} note={`${formatNumber(userInsights.summary.returningUsers)} user quay lại`} isDesktop={isDesktop} />
+            <MetricCard label="Khung giờ cao điểm" value={peakActivity && peakActivity.sessions > 0 ? formatHourLabel(peakActivity.hour) : "--"} note={peakActivity && peakActivity.sessions > 0 ? `${formatNumber(peakActivity.sessions)} phiên · ${formatDuration(peakActivity.totalDurationMs)}` : "Chưa có dữ liệu"} isDesktop={isDesktop} />
+          </View>
+          <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
+            <Card style={styles.insightPanelCard}>
+              <View style={styles.headerRow}>
+                <View style={styles.flex}>
+                  <AppText variant="subtitle" style={styles.reportMiniTitle}>Thời gian dùng mỗi ngày</AppText>
+                  <AppText muted variant="caption">Tổng thời lượng phiên của users theo từng ngày.</AppText>
+                </View>
+              </View>
+              <View style={styles.detailSectionList}>
+                {latestDailyUsage.length ? latestDailyUsage.map((item) => (
+                  <View key={item.date} testID="admin-animate-row" style={styles.usageReportRow}>
+                    <View style={styles.flex}>
+                      <AppText variant="button" style={styles.detailItemTitle}>{item.date}</AppText>
+                      <AppText muted variant="caption">
+                        {formatNumber(item.sessions)} phiên · {formatNumber(item.activeUsers)} users
+                      </AppText>
+                    </View>
+                    <AppText variant="button" style={styles.usageReportValue}>{formatDuration(item.totalDurationMs)}</AppText>
+                  </View>
+                )) : <AppText muted variant="caption">Chưa có dữ liệu thời lượng trong khoảng này.</AppText>}
+              </View>
+            </Card>
+            <Card style={styles.insightPanelCard}>
+              <View style={styles.headerRow}>
+                <View style={styles.flex}>
+                  <AppText variant="subtitle" style={styles.reportMiniTitle}>Khung giờ hoạt động nhiều nhất</AppText>
+                  <AppText muted variant="caption">Xếp hạng theo số phiên trong ngày.</AppText>
+                </View>
+              </View>
+              <View style={styles.detailSectionList}>
+                {activeHours.length ? activeHours.map((item, index) => (
+                  <View key={item.hour} testID="admin-animate-row" style={styles.activeUserRow}>
+                    <View style={styles.activeUserRank}>
+                      <AppText style={styles.activeUserRankText}>{index + 1}</AppText>
+                    </View>
+                    <View style={styles.flex}>
+                      <AppText variant="button" style={styles.detailItemTitle}>{formatHourLabel(item.hour)}</AppText>
+                      <AppText muted variant="caption">
+                        {formatNumber(item.sessions)} phiên · {formatNumber(item.activeUsers)} users · {formatDuration(item.totalDurationMs)}
+                      </AppText>
+                    </View>
+                  </View>
+                )) : <AppText muted variant="caption">Chưa có khung giờ hoạt động nổi bật.</AppText>}
+              </View>
+            </Card>
+          </View>
+          <Card style={styles.reportMiniCard}>
+            <View style={styles.headerRow}>
+              <View style={styles.flex}>
+                <AppText variant="subtitle" style={styles.reportMiniTitle}>User hoạt động tiêu biểu</AppText>
+                <AppText muted variant="caption">Xếp hạng bằng thời lượng phiên, số phiên, bài đăng và tương tác.</AppText>
+              </View>
+            </View>
+            <View style={styles.detailSectionList}>
+              {userInsights.topUsers.length ? userInsights.topUsers.slice(0, 5).map((item, index) => (
+                <View key={item.id} testID="admin-animate-row" style={styles.activeUserRow}>
+                  <View style={styles.activeUserRank}>
+                    <AppText style={styles.activeUserRankText}>{index + 1}</AppText>
+                  </View>
+                  <View style={styles.flex}>
+                    <AppText variant="button" style={styles.detailItemTitle}>{item.displayName}</AppText>
+                    <AppText muted variant="caption">
+                      {formatDuration(item.averageSessionDurationMs)} / phiên · {formatNumber(item.sessions)} phiên · {formatNumber(item.posts)} bài · {formatNumber(item.interactions)} tương tác
+                    </AppText>
+                  </View>
+                  <Pill label={item.returning ? "Quay lại" : "Mới"} tone={item.returning ? "good" : "neutral"} />
+                </View>
+              )) : <AppText muted variant="caption">Chưa có dữ liệu hoạt động trong khoảng này.</AppText>}
+            </View>
+          </Card>
+        </>
+      ) : null}
       <View style={[styles.searchRow, compactHeader && styles.searchRowCompact]}>
         <View style={styles.searchInput}>
           <TextField label="Từ khóa tìm kiếm" value={query} onChangeText={setQuery} placeholder="Tên, email hoặc SĐT..." />
@@ -1416,7 +2022,7 @@ export function AdminUsersScreen({ navigation }: any) {
   function renderUserItem({ item }: { item: AdminUserSummary }) {
     const initials = item.displayName ? item.displayName.slice(0, 2).toUpperCase() : "US";
     return (
-      <Pressable style={styles.userCard} onPress={() => navigation.navigate("AdminUserDetail", { id: item.id })}>
+      <Pressable testID="admin-animate-card" style={styles.userCard} onPress={() => navigation.navigate("AdminUserDetail", { id: item.id })}>
         <View style={styles.userCardTop}>
           <View style={styles.avatarCircle}>
             <AppText style={styles.avatarText}>{initials}</AppText>
@@ -1472,14 +2078,16 @@ export function AdminUsersScreen({ navigation }: any) {
               </View>
             </View>
 
-            <View style={styles.workspaceUsersContent}>
-              {headerControls}
+            <View ref={usersAnimationRef} style={styles.workspaceUsersContent}>
               <FlatList
                 key={numColumns}
                 numColumns={numColumns}
+                style={styles.usersFlatList}
+                contentContainerStyle={styles.usersDesktopListContent}
                 columnWrapperStyle={numColumns > 1 ? { gap: 16, marginBottom: 16 } : undefined}
                 data={users}
                 keyExtractor={(item) => item.id}
+                ListHeaderComponent={headerControls}
                 ListFooterComponent={footerControls}
                 renderItem={renderUserItem}
                 ListEmptyComponent={!loading ? <EmptyState label="Không có người dùng phù hợp." /> : null}
@@ -1806,7 +2414,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 18,
     gap: 8,
-    flex: 1,
     // Soft shadow for Web/iOS
     shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 2 },
@@ -1839,14 +2446,21 @@ const styles = StyleSheet.create({
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   desktopGrid3: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
   desktopGrid4: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
-  twoColumn: { flexDirection: "row", gap: 16 },
+  twoColumn: { flexDirection: "row", gap: 16, alignItems: "stretch" },
   stackColumn: { flexDirection: "column", gap: 16 },
 
   // Metric Cards
   metricCard: {
     minWidth: 120,
     flexGrow: 1,
-    flexShrink: 0
+    flexShrink: 1
+  },
+  metricCardDesktop: {
+    flexBasis: 210,
+    maxWidth: "100%"
+  },
+  metricCardMobile: {
+    width: "47%"
   },
   metricHeader: {
     flexDirection: "row",
@@ -1909,7 +2523,7 @@ const styles = StyleSheet.create({
   },
 
   // Range Selector
-  rangeSelector: { flexDirection: "row", gap: 6 },
+  rangeSelector: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   rangeButton: {
     backgroundColor: colors.surface,
     borderColor: colors.line,
@@ -1924,6 +2538,130 @@ const styles = StyleSheet.create({
   },
   rangeText: { color: colors.ink, fontFamily: fonts.medium },
   rangeTextActive: { color: colors.white },
+  dateFilterPanel: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+    flexWrap: "wrap",
+    flexShrink: 1,
+    maxWidth: "100%"
+  },
+  dateFilterPanelCompact: {
+    alignItems: "stretch"
+  },
+  timeFilterPanel: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+    flexWrap: "wrap",
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)"
+  },
+  timeFilterHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 44
+  },
+  customDateRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-end",
+    flexWrap: "wrap",
+    flexShrink: 1
+  },
+  customDateRowCompact: {
+    width: "100%",
+    flexWrap: "wrap"
+  },
+  datePickerField: {
+    minWidth: 150,
+    flexGrow: 1,
+    gap: 6
+  },
+  datePickerLabel: {
+    fontFamily: fonts.medium
+  },
+  webDateInputShell: {
+    minHeight: 44,
+    borderRadius: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: 12,
+    justifyContent: "center"
+  },
+  clearDateButton: {
+    minHeight: 38,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.canvasStrong
+  },
+  clearDateText: {
+    color: colors.ink,
+    fontFamily: fonts.semibold
+  },
+  filterPanelCard: {
+    gap: 14
+  },
+  filterPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12
+  },
+  filterPanelTitle: {
+    fontFamily: fonts.bold,
+    color: colors.ink
+  },
+  filterGroup: {
+    gap: 7,
+    flex: 1,
+    minWidth: 260
+  },
+  filterPanelGrid: { flexDirection: "row", gap: 14, alignItems: "flex-start" },
+  filterPanelStack: { gap: 12 },
+  filterGroupLabel: {
+    fontFamily: fonts.semibold,
+    textTransform: "uppercase",
+    letterSpacing: 0.4
+  },
+  filterChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 7
+  },
+  filterChipActive: {
+    backgroundColor: colors.black,
+    borderColor: colors.black
+  },
+  filterChipText: {
+    color: colors.ink,
+    fontFamily: fonts.semibold
+  },
+  filterChipDetail: {
+    color: colors.muted,
+    fontFamily: fonts.medium
+  },
+  filterChipTextActive: {
+    color: colors.white
+  },
 
   // Mobile Tabs
   tabs: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginVertical: 4 },
@@ -1943,7 +2681,7 @@ const styles = StyleSheet.create({
   tabTextActive: { color: colors.white },
 
   // Detailed Charts
-  chartCard: { minHeight: 260 },
+  chartCard: { minHeight: 260, flex: 1, minWidth: 0 },
   chartHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1961,12 +2699,12 @@ const styles = StyleSheet.create({
   chartStatTitle: { fontSize: 9, textTransform: "uppercase", letterSpacing: 0.3 },
   chartStatValue: { fontSize: 12, fontFamily: fonts.bold, color: colors.ink },
   chartStatDate: { fontSize: 8, color: colors.muted },
-  chartBody: { flex: 1, position: "relative", justifyContent: "flex-end", paddingTop: 14 },
+  chartBody: { flex: 1, minHeight: 150, position: "relative", justifyContent: "flex-end", paddingTop: 14 },
   chartGrid: { ...StyleSheet.absoluteFillObject, top: 14, bottom: 20, zIndex: 1 },
   chartGridLine: {
     position: "absolute",
     left: 0,
-    right: 0,
+    right: 34,
     height: 1,
     borderBottomWidth: 1,
     borderColor: "rgba(0,0,0,0.05)",
@@ -1974,16 +2712,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-end"
   },
-  chartGridLabel: { position: "absolute", top: -11, right: 0, fontSize: 8, color: colors.muted },
-  barChart: { flexDirection: "row", alignItems: "flex-end", gap: 6, minHeight: 120, zIndex: 2, position: "relative" },
+  chartGridLabel: { position: "absolute", top: -11, right: -34, width: 30, textAlign: "right", fontSize: 8, color: colors.muted },
+  barChart: { flexDirection: "row", alignItems: "flex-end", gap: 6, minHeight: 120, paddingRight: 34, zIndex: 2, position: "relative" },
   barColumn: { flex: 1, alignItems: "center" },
   chartBarValue: { fontSize: 8, color: colors.muted, height: 10, marginBottom: 2, fontFamily: fonts.medium },
-  barTrack: { height: 90, width: "100%", maxWidth: 22, borderRadius: 4, backgroundColor: colors.canvasStrong, justifyContent: "flex-end", overflow: "hidden" },
+  barTrack: { height: 90, width: "100%", maxWidth: 22, borderRadius: 4, backgroundColor: "rgba(25,27,31,0.05)", justifyContent: "flex-end", overflow: "hidden" },
   barFill: { width: "100%", borderTopLeftRadius: 3, borderTopRightRadius: 3 },
   chartDateLabel: { fontSize: 8, color: colors.muted, marginTop: 4 },
+  chartEmptyState: {
+    minHeight: 150,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+    borderStyle: "dashed",
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.45)"
+  },
+  chartEmptyTitle: {
+    color: colors.ink,
+    fontFamily: fonts.semibold
+  },
 
   // Breakdowns
-  breakdownCard: { minHeight: 200 },
+  breakdownCard: { minHeight: 200, flex: 1, minWidth: 0 },
   breakdownTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink },
   breakdownContainer: { gap: 10, marginTop: 6 },
   breakdownRow: { gap: 4 },
@@ -1994,7 +2747,7 @@ const styles = StyleSheet.create({
   breakdownBarFill: { height: "100%", borderRadius: 3 },
 
   // AI Report Output
-  reportCard: { gap: 16, flex: 0 },
+  reportCard: { gap: 16 },
   reportHeader: { flexDirection: "row", gap: 12, alignItems: "center" },
   reportHeaderIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.greenDark, alignItems: "center", justifyContent: "center" },
   reportTitle: { fontFamily: fonts.bold, fontSize: 18, color: colors.ink },
@@ -2023,6 +2776,39 @@ const styles = StyleSheet.create({
   reportConclusionText: { color: colors.ink, lineHeight: 20, fontFamily: fonts.medium },
   reportBottomGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   reportBottomPanel: { flexGrow: 1, flexBasis: 260, borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 12, gap: 8, backgroundColor: colors.surface },
+  reportMiniCard: { minHeight: 144 },
+  insightPanelCard: { flex: 1, minWidth: 0, minHeight: 150 },
+  reportMiniTitle: { fontFamily: fonts.bold, color: colors.ink },
+  usageReportRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)"
+  },
+  usageReportValue: {
+    color: colors.greenDark,
+    fontFamily: fonts.bold
+  },
+  activeUserRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)"
+  },
+  activeUserRank: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.greenDark,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  activeUserRankText: { color: colors.white, fontFamily: fonts.bold },
 
   // Header icon buttons (Mobile/Desktop actions)
   headerIconBtn: {
@@ -2084,14 +2870,16 @@ const styles = StyleSheet.create({
   desktopTopBar: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+    gap: 12,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
     paddingHorizontal: 20,
     paddingVertical: 14
   },
-  desktopTopActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  desktopTopActions: { flexDirection: "row", alignItems: "flex-end", gap: 10, flexWrap: "wrap" },
 
   // Mobile layout styles
   mobileWrap: { flex: 1, backgroundColor: colors.canvas },
@@ -2195,7 +2983,9 @@ const styles = StyleSheet.create({
   auditDetails: { fontSize: 12, color: colors.muted },
 
   // Users Management Screen
-  workspaceUsersContent: { flex: 1, padding: 20, gap: 12 },
+  workspaceUsersContent: { flex: 1, padding: 20, minHeight: 0 },
+  usersFlatList: { flex: 1, minHeight: 0 },
+  usersDesktopListContent: { gap: 12, paddingBottom: 20 },
   usersHeaderControls: { gap: 12, paddingBottom: 4 },
   searchRow: { flexDirection: "row", gap: 10, alignItems: "flex-end", flexWrap: "wrap" },
   searchRowCompact: { flexDirection: "column", alignItems: "stretch" },
@@ -2251,7 +3041,7 @@ const styles = StyleSheet.create({
   profileBioText: { fontSize: 14, color: colors.ink, lineHeight: 20 },
   profileActions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 8 },
 
-  detailSectionCard: { minHeight: 220, gap: 10 },
+  detailSectionCard: { minHeight: 220, gap: 10, flex: 1, minWidth: 0 },
   detailSectionTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.ink, flexDirection: "row", alignItems: "center" },
   detailSectionList: { gap: 8 },
   listLine: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(0,0,0,0.04)", gap: 4 },
@@ -2267,8 +3057,7 @@ const styles = StyleSheet.create({
     borderColor: "#2B2D31",
     borderWidth: 1,
     borderRadius: 12,
-    padding: 20,
-    flex: 0
+    padding: 20
   },
   aiGenerateHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 },
 

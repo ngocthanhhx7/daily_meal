@@ -1,12 +1,18 @@
 import { NativeModules, Platform } from "react-native";
 import type {
   AdminDashboard,
+  AdminPostInsights,
+  AdminPostMediaKind,
+  AdminPostSortBy,
   AdminPayment,
   AdminPagination,
   AdminPostSummary,
+  AdminRangePreset,
   AdminReport,
   AdminReportItem,
+  AdminSortOrder,
   AdminUserDetail,
+  AdminUserInsights,
   AdminUserSummary,
   ChatMessage,
   Conversation,
@@ -164,23 +170,27 @@ export const api = {
       method: "POST",
       body
     }),
-  adminDashboard: (token: string, params?: { range?: "1d" | "7d" | "all"; start?: string; end?: string }) => {
+  adminDashboard: (token: string, params?: { range?: AdminRangePreset; start?: string; end?: string; startTime?: string; endTime?: string }) => {
     const search = new URLSearchParams();
     if (params?.range) search.set("range", params.range);
     if (params?.start) search.set("start", params.start);
     if (params?.end) search.set("end", params.end);
+    if (params?.startTime) search.set("startTime", params.startTime);
+    if (params?.endTime) search.set("endTime", params.endTime);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return request<AdminDashboard>(`/api/admin/dashboard${suffix}`, { token });
   },
-  adminAnalyticsSummary: (token: string, params?: { range?: "1d" | "7d" | "all"; start?: string; end?: string }) => {
+  adminAnalyticsSummary: (token: string, params?: { range?: AdminRangePreset; start?: string; end?: string; startTime?: string; endTime?: string }) => {
     const search = new URLSearchParams();
     if (params?.range) search.set("range", params.range);
     if (params?.start) search.set("start", params.start);
     if (params?.end) search.set("end", params.end);
+    if (params?.startTime) search.set("startTime", params.startTime);
+    if (params?.endTime) search.set("endTime", params.endTime);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return request<{ summary: AdminDashboard["analytics"] }>(`/api/admin/analytics/summary${suffix}`, { token });
   },
-  adminAiReport: (token: string, body?: { range?: "1d" | "7d" | "all"; start?: string; end?: string }) =>
+  adminAiReport: (token: string, body?: { range?: AdminRangePreset; start?: string; end?: string }) =>
     request<AdminReport>("/api/admin/reports/ai", {
       method: "POST",
       token,
@@ -194,6 +204,16 @@ export const api = {
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return request<{ users: AdminUserSummary[]; pagination: AdminPagination }>(`/api/admin/users${suffix}`, { token });
   },
+  adminUserInsights: (token: string, params?: { range?: AdminRangePreset; start?: string; end?: string; startTime?: string; endTime?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.range) search.set("range", params.range);
+    if (params?.start) search.set("start", params.start);
+    if (params?.end) search.set("end", params.end);
+    if (params?.startTime) search.set("startTime", params.startTime);
+    if (params?.endTime) search.set("endTime", params.endTime);
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<AdminUserInsights>(`/api/admin/users/insights${suffix}`, { token });
+  },
   adminUser: (token: string, id: string) => request<{ user: AdminUserDetail }>(`/api/admin/users/${id}`, { token }),
   adminSetUserPremium: (token: string, id: string, body: { isPremium: boolean; note?: string }) =>
     request<{ user: AdminUserSummary }>(`/api/admin/users/${id}/premium`, {
@@ -201,15 +221,53 @@ export const api = {
       token,
       body
     }),
-  adminPosts: (token: string, params?: { q?: string; page?: number; limit?: number; moderationStatus?: "visible" | "hidden" | "review"; visibility?: "public" | "friends" | "private" }) => {
+  adminPosts: (token: string, params?: {
+    q?: string;
+    page?: number;
+    limit?: number;
+    moderationStatus?: "visible" | "hidden" | "review";
+    visibility?: "public" | "friends" | "private";
+    range?: AdminRangePreset;
+    start?: string;
+    end?: string;
+    mediaKind?: AdminPostMediaKind;
+    sortBy?: AdminPostSortBy;
+    sortOrder?: AdminSortOrder;
+  }) => {
     const search = new URLSearchParams();
     if (params?.q) search.set("q", params.q);
     if (params?.page) search.set("page", String(params.page));
     if (params?.limit) search.set("limit", String(params.limit));
     if (params?.moderationStatus) search.set("moderationStatus", params.moderationStatus);
     if (params?.visibility) search.set("visibility", params.visibility);
+    if (params?.range) search.set("range", params.range);
+    if (params?.start) search.set("start", params.start);
+    if (params?.end) search.set("end", params.end);
+    if (params?.mediaKind) search.set("mediaKind", params.mediaKind);
+    if (params?.sortBy) search.set("sortBy", params.sortBy);
+    if (params?.sortOrder) search.set("sortOrder", params.sortOrder);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return request<{ posts: AdminPostSummary[]; pagination: AdminPagination }>(`/api/admin/posts${suffix}`, { token });
+  },
+  adminPostInsights: (token: string, params?: {
+    q?: string;
+    range?: AdminRangePreset;
+    start?: string;
+    end?: string;
+    mediaKind?: AdminPostMediaKind;
+    sortBy?: AdminPostSortBy;
+    sortOrder?: AdminSortOrder;
+  }) => {
+    const search = new URLSearchParams();
+    if (params?.q) search.set("q", params.q);
+    if (params?.range) search.set("range", params.range);
+    if (params?.start) search.set("start", params.start);
+    if (params?.end) search.set("end", params.end);
+    if (params?.mediaKind) search.set("mediaKind", params.mediaKind);
+    if (params?.sortBy) search.set("sortBy", params.sortBy);
+    if (params?.sortOrder) search.set("sortOrder", params.sortOrder);
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<AdminPostInsights>(`/api/admin/posts/insights${suffix}`, { token });
   },
   adminModeratePost: (token: string, id: string, body: { moderationStatus: "visible" | "hidden" | "review"; reason?: string }) =>
     request<{ post: AdminPostSummary }>(`/api/admin/posts/${id}/moderation`, {

@@ -981,9 +981,6 @@ function FeedAuthorChip({
       {showStreak ? (
         <View style={streakBadgeStyle} pointerEvents="none">
           <Image source={STREAK_BADGE} style={streakImageStyle} resizeMode="contain" />
-          <View style={streakCountWrapStyle}>
-            <AppText style={streakCountTextStyle}>{streakDays}</AppText>
-          </View>
         </View>
       ) : null}
       <Pressable
@@ -1012,6 +1009,11 @@ function FeedAuthorChip({
           {post.author?.displayName ?? "Daily Meal"}
         </AppText>
       </Pressable>
+      {showStreak ? (
+        <View style={streakCountWrapStyle} pointerEvents="none">
+          <AppText style={streakCountTextStyle}>{streakDays}</AppText>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1522,15 +1524,16 @@ const expandedStyles = StyleSheet.create({
   },
   authorChipWrap: {
     alignSelf: "center",
+    maxWidth: "86%",
     position: "relative",
     overflow: "visible"
   },
   authorChipWrapWithStreak: {
-    marginLeft: 20
+    marginLeft: 0
   },
   authorChip: {
     alignSelf: "center",
-    maxWidth: "86%",
+    maxWidth: "100%",
     zIndex: 2,
     flexDirection: "row",
     alignItems: "center",
@@ -1543,10 +1546,10 @@ const expandedStyles = StyleSheet.create({
   },
   authorStreakBadge: {
     position: "absolute",
-    left: -26,
-    top: -15,
-    width: 52,
-    height: 52,
+    left: -20,
+    top: -22,
+    width: 58,
+    height: 58,
     zIndex: 1,
     elevation: 1,
     alignItems: "center",
@@ -1558,16 +1561,18 @@ const expandedStyles = StyleSheet.create({
   },
   authorStreakCountWrap: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+    left: -20,
+    top: -22,
+    width: 58,
+    height: 58,
+    zIndex: 3,
+    elevation: 6,
     alignItems: "center",
     justifyContent: "center"
   },
   authorStreakCountText: {
-    marginTop: 3,
-    marginLeft: -1,
+    marginTop: 0,
+    marginLeft: 0,
     color: colors.white,
     fontFamily: fonts.bold,
     fontSize: 12,
@@ -2007,15 +2012,16 @@ const styles = StyleSheet.create({
   authorChipWrap: {
     marginTop: 16,
     alignSelf: "center",
+    maxWidth: "86%",
     position: "relative",
     overflow: "visible"
   },
   authorChipWrapWithStreak: {
-    marginLeft: 22
+    marginLeft: 0
   },
   authorChip: {
     alignSelf: "center",
-    maxWidth: "86%",
+    maxWidth: "100%",
     zIndex: 2,
     flexDirection: "row",
     alignItems: "center",
@@ -2033,10 +2039,10 @@ const styles = StyleSheet.create({
   },
   authorStreakBadge: {
     position: "absolute",
-    left: -28,
-    top: -18,
-    width: 56,
-    height: 56,
+    left: -22,
+    top: -22,
+    width: 60,
+    height: 60,
     zIndex: 1,
     elevation: 1,
     alignItems: "center",
@@ -2048,16 +2054,18 @@ const styles = StyleSheet.create({
   },
   authorStreakCountWrap: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+    left: -22,
+    top: -22,
+    width: 60,
+    height: 60,
+    zIndex: 3,
+    elevation: 6,
     alignItems: "center",
     justifyContent: "center"
   },
   authorStreakCountText: {
-    marginTop: 3,
-    marginLeft: -1,
+    marginTop: 0,
+    marginLeft: 0,
     color: colors.white,
     fontFamily: fonts.bold,
     fontSize: 13,

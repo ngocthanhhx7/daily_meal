@@ -49,7 +49,9 @@ const ingestSchema = z.object({
 const summaryQuerySchema = z.object({
   start: z.coerce.date().optional(),
   end: z.coerce.date().optional(),
-  range: z.enum(["1d", "7d", "all"]).optional()
+  range: z.enum(["1d", "7d", "30d", "all"]).optional(),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional()
 });
 
 type JwtPayload = {
@@ -59,10 +61,12 @@ type JwtPayload = {
 type SummaryOptions = {
   start?: Date;
   end?: Date;
-  range?: "1d" | "7d" | "all";
+  range?: "1d" | "7d" | "30d" | "all";
+  startTime?: string;
+  endTime?: string;
 };
 
-export type AnalyticsRangePreset = "1d" | "7d" | "all";
+export type AnalyticsRangePreset = "1d" | "7d" | "30d" | "all";
 
 function defaultSummaryRange(): { start: Date; end: Date; rangePreset: AnalyticsRangePreset } {
   const end = new Date();
@@ -102,11 +106,54 @@ async function resolveSummaryRange(options: SummaryOptions = {}) {
     };
   }
 
+  if (options.range === "30d") {
+    return {
+      start: new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000),
+      end,
+      rangePreset: "30d" as const
+    };
+  }
+
   return defaultSummaryRange();
 }
 
 function rate(numerator: number, denominator: number) {
   return denominator > 0 ? numerator / denominator : 0;
+}
+
+function timeToMinutes(value?: string) {
+  if (!value) return undefined;
+  const [hour = 0, minute = 0] = value.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function timeOfDayExpression(field: string, startTime?: string, endTime?: string) {
+  const startMinute = timeToMinutes(startTime);
+  const endMinute = timeToMinutes(endTime);
+  if (startMinute === undefined && endMinute === undefined) return undefined;
+
+  const minuteOfDay = {
+    $add: [
+      { $multiply: [{ $hour: { date: `$${field}`, timezone: "Asia/Ho_Chi_Minh" } }, 60] },
+      { $minute: { date: `$${field}`, timezone: "Asia/Ho_Chi_Minh" } }
+    ]
+  };
+
+  if (startMinute !== undefined && endMinute !== undefined) {
+    if (startMinute <= endMinute) {
+      return { $and: [{ $gte: [minuteOfDay, startMinute] }, { $lt: [minuteOfDay, endMinute] }] };
+    }
+    return { $or: [{ $gte: [minuteOfDay, startMinute] }, { $lt: [minuteOfDay, endMinute] }] };
+  }
+
+  if (startMinute !== undefined) return { $gte: [minuteOfDay, startMinute] };
+  return { $lt: [minuteOfDay, endMinute] };
+}
+
+function withTimeOfDayFilter<T extends Record<string, unknown>>(match: T, field: string, startTime?: string, endTime?: string) {
+  const expression = timeOfDayExpression(field, startTime, endTime);
+  if (!expression) return match;
+  return { ...match, $expr: expression };
 }
 
 function numberProperty(properties: unknown, keys: string[]) {
@@ -157,14 +204,14 @@ export async function buildAnalyticsSummary(options: SummaryOptions = {}) {
     throw new HttpError(400, "Thời gian bắt đầu tóm tắt phải trước thời gian kết thúc.");
   }
 
-  const baseFilter = { occurredAt: { $gte: start, $lt: end } };
+  const baseFilter = withTimeOfDayFilter({ occurredAt: { $gte: start, $lt: end } }, "occurredAt", options.startTime, options.endTime);
   const oneDayStart = new Date(Math.max(start.getTime(), end.getTime() - 24 * 60 * 60 * 1000));
   const oneWeekStart = new Date(Math.max(start.getTime(), end.getTime() - 7 * 24 * 60 * 60 * 1000));
   const oneMonthStart = new Date(Math.max(start.getTime(), end.getTime() - 30 * 24 * 60 * 60 * 1000));
 
   const countByName = (name: string) => AnalyticsEvent.countDocuments({ ...baseFilter, name });
   const distinctSubjects = (from: Date) =>
-    AnalyticsEvent.distinct("subjectKey", { occurredAt: { $gte: from, $lt: end } });
+    AnalyticsEvent.distinct("subjectKey", withTimeOfDayFilter({ occurredAt: { $gte: from, $lt: end } }, "occurredAt", options.startTime, options.endTime));
 
   const [
     dauSubjects,

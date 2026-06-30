@@ -13,6 +13,7 @@ import { Comment } from "../models/Comment.js";
 import { Payment } from "../models/Payment.js";
 import { PostLike } from "../models/PostLike.js";
 import { PostSave } from "../models/PostSave.js";
+import { Post } from "../models/Post.js";
 import { Sticker } from "../models/Sticker.js";
 import { User } from "../models/User.js";
 import { UserInteraction } from "../models/UserInteraction.js";
@@ -681,6 +682,392 @@ describe("Daily Meal API", () => {
     expect(aiReport.body.report.sections).toHaveLength(4);
     expect(aiReport.body.report.sections[0].metrics.length).toBeGreaterThan(0);
     expect(aiReport.body.report.metricsSnapshot.mode).toBe("fallback");
+  });
+
+  it("returns admin user activity insights for preset and custom ranges", async () => {
+    Object.assign(env, { ADMIN_EMAIL: "activity-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const active = await register("admin-active-user@example.com");
+    const quiet = await register("admin-quiet-user@example.com");
+    const activeUser = await User.findByIdAndUpdate(active.user.id, { displayName: "Active Admin User" }, { new: true });
+    await User.findByIdAndUpdate(quiet.user.id, { displayName: "Quiet Admin User" });
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const fortyDaysAgo = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000);
+
+    const activePost = await Post.create({
+      author: active.user.id,
+      images: [{ url: "/uploads/activity.jpg" }],
+      caption: "Active user post",
+      tags: [],
+      visibility: "public",
+      createdAt: twoDaysAgo,
+      updatedAt: twoDaysAgo,
+      stats: { likes: 1, comments: 1, saves: 1 }
+    });
+
+    await Promise.all([
+      PostLike.create({ post: activePost._id, user: quiet.user.id, createdAt: twoDaysAgo, updatedAt: twoDaysAgo }),
+      PostSave.create({ post: activePost._id, user: quiet.user.id, createdAt: twoDaysAgo, updatedAt: twoDaysAgo }),
+      Comment.create({ post: activePost._id, author: quiet.user.id, body: "nice", createdAt: twoDaysAgo, updatedAt: twoDaysAgo }),
+      AnalyticsEvent.create([
+        {
+          name: "session_start",
+          occurredAt: twoDaysAgo,
+          receivedAt: twoDaysAgo,
+          sessionId: "admin-insights-active-session",
+          subjectKey: `user:${active.user.id}`,
+          user: active.user.id,
+          source: "client",
+          properties: {}
+        },
+        {
+          name: "session_end",
+          occurredAt: new Date(twoDaysAgo.getTime() + 180000),
+          receivedAt: new Date(twoDaysAgo.getTime() + 180000),
+          sessionId: "admin-insights-active-session",
+          subjectKey: `user:${active.user.id}`,
+          user: active.user.id,
+          source: "client",
+          properties: { durationMs: 180000 }
+        },
+        {
+          name: "session_start",
+          occurredAt: fortyDaysAgo,
+          receivedAt: fortyDaysAgo,
+          sessionId: "admin-insights-old-session",
+          subjectKey: `user:${quiet.user.id}`,
+          user: quiet.user.id,
+          source: "client",
+          properties: {}
+        },
+        {
+          name: "session_end",
+          occurredAt: new Date(fortyDaysAgo.getTime() + 60000),
+          receivedAt: new Date(fortyDaysAgo.getTime() + 60000),
+          sessionId: "admin-insights-old-session",
+          subjectKey: `user:${quiet.user.id}`,
+          user: quiet.user.id,
+          source: "client",
+          properties: { durationMs: 60000 }
+        }
+      ])
+    ]);
+
+    const login = await request(app)
+      .post("/api/admin/login")
+      .send({ email: "activity-admin@example.com", password: "admin-secret" })
+      .expect(200);
+
+    const thirtyDays = await request(app)
+      .get("/api/admin/users/insights?range=30d")
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+
+    expect(thirtyDays.body.rangePreset).toBe("30d");
+    expect(thirtyDays.body.summary.totalSessions).toBeGreaterThanOrEqual(1);
+    expect(thirtyDays.body.summary.averageSessionDurationMs).toBeGreaterThanOrEqual(180000);
+    expect(thirtyDays.body.topUsers[0]).toMatchObject({
+      id: active.user.id,
+      displayName: activeUser?.displayName,
+      sessions: 1,
+      posts: 1,
+      interactions: 3
+    });
+
+    const custom = await request(app)
+      .get(`/api/admin/users/insights?start=${encodeURIComponent(new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString())}&end=${encodeURIComponent(now.toISOString())}`)
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+
+    expect(custom.body.range.start).toEqual(expect.any(String));
+    expect(custom.body.topUsers.some((user: any) => user.id === active.user.id)).toBe(true);
+    expect(custom.body.topUsers.some((user: any) => user.id === quiet.user.id)).toBe(false);
+  });
+
+  it("filters admin user activity insights by time of day and reports daily and peak activity", async () => {
+    Object.assign(env, { ADMIN_EMAIL: "activity-hours-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const morningUser = await register("admin-morning-activity@example.com");
+    const eveningUser = await register("admin-evening-activity@example.com");
+    await User.findByIdAndUpdate(morningUser.user.id, { displayName: "Morning User" });
+    await User.findByIdAndUpdate(eveningUser.user.id, { displayName: "Evening User" });
+
+    const morningStart = new Date(2026, 5, 29, 9, 15, 0, 0);
+    const morningEnd = new Date(2026, 5, 29, 9, 45, 0, 0);
+    const eveningStart = new Date(2026, 5, 29, 20, 0, 0, 0);
+    const eveningEnd = new Date(2026, 5, 29, 20, 5, 0, 0);
+
+    await AnalyticsEvent.create([
+      {
+        name: "session_start",
+        occurredAt: morningStart,
+        receivedAt: morningStart,
+        sessionId: "admin-insights-morning-session",
+        subjectKey: `user:${morningUser.user.id}`,
+        user: morningUser.user.id,
+        source: "client",
+        properties: {}
+      },
+      {
+        name: "session_end",
+        occurredAt: morningEnd,
+        receivedAt: morningEnd,
+        sessionId: "admin-insights-morning-session",
+        subjectKey: `user:${morningUser.user.id}`,
+        user: morningUser.user.id,
+        source: "client",
+        properties: { durationMs: 30 * 60 * 1000 }
+      },
+      {
+        name: "session_start",
+        occurredAt: eveningStart,
+        receivedAt: eveningStart,
+        sessionId: "admin-insights-evening-session",
+        subjectKey: `user:${eveningUser.user.id}`,
+        user: eveningUser.user.id,
+        source: "client",
+        properties: {}
+      },
+      {
+        name: "session_end",
+        occurredAt: eveningEnd,
+        receivedAt: eveningEnd,
+        sessionId: "admin-insights-evening-session",
+        subjectKey: `user:${eveningUser.user.id}`,
+        user: eveningUser.user.id,
+        source: "client",
+        properties: { durationMs: 5 * 60 * 1000 }
+      }
+    ]);
+
+    const login = await request(app)
+      .post("/api/admin/login")
+      .send({ email: "activity-hours-admin@example.com", password: "admin-secret" })
+      .expect(200);
+
+    const start = new Date(2026, 5, 29, 0, 0, 0, 0).toISOString();
+    const end = new Date(2026, 5, 30, 0, 0, 0, 0).toISOString();
+    const response = await request(app)
+      .get(`/api/admin/users/insights?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&startTime=08:00&endTime=12:00`)
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+
+    expect(response.body.timeFilter).toEqual({ startTime: "08:00", endTime: "12:00" });
+    expect(response.body.summary.totalSessions).toBe(1);
+    expect(response.body.summary.totalDurationMs).toBe(30 * 60 * 1000);
+    expect(response.body.topUsers).toHaveLength(1);
+    expect(response.body.topUsers[0]).toMatchObject({ id: morningUser.user.id, displayName: "Morning User" });
+    expect(response.body.dailyUsage).toEqual([
+      expect.objectContaining({
+        date: expect.any(String),
+        sessions: 1,
+        activeUsers: 1,
+        totalDurationMs: 30 * 60 * 1000
+      })
+    ]);
+    expect(response.body.hourlyActivity.find((item: any) => item.hour === 9)).toMatchObject({
+      sessions: 1,
+      totalDurationMs: 30 * 60 * 1000
+    });
+    expect(response.body.hourlyActivity.find((item: any) => item.hour === 20)).toMatchObject({
+      sessions: 0,
+      totalDurationMs: 0
+    });
+    expect(response.body.peakActivityWindow).toMatchObject({
+      hour: 9,
+      sessions: 1,
+      totalDurationMs: 30 * 60 * 1000
+    });
+  });
+
+  it("filters admin dashboard overview and KPI metrics by time of day", async () => {
+    Object.assign(env, { ADMIN_EMAIL: "dashboard-hours-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const morningUser = await register("admin-dashboard-morning@example.com");
+    const eveningUser = await register("admin-dashboard-evening@example.com");
+    const morningAt = new Date(2026, 3, 15, 9, 10, 0, 0);
+    const eveningAt = new Date(2026, 3, 15, 20, 10, 0, 0);
+
+    await Promise.all([
+      User.collection.updateOne({ _id: new mongoose.Types.ObjectId(morningUser.user.id) }, { $set: { createdAt: morningAt, updatedAt: morningAt } }),
+      User.collection.updateOne({ _id: new mongoose.Types.ObjectId(eveningUser.user.id) }, { $set: { createdAt: eveningAt, updatedAt: eveningAt } }),
+      Post.create({
+        author: morningUser.user.id,
+        images: [{ url: "/uploads/dashboard-morning.jpg" }],
+        caption: "Morning dashboard post",
+        tags: [],
+        visibility: "public",
+        createdAt: morningAt,
+        updatedAt: morningAt
+      }),
+      Post.create({
+        author: eveningUser.user.id,
+        images: [{ url: "/uploads/dashboard-evening.jpg" }],
+        caption: "Evening dashboard post",
+        tags: [],
+        visibility: "public",
+        createdAt: eveningAt,
+        updatedAt: eveningAt
+      }),
+      AnalyticsEvent.create([
+        {
+          name: "session_start",
+          occurredAt: morningAt,
+          receivedAt: morningAt,
+          sessionId: "admin-dashboard-morning-session",
+          subjectKey: `user:${morningUser.user.id}`,
+          user: morningUser.user.id,
+          source: "client",
+          properties: {}
+        },
+        {
+          name: "session_end",
+          occurredAt: new Date(morningAt.getTime() + 60000),
+          receivedAt: new Date(morningAt.getTime() + 60000),
+          sessionId: "admin-dashboard-morning-session",
+          subjectKey: `user:${morningUser.user.id}`,
+          user: morningUser.user.id,
+          source: "client",
+          properties: { durationMs: 60000 }
+        },
+        {
+          name: "session_start",
+          occurredAt: eveningAt,
+          receivedAt: eveningAt,
+          sessionId: "admin-dashboard-evening-session",
+          subjectKey: `user:${eveningUser.user.id}`,
+          user: eveningUser.user.id,
+          source: "client",
+          properties: {}
+        },
+        {
+          name: "session_end",
+          occurredAt: new Date(eveningAt.getTime() + 120000),
+          receivedAt: new Date(eveningAt.getTime() + 120000),
+          sessionId: "admin-dashboard-evening-session",
+          subjectKey: `user:${eveningUser.user.id}`,
+          user: eveningUser.user.id,
+          source: "client",
+          properties: { durationMs: 120000 }
+        }
+      ])
+    ]);
+
+    const login = await request(app)
+      .post("/api/admin/login")
+      .send({ email: "dashboard-hours-admin@example.com", password: "admin-secret" })
+      .expect(200);
+
+    const start = new Date(2026, 3, 15, 0, 0, 0, 0).toISOString();
+    const end = new Date(2026, 3, 16, 0, 0, 0, 0).toISOString();
+    const response = await request(app)
+      .get(`/api/admin/dashboard?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&startTime=08:00&endTime=12:00`)
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+
+    expect(response.body.timeFilter).toEqual({ startTime: "08:00", endTime: "12:00" });
+    expect(response.body.totalsInRange.users).toBe(1);
+    expect(response.body.totalsInRange.posts).toBe(1);
+    expect(response.body.analytics.sessions.total).toBe(1);
+    expect(response.body.analytics.sessions.averageDurationMs).toBe(60000);
+    expect(response.body.analytics.activeUsers.dau).toBe(1);
+    expect(response.body.charts.daily.some((item: any) => item.users === 1 && item.posts === 1)).toBe(true);
+  });
+
+  it("filters admin posts by media and sorts reports by interactions", async () => {
+    Object.assign(env, { ADMIN_EMAIL: "posts-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const author = await register("admin-post-filter-author@example.com");
+    const liker = await register("admin-post-filter-liker@example.com");
+    await User.findByIdAndUpdate(author.user.id, { isPremium: true });
+    const now = new Date();
+    const inRange = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const old = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    const singleImage = await Post.create({
+      author: author.user.id,
+      images: [{ url: "/uploads/single.jpg" }],
+      caption: "Single image report",
+      tags: ["admin-filter"],
+      visibility: "public",
+      createdAt: inRange,
+      updatedAt: inRange,
+      stats: { likes: 0, comments: 0, saves: 0 }
+    });
+    const multiImage = await Post.create({
+      author: author.user.id,
+      images: [{ url: "/uploads/multi-1.jpg" }, { url: "/uploads/multi-2.jpg" }],
+      caption: "Multi image report",
+      tags: ["admin-filter"],
+      visibility: "public",
+      createdAt: inRange,
+      updatedAt: inRange,
+      stats: { likes: 2, comments: 1, saves: 1 }
+    });
+    const video = await Post.create({
+      author: author.user.id,
+      mediaType: "video",
+      images: [],
+      video: { url: "/uploads/video.mp4", mime: "video/mp4", size: 1000, durationMs: 2000 },
+      caption: "Video report",
+      tags: ["admin-filter"],
+      visibility: "public",
+      createdAt: inRange,
+      updatedAt: inRange,
+      stats: { likes: 1, comments: 0, saves: 0 }
+    });
+    await Post.create({
+      author: author.user.id,
+      images: [{ url: "/uploads/old.jpg" }],
+      caption: "Old post report",
+      tags: ["admin-filter"],
+      visibility: "public",
+      createdAt: old,
+      updatedAt: old,
+      stats: { likes: 10, comments: 10, saves: 10 }
+    });
+    await Promise.all([
+      PostLike.create({ post: multiImage._id, user: liker.user.id, createdAt: inRange, updatedAt: inRange }),
+      PostSave.create({ post: multiImage._id, user: liker.user.id, createdAt: inRange, updatedAt: inRange }),
+      Comment.create({ post: multiImage._id, author: liker.user.id, body: "top", createdAt: inRange, updatedAt: inRange }),
+      PostLike.create({ post: video._id, user: liker.user.id, createdAt: inRange, updatedAt: inRange })
+    ]);
+
+    const login = await request(app)
+      .post("/api/admin/login")
+      .send({ email: "posts-admin@example.com", password: "admin-secret" })
+      .expect(200);
+    const token = login.body.token as string;
+    const start = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const end = now.toISOString();
+
+    const multi = await request(app)
+      .get(`/api/admin/posts?mediaKind=multi_image&sortBy=interactions&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    expect(multi.body.posts.map((post: any) => post.id)).toEqual([multiImage._id.toString()]);
+
+    const sorted = await request(app)
+      .get(`/api/admin/posts?q=report&sortBy=interactions&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    expect(sorted.body.posts[0].id).toBe(multiImage._id.toString());
+    expect(sorted.body.posts.map((post: any) => post.id)).toContain(singleImage._id.toString());
+    expect(sorted.body.posts.map((post: any) => post.id)).toContain(video._id.toString());
+    expect(sorted.body.posts.some((post: any) => post.caption === "Old post report")).toBe(false);
+
+    const insights = await request(app)
+      .get(`/api/admin/posts/insights?q=report&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+
+    expect(insights.body.summary.totalPosts).toBe(3);
+    expect(insights.body.summary.totalInteractions).toBeGreaterThanOrEqual(4);
+    expect(insights.body.mediaBreakdown).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "single_image", count: 1 }),
+      expect.objectContaining({ key: "multi_image", count: 1 }),
+      expect.objectContaining({ key: "video", count: 1 })
+    ]));
+    expect(insights.body.topPosts[0].id).toBe(multiImage._id.toString());
   });
 
   it("validates analytics ingestion batches", async () => {

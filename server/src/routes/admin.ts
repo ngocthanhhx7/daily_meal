@@ -1,5 +1,6 @@
 import { Router, type RequestHandler } from "express";
 import jwt from "jsonwebtoken";
+import { Types } from "mongoose";
 import { z } from "zod";
 import { env } from "../config/env.js";
 import { HttpError } from "../middleware/error.js";
@@ -33,7 +34,13 @@ const adminListQuerySchema = z.object({
 
 const adminPostsQuerySchema = adminListQuerySchema.extend({
   moderationStatus: z.enum(["visible", "hidden", "review"]).optional(),
-  visibility: z.enum(["public", "friends", "private"]).optional()
+  visibility: z.enum(["public", "friends", "private"]).optional(),
+  start: z.coerce.date().optional(),
+  end: z.coerce.date().optional(),
+  range: z.enum(["1d", "7d", "30d", "all"]).optional(),
+  mediaKind: z.enum(["single_image", "multi_image", "video", "all"]).optional(),
+  sortBy: z.enum(["createdAt", "interactions"]).default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc")
 });
 
 const adminReportsQuerySchema = z.object({
@@ -60,7 +67,14 @@ const premiumBodySchema = z.object({
 const adminRangeBodySchema = z.object({
   start: z.coerce.date().optional(),
   end: z.coerce.date().optional(),
-  range: z.enum(["1d", "7d", "all"]).optional()
+  range: z.enum(["1d", "7d", "30d", "all"]).optional()
+});
+
+const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+const adminUserInsightsQuerySchema = adminRangeBodySchema.extend({
+  startTime: timeOfDaySchema.optional(),
+  endTime: timeOfDaySchema.optional()
 });
 
 type AdminJwtPayload = {
@@ -79,6 +93,8 @@ type DailyPoint = {
   reports: number;
   apiErrors: number;
 };
+
+type PostMediaKind = "single_image" | "multi_image" | "video" | "all";
 
 function assertAdminConfigured() {
   if (!env.ADMIN_EMAIL || !env.ADMIN_PASSWORD) {
@@ -169,6 +185,14 @@ async function resolveRange(input: unknown) {
     };
   }
 
+  if (parsed.range === "30d") {
+    return {
+      start: new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000),
+      end,
+      rangePreset: "30d" as const
+    };
+  }
+
   if (parsed.range === "all") {
     return {
       start: await earliestAdminDate(end),
@@ -186,6 +210,69 @@ function toIso(value?: Date | null) {
 
 function dateKey(value: Date) {
   return value.toISOString().slice(0, 10);
+}
+
+function localDateKey(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function timeToMinutes(value?: string) {
+  if (!value) return undefined;
+  const [hour = 0, minute = 0] = value.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function minutesFromLocalTime(value: Date) {
+  return value.getHours() * 60 + value.getMinutes();
+}
+
+function matchesTimeOfDay(value: Date, startTime?: string, endTime?: string) {
+  const startMinute = timeToMinutes(startTime);
+  const endMinute = timeToMinutes(endTime);
+  if (startMinute === undefined && endMinute === undefined) return true;
+
+  const minute = minutesFromLocalTime(value);
+  if (startMinute !== undefined && endMinute !== undefined) {
+    if (startMinute <= endMinute) {
+      return minute >= startMinute && minute < endMinute;
+    }
+    return minute >= startMinute || minute < endMinute;
+  }
+
+  if (startMinute !== undefined) return minute >= startMinute;
+  return endMinute !== undefined ? minute < endMinute : true;
+}
+
+function timeOfDayExpression(field: string, startTime?: string, endTime?: string) {
+  const startMinute = timeToMinutes(startTime);
+  const endMinute = timeToMinutes(endTime);
+  if (startMinute === undefined && endMinute === undefined) return undefined;
+
+  const minuteOfDay = {
+    $add: [
+      { $multiply: [{ $hour: { date: `$${field}`, timezone: "Asia/Ho_Chi_Minh" } }, 60] },
+      { $minute: { date: `$${field}`, timezone: "Asia/Ho_Chi_Minh" } }
+    ]
+  };
+
+  if (startMinute !== undefined && endMinute !== undefined) {
+    if (startMinute <= endMinute) {
+      return { $and: [{ $gte: [minuteOfDay, startMinute] }, { $lt: [minuteOfDay, endMinute] }] };
+    }
+    return { $or: [{ $gte: [minuteOfDay, startMinute] }, { $lt: [minuteOfDay, endMinute] }] };
+  }
+
+  if (startMinute !== undefined) return { $gte: [minuteOfDay, startMinute] };
+  return { $lt: [minuteOfDay, endMinute] };
+}
+
+function withTimeOfDayFilter<T extends Record<string, unknown>>(match: T, field: string, startTime?: string, endTime?: string) {
+  const expression = timeOfDayExpression(field, startTime, endTime);
+  if (!expression) return match;
+  return { ...match, $expr: expression };
 }
 
 function makeDailyMap(start: Date, end: Date) {
@@ -211,16 +298,23 @@ function addToDaily(map: Map<string, DailyPoint>, rows: Array<{ _id: string; cou
   }
 }
 
-async function dailyCount(model: any, field: string, start: Date, end: Date, match: Record<string, unknown> = {}) {
+async function dailyCount(
+  model: any,
+  field: string,
+  start: Date,
+  end: Date,
+  match: Record<string, unknown> = {},
+  timeFilter: { startTime?: string; endTime?: string } = {}
+) {
   return (await model.aggregate([
-    { $match: { ...match, [field]: { $gte: start, $lt: end } } },
+    { $match: withTimeOfDayFilter({ ...match, [field]: { $gte: start, $lt: end } }, field, timeFilter.startTime, timeFilter.endTime) },
     { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: `$${field}` } }, count: { $sum: 1 } } }
   ])) as Array<{ _id: string; count: number }>;
 }
 
-async function dailyPaymentRevenue(start: Date, end: Date) {
+async function dailyPaymentRevenue(start: Date, end: Date, timeFilter: { startTime?: string; endTime?: string } = {}) {
   return Payment.aggregate<{ _id: string; count: number; total: number }>([
-    { $match: { createdAt: { $gte: start, $lt: end }, status: "PAID" } },
+    { $match: withTimeOfDayFilter({ createdAt: { $gte: start, $lt: end }, status: "PAID" }, "createdAt", timeFilter.startTime, timeFilter.endTime) },
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
@@ -231,17 +325,17 @@ async function dailyPaymentRevenue(start: Date, end: Date) {
   ]);
 }
 
-async function buildDailySeries(start: Date, end: Date) {
+async function buildDailySeries(start: Date, end: Date, timeFilter: { startTime?: string; endTime?: string } = {}) {
   const map = makeDailyMap(start, end);
   const [users, posts, likes, saves, comments, payments, reports, apiErrors] = await Promise.all([
-    dailyCount(User, "createdAt", start, end),
-    dailyCount(Post, "createdAt", start, end),
-    dailyCount(PostLike, "createdAt", start, end),
-    dailyCount(PostSave, "createdAt", start, end),
-    dailyCount(Comment, "createdAt", start, end),
-    dailyPaymentRevenue(start, end),
-    dailyCount(UserInteraction, "createdAt", start, end, { type: "report" }),
-    dailyCount(AnalyticsEvent, "occurredAt", start, end, { name: { $in: ["runtime_error", "runtime_unhandled_rejection", "api_request_failed"] } })
+    dailyCount(User, "createdAt", start, end, {}, timeFilter),
+    dailyCount(Post, "createdAt", start, end, {}, timeFilter),
+    dailyCount(PostLike, "createdAt", start, end, {}, timeFilter),
+    dailyCount(PostSave, "createdAt", start, end, {}, timeFilter),
+    dailyCount(Comment, "createdAt", start, end, {}, timeFilter),
+    dailyPaymentRevenue(start, end, timeFilter),
+    dailyCount(UserInteraction, "createdAt", start, end, { type: "report" }, timeFilter),
+    dailyCount(AnalyticsEvent, "occurredAt", start, end, { name: { $in: ["runtime_error", "runtime_unhandled_rejection", "api_request_failed"] } }, timeFilter)
   ]);
 
   addToDaily(map, users, "users");
@@ -418,9 +512,333 @@ async function aggregateByField(model: any, field: string, match: Record<string,
   ])) as Array<{ _id: string | null; count: number }>;
 }
 
-async function buildAdminDashboard(start: Date, end: Date, rangePreset: AnalyticsRangePreset) {
+function interactionExpression() {
+  return {
+    $add: [
+      { $ifNull: ["$stats.likes", 0] },
+      { $ifNull: ["$stats.comments", 0] },
+      { $ifNull: ["$stats.saves", 0] }
+    ]
+  };
+}
+
+function mediaKindExpression() {
+  return {
+    $cond: [
+      { $eq: ["$mediaType", "video"] },
+      "video",
+      {
+        $cond: [
+          { $gt: [{ $size: { $ifNull: ["$images", []] } }, 1] },
+          "multi_image",
+          "single_image"
+        ]
+      }
+    ]
+  };
+}
+
+function postMediaFilter(mediaKind?: PostMediaKind) {
+  if (!mediaKind || mediaKind === "all") return {};
+  if (mediaKind === "video") return { mediaType: "video" };
+  if (mediaKind === "multi_image") {
+    return {
+      mediaType: { $ne: "video" },
+      $expr: { $gt: [{ $size: { $ifNull: ["$images", []] } }, 1] }
+    };
+  }
+  return {
+    mediaType: { $ne: "video" },
+    $expr: { $eq: [{ $size: { $ifNull: ["$images", []] } }, 1] }
+  };
+}
+
+function postRangeFilter(start?: Date, end?: Date) {
+  if (!start && !end) return {};
+  return {
+    createdAt: {
+      ...(start ? { $gte: start } : {}),
+      ...(end ? { $lt: end } : {})
+    }
+  };
+}
+
+function buildPostQueryFilter(query: z.infer<typeof adminPostsQuerySchema>) {
+  const filter: Record<string, unknown> = {
+    ...postRangeFilter(query.start, query.end),
+    ...postMediaFilter(query.mediaKind)
+  };
+
+  if (query.q) {
+    filter.$or = [
+      { caption: { $regex: query.q, $options: "i" } },
+      { tags: { $regex: query.q, $options: "i" } },
+      { "recipe.title": { $regex: query.q, $options: "i" } }
+    ];
+  }
+  if (query.moderationStatus) {
+    filter.moderationStatus = query.moderationStatus;
+  }
+  if (query.visibility) {
+    filter.visibility = query.visibility;
+  }
+
+  return filter;
+}
+
+async function findAdminPosts(query: z.infer<typeof adminPostsQuerySchema>) {
+  const filter = buildPostQueryFilter(query);
+  const skip = (query.page - 1) * query.limit;
+  const sortDirection: 1 | -1 = query.sortOrder === "asc" ? 1 : -1;
+  const sort =
+    query.sortBy === "interactions"
+      ? { interactionCount: sortDirection, createdAt: -1 as const }
+      : { createdAt: sortDirection, interactionCount: -1 as const };
+
+  const [posts, totalRows] = await Promise.all([
+    Post.aggregate([
+      { $match: filter },
+      { $addFields: { interactionCount: interactionExpression(), mediaKind: mediaKindExpression() } },
+      { $sort: sort },
+      { $skip: skip },
+      { $limit: query.limit }
+    ]),
+    Post.aggregate([{ $match: filter }, { $count: "total" }])
+  ]);
+
+  const populated = await Post.populate(posts, { path: "author", select: "displayName email avatarUrl" });
+  return {
+    posts: populated,
+    total: totalRows[0]?.total ?? 0
+  };
+}
+
+async function buildPostInsights(query: z.infer<typeof adminPostsQuerySchema>) {
+  const filter = buildPostQueryFilter(query);
+  const [summaryRows, mediaRows, topPosts] = await Promise.all([
+    Post.aggregate<{ _id: null; totalPosts: number; totalInteractions: number }>([
+      { $match: filter },
+      { $addFields: { interactionCount: interactionExpression() } },
+      { $group: { _id: null, totalPosts: { $sum: 1 }, totalInteractions: { $sum: "$interactionCount" } } }
+    ]),
+    Post.aggregate<{ _id: PostMediaKind; count: number; interactions: number }>([
+      { $match: filter },
+      { $addFields: { interactionCount: interactionExpression(), mediaKind: mediaKindExpression() } },
+      { $group: { _id: "$mediaKind", count: { $sum: 1 }, interactions: { $sum: "$interactionCount" } } },
+      { $sort: { count: -1 } }
+    ]),
+    Post.aggregate([
+      { $match: filter },
+      { $addFields: { interactionCount: interactionExpression(), mediaKind: mediaKindExpression() } },
+      { $sort: { interactionCount: -1, createdAt: -1 } },
+      { $limit: 5 }
+    ])
+  ]);
+
+  const populatedTopPosts = await Post.populate(topPosts, { path: "author", select: "displayName email avatarUrl" });
+  const summary = summaryRows[0] ?? { totalPosts: 0, totalInteractions: 0 };
+
+  return {
+    range: { start: toIso(query.start), end: toIso(query.end) },
+    filters: { mediaKind: query.mediaKind ?? "all" },
+    summary: {
+      totalPosts: summary.totalPosts,
+      totalInteractions: summary.totalInteractions
+    },
+    mediaBreakdown: mediaRows.map((row) => ({
+      key: row._id,
+      count: row.count,
+      interactions: row.interactions
+    })),
+    topPosts: populatedTopPosts.map(postDto)
+  };
+}
+
+async function buildUserInsights(
+  start: Date,
+  end: Date,
+  rangePreset: AnalyticsRangePreset,
+  timeFilter: { startTime?: string; endTime?: string } = {}
+) {
+  const sessionRows = await AnalyticsEvent.aggregate<{
+    _id: { sessionId: string; user: Types.ObjectId };
+    startedAt: Date;
+    endedAt: Date;
+    eventCount: number;
+    explicitDurationMs?: number;
+  }>([
+    { $match: { occurredAt: { $gte: start, $lt: end }, user: { $exists: true, $ne: null } } },
+    {
+      $group: {
+        _id: { sessionId: "$sessionId", user: "$user" },
+        startedAt: { $min: "$occurredAt" },
+        endedAt: { $max: "$occurredAt" },
+        eventCount: { $sum: 1 },
+        explicitDurationMs: {
+          $max: {
+            $cond: [{ $eq: ["$name", "session_end"] }, "$properties.durationMs", null]
+          }
+        }
+      }
+    }
+  ]);
+
+  const sessions = sessionRows
+    .map((row) => {
+      const duration =
+        typeof row.explicitDurationMs === "number" && Number.isFinite(row.explicitDurationMs)
+          ? Math.max(0, row.explicitDurationMs)
+          : Math.max(0, row.endedAt.getTime() - row.startedAt.getTime());
+      return {
+        userId: row._id.user.toString(),
+        startedAt: row.startedAt,
+        endedAt: row.endedAt,
+        eventCount: row.eventCount,
+        durationMs: duration
+      };
+    })
+    .filter((session) => matchesTimeOfDay(session.startedAt, timeFilter.startTime, timeFilter.endTime));
+
+  const byUser = new Map<string, { sessions: number; totalDurationMs: number; eventCount: number }>();
+  const dailyUsageMap = new Map<string, { date: string; sessions: number; totalDurationMs: number; activeUsers: Set<string> }>();
+  const hourlyActivityMap = new Map<number, { hour: number; sessions: number; totalDurationMs: number; activeUsers: Set<string> }>();
+
+  for (let hour = 0; hour < 24; hour += 1) {
+    hourlyActivityMap.set(hour, { hour, sessions: 0, totalDurationMs: 0, activeUsers: new Set() });
+  }
+
+  for (const session of sessions) {
+    const userId = session.userId;
+    const current = byUser.get(userId) ?? { sessions: 0, totalDurationMs: 0, eventCount: 0 };
+    current.sessions += 1;
+    current.totalDurationMs += session.durationMs;
+    current.eventCount += session.eventCount;
+    byUser.set(userId, current);
+
+    const day = localDateKey(session.startedAt);
+    const daily = dailyUsageMap.get(day) ?? { date: day, sessions: 0, totalDurationMs: 0, activeUsers: new Set<string>() };
+    daily.sessions += 1;
+    daily.totalDurationMs += session.durationMs;
+    daily.activeUsers.add(userId);
+    dailyUsageMap.set(day, daily);
+
+    const hour = session.startedAt.getHours();
+    const hourly = hourlyActivityMap.get(hour)!;
+    hourly.sessions += 1;
+    hourly.totalDurationMs += session.durationMs;
+    hourly.activeUsers.add(userId);
+  }
+
+  const userIds = [...byUser.keys()];
+  const objectIds = userIds.filter((id) => Types.ObjectId.isValid(id)).map((id) => new Types.ObjectId(id));
+  const [returningUserIds, users, posts, postInteractions] = await Promise.all([
+    objectIds.length
+      ? AnalyticsEvent.distinct("user", { user: { $in: objectIds }, occurredAt: { $lt: start } })
+      : Promise.resolve([]),
+    objectIds.length
+      ? User.find({ _id: { $in: objectIds } }).select("displayName email phone avatarUrl isPremium createdAt updatedAt").lean()
+      : Promise.resolve([]),
+    objectIds.length
+      ? Post.aggregate<{ _id: Types.ObjectId; count: number }>([
+          { $match: { author: { $in: objectIds }, createdAt: { $gte: start, $lt: end } } },
+          { $group: { _id: "$author", count: { $sum: 1 } } }
+        ])
+      : Promise.resolve([]),
+    objectIds.length
+      ? Post.aggregate<{ _id: Types.ObjectId; count: number }>([
+          { $match: { author: { $in: objectIds }, createdAt: { $gte: start, $lt: end } } },
+          { $addFields: { interactionCount: interactionExpression() } },
+          { $group: { _id: "$author", count: { $sum: "$interactionCount" } } }
+        ])
+      : Promise.resolve([])
+  ]);
+
+  const countMap = (rows: Array<{ _id: Types.ObjectId; count: number }>) =>
+    new Map(rows.map((row) => [row._id.toString(), row.count]));
+  const postsByUser = countMap(posts);
+  const interactionsByUser = countMap(postInteractions);
+  const userById = new Map(users.map((user) => [user._id.toString(), user]));
+  const returningSet = new Set(returningUserIds.map((id) => id.toString()));
+  const totalSessions = sessions.length;
+  const totalDurationMs = [...byUser.values()].reduce((sum, item) => sum + item.totalDurationMs, 0);
+  const dailyUsage = [...dailyUsageMap.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((item) => ({
+      date: item.date,
+      sessions: item.sessions,
+      activeUsers: item.activeUsers.size,
+      totalDurationMs: item.totalDurationMs,
+      averageSessionDurationMs: item.sessions > 0 ? item.totalDurationMs / item.sessions : 0
+    }));
+  const hourlyActivity = [...hourlyActivityMap.values()].map((item) => ({
+    hour: item.hour,
+    label: `${String(item.hour).padStart(2, "0")}:00`,
+    sessions: item.sessions,
+    activeUsers: item.activeUsers.size,
+    totalDurationMs: item.totalDurationMs,
+    averageSessionDurationMs: item.sessions > 0 ? item.totalDurationMs / item.sessions : 0
+  }));
+  const peakActivityWindow = hourlyActivity.reduce(
+    (best, item) => (item.sessions > best.sessions || (item.sessions === best.sessions && item.totalDurationMs > best.totalDurationMs) ? item : best),
+    { hour: 0, label: "00:00", sessions: 0, activeUsers: 0, totalDurationMs: 0, averageSessionDurationMs: 0 }
+  );
+
+  const topUsers = userIds
+    .map((id) => {
+      const activity = byUser.get(id)!;
+      const user = userById.get(id);
+      const postCount = postsByUser.get(id) ?? 0;
+      const interactions = interactionsByUser.get(id) ?? 0;
+      const averageSessionDurationMs = activity.sessions > 0 ? activity.totalDurationMs / activity.sessions : 0;
+      return {
+        id,
+        displayName: user?.displayName ?? "Không rõ",
+        email: user?.email,
+        phone: user?.phone,
+        avatarUrl: user?.avatarUrl,
+        isPremium: user ? hasActivePremium(user) : false,
+        sessions: activity.sessions,
+        totalDurationMs: activity.totalDurationMs,
+        averageSessionDurationMs,
+        posts: postCount,
+        interactions,
+        score: Math.round(activity.totalDurationMs / 1000 + activity.sessions * 60 + postCount * 120 + interactions * 15),
+        returning: returningSet.has(id)
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+
+  return {
+    range: { start: start.toISOString(), end: end.toISOString() },
+    rangePreset,
+    timeFilter: {
+      startTime: timeFilter.startTime,
+      endTime: timeFilter.endTime
+    },
+    summary: {
+      totalSessions,
+      totalDurationMs,
+      averageSessionDurationMs: totalSessions > 0 ? totalDurationMs / totalSessions : 0,
+      activeUsers: userIds.length,
+      returningUsers: returningSet.size
+    },
+    dailyUsage,
+    hourlyActivity,
+    peakActivityWindow,
+    topUsers
+  };
+}
+
+async function buildAdminDashboard(
+  start: Date,
+  end: Date,
+  rangePreset: AnalyticsRangePreset,
+  timeFilter: { startTime?: string; endTime?: string } = {}
+) {
   const today = startOfToday();
-  const rangeFilter = { createdAt: { $gte: start, $lt: end } };
+  const rangeFilter = withTimeOfDayFilter({ createdAt: { $gte: start, $lt: end } }, "createdAt", timeFilter.startTime, timeFilter.endTime);
+  const todayFilter = withTimeOfDayFilter({ createdAt: { $gte: today } }, "createdAt", timeFilter.startTime, timeFilter.endTime);
   const [
     analyticsSummary,
     series,
@@ -462,8 +880,8 @@ async function buildAdminDashboard(start: Date, end: Date, rangePreset: Analytic
     paymentsByStatus,
     reportsByStatus
   ] = await Promise.all([
-    buildAnalyticsSummary({ start, end, range: rangePreset }),
-    buildDailySeries(start, end),
+    buildAnalyticsSummary({ start, end, range: rangePreset, startTime: timeFilter.startTime, endTime: timeFilter.endTime }),
+    buildDailySeries(start, end, timeFilter),
     User.countDocuments(),
     Post.countDocuments(),
     Meal.countDocuments(),
@@ -482,16 +900,16 @@ async function buildAdminDashboard(start: Date, end: Date, rangePreset: Analytic
     Payment.countDocuments({ ...rangeFilter, status: "PAID" }),
     Payment.aggregate<{ total: number }>([{ $match: { ...rangeFilter, status: "PAID" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
     User.countDocuments({ ...rangeFilter, isPremium: true }),
-    User.countDocuments({ createdAt: { $gte: today } }),
-    Post.countDocuments({ createdAt: { $gte: today } }),
-    PostLike.countDocuments({ createdAt: { $gte: today } }),
-    PostSave.countDocuments({ createdAt: { $gte: today } }),
-    Comment.countDocuments({ createdAt: { $gte: today } }),
-    UserInteraction.countDocuments({ createdAt: { $gte: today } }),
+    User.countDocuments(todayFilter),
+    Post.countDocuments(todayFilter),
+    PostLike.countDocuments(withTimeOfDayFilter({ createdAt: { $gte: today } }, "createdAt", timeFilter.startTime, timeFilter.endTime)),
+    PostSave.countDocuments(withTimeOfDayFilter({ createdAt: { $gte: today } }, "createdAt", timeFilter.startTime, timeFilter.endTime)),
+    Comment.countDocuments(withTimeOfDayFilter({ createdAt: { $gte: today } }, "createdAt", timeFilter.startTime, timeFilter.endTime)),
+    UserInteraction.countDocuments(withTimeOfDayFilter({ createdAt: { $gte: today } }, "createdAt", timeFilter.startTime, timeFilter.endTime)),
     UserInteraction.countDocuments(openReportFilter()),
-    UserInteraction.countDocuments({ ...openReportFilter(), createdAt: { $gte: start, $lt: end } }),
+    UserInteraction.countDocuments(withTimeOfDayFilter({ ...openReportFilter(), createdAt: { $gte: start, $lt: end } }, "createdAt", timeFilter.startTime, timeFilter.endTime)),
     Post.countDocuments({ moderationStatus: "hidden" }),
-    Post.countDocuments({ moderationStatus: "hidden", createdAt: { $gte: start, $lt: end } }),
+    Post.countDocuments(withTimeOfDayFilter({ moderationStatus: "hidden", createdAt: { $gte: start, $lt: end } }, "createdAt", timeFilter.startTime, timeFilter.endTime)),
     UserInteraction.find({ type: "report" }).sort({ createdAt: -1 }).limit(5).populate("actor", "displayName email").populate("target", "displayName email").lean(),
     Post.find().sort({ createdAt: -1 }).limit(5).populate("author", "displayName email avatarUrl").lean(),
     Payment.find().sort({ createdAt: -1 }).limit(5).populate("user", "displayName email").lean(),
@@ -510,6 +928,10 @@ async function buildAdminDashboard(start: Date, end: Date, rangePreset: Analytic
   return {
     range: { start: start.toISOString(), end: end.toISOString() },
     rangePreset,
+    timeFilter: {
+      startTime: timeFilter.startTime,
+      endTime: timeFilter.endTime
+    },
     totalsAllTime: {
       users: totalUsersAllTime,
       posts: totalPostsAllTime,
@@ -593,12 +1015,13 @@ adminRouter.post("/login", (req, res, next) => {
 
 adminRouter.get("/dashboard", requireAdmin, async (req, res, next) => {
   try {
-    const { start, end, rangePreset } = await resolveRange(req.query);
+    const query = adminUserInsightsQuerySchema.parse(req.query);
+    const { start, end, rangePreset } = await resolveRange(query);
     if (start >= end) {
       throw new HttpError(400, "Thời gian bắt đầu bảng điều khiển phải trước thời gian kết thúc.");
     }
 
-    res.json(await buildAdminDashboard(start, end, rangePreset));
+    res.json(await buildAdminDashboard(start, end, rangePreset, { startTime: query.startTime, endTime: query.endTime }));
   } catch (error) {
     next(error);
   }
@@ -677,6 +1100,20 @@ adminRouter.get("/users", requireAdmin, async (req, res, next) => {
         pages: Math.ceil(total / query.limit)
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get("/users/insights", requireAdmin, async (req, res, next) => {
+  try {
+    const query = adminUserInsightsQuerySchema.parse(req.query);
+    const { start, end, rangePreset } = await resolveRange(query);
+    if (start >= end) {
+      throw new HttpError(400, "Thời gian bắt đầu báo cáo user phải trước thời gian kết thúc.");
+    }
+
+    res.json(await buildUserInsights(start, end, rangePreset, { startTime: query.startTime, endTime: query.endTime }));
   } catch (error) {
     next(error);
   }
@@ -768,32 +1205,21 @@ adminRouter.get("/users/:id", requireAdmin, async (req, res, next) => {
 adminRouter.get("/posts", requireAdmin, async (req, res, next) => {
   try {
     const query = adminPostsQuerySchema.parse(req.query);
-    const filter: Record<string, unknown> = {};
-
-    if (query.q) {
-      filter.$or = [
-        { caption: { $regex: query.q, $options: "i" } },
-        { tags: { $regex: query.q, $options: "i" } },
-        { "recipe.title": { $regex: query.q, $options: "i" } }
-      ];
-    }
-    if (query.moderationStatus) {
-      filter.moderationStatus = query.moderationStatus;
-    }
-    if (query.visibility) {
-      filter.visibility = query.visibility;
-    }
-
-    const skip = (query.page - 1) * query.limit;
-    const [posts, total] = await Promise.all([
-      Post.find(filter).sort({ createdAt: -1 }).skip(skip).limit(query.limit).populate("author", "displayName email avatarUrl").lean(),
-      Post.countDocuments(filter)
-    ]);
+    const { posts, total } = await findAdminPosts(query);
 
     res.json({
       posts: posts.map(postDto),
       pagination: { page: query.page, limit: query.limit, total, pages: Math.ceil(total / query.limit) }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get("/posts/insights", requireAdmin, async (req, res, next) => {
+  try {
+    const query = adminPostsQuerySchema.parse({ ...req.query, page: 1, limit: 5 });
+    res.json(await buildPostInsights(query));
   } catch (error) {
     next(error);
   }

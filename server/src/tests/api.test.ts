@@ -64,6 +64,27 @@ async function createPost(token: string, caption: string, visibility: "public" |
   return response.body.post as { _id: string; caption: string };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function vietnamPostDate(dayOffset: number, hour = 12) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  const noonInVietnamAsUtc = Date.UTC(value("year"), value("month") - 1, value("day"), hour - 7, 0, 0, 0);
+  return new Date(noonInVietnamAsUtc - dayOffset * DAY_MS);
+}
+
+async function setPostCreatedAt(postId: string, createdAt: Date, fields: Record<string, unknown> = {}) {
+  await Post.collection.updateOne(
+    { _id: new mongoose.Types.ObjectId(postId) },
+    { $set: { createdAt, updatedAt: createdAt, ...fields } }
+  );
+}
+
 async function makePremium(userId: string) {
   await User.findByIdAndUpdate(userId, { isPremium: true });
 }
@@ -1933,6 +1954,101 @@ describe("Daily Meal API", () => {
 
     expect(unfollow.body.user.relationship.isFollowing).toBe(false);
     expect(unfollow.body.user.relationship.isFriend).toBe(false);
+  });
+
+  it("returns author streakDays for a 3-day posting streak", async () => {
+    const viewer = await register("feed-streak-viewer@example.com");
+    const author = await register("feed-streak-author@example.com");
+
+    const todayPost = await createPost(author.token, "Streak today meal");
+    const yesterdayPost = await createPost(author.token, "Streak yesterday meal");
+    const twoDaysPost = await createPost(author.token, "Streak two days meal");
+
+    await Promise.all([
+      setPostCreatedAt(todayPost._id, vietnamPostDate(0)),
+      setPostCreatedAt(yesterdayPost._id, vietnamPostDate(1)),
+      setPostCreatedAt(twoDaysPost._id, vietnamPostDate(2))
+    ]);
+
+    const feed = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    const post = feed.body.posts.find((item: any) => item.caption === "Streak today meal");
+    expect(post.author.id).toBe(author.user.id);
+    expect(post.author.streakDays).toBe(3);
+  });
+
+  it("counts unique posting days instead of raw post count for feed streakDays", async () => {
+    const viewer = await register("feed-streak-unique-viewer@example.com");
+    const author = await register("feed-streak-unique-author@example.com");
+
+    const todayPost = await createPost(author.token, "Unique streak today meal");
+    const secondTodayPost = await createPost(author.token, "Unique streak second today meal");
+    const yesterdayPost = await createPost(author.token, "Unique streak yesterday meal");
+    const twoDaysPost = await createPost(author.token, "Unique streak two days meal");
+
+    await Promise.all([
+      setPostCreatedAt(todayPost._id, vietnamPostDate(0, 12)),
+      setPostCreatedAt(secondTodayPost._id, vietnamPostDate(0, 18)),
+      setPostCreatedAt(yesterdayPost._id, vietnamPostDate(1)),
+      setPostCreatedAt(twoDaysPost._id, vietnamPostDate(2))
+    ]);
+
+    const feed = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    const post = feed.body.posts.find((item: any) => item.caption === "Unique streak today meal");
+    expect(post.author.streakDays).toBe(3);
+  });
+
+  it("does not count hidden posts toward feed author streakDays", async () => {
+    const viewer = await register("feed-streak-hidden-viewer@example.com");
+    const author = await register("feed-streak-hidden-author@example.com");
+
+    const todayPost = await createPost(author.token, "Hidden streak today meal");
+    const hiddenYesterdayPost = await createPost(author.token, "Hidden streak yesterday meal");
+    const twoDaysPost = await createPost(author.token, "Hidden streak two days meal");
+
+    await Promise.all([
+      setPostCreatedAt(todayPost._id, vietnamPostDate(0)),
+      setPostCreatedAt(hiddenYesterdayPost._id, vietnamPostDate(1), { moderationStatus: "hidden" }),
+      setPostCreatedAt(twoDaysPost._id, vietnamPostDate(2))
+    ]);
+
+    const feed = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    const post = feed.body.posts.find((item: any) => item.caption === "Hidden streak today meal");
+    expect(post.author.streakDays).toBe(1);
+  });
+
+  it("resets feed author streakDays to 0 when there is no valid post today", async () => {
+    const viewer = await register("feed-streak-reset-viewer@example.com");
+    const author = await register("feed-streak-reset-author@example.com");
+
+    const yesterdayPost = await createPost(author.token, "Reset streak yesterday meal");
+    const twoDaysPost = await createPost(author.token, "Reset streak two days meal");
+    const threeDaysPost = await createPost(author.token, "Reset streak three days meal");
+
+    await Promise.all([
+      setPostCreatedAt(yesterdayPost._id, vietnamPostDate(1)),
+      setPostCreatedAt(twoDaysPost._id, vietnamPostDate(2)),
+      setPostCreatedAt(threeDaysPost._id, vietnamPostDate(3))
+    ]);
+
+    const feed = await request(app)
+      .get("/api/posts/feed")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    const post = feed.body.posts.find((item: any) => item.caption === "Reset streak yesterday meal");
+    expect(post.author.streakDays).toBe(0);
   });
 
   it("feeds own and followed users posts with viewer state", async () => {

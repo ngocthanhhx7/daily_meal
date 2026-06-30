@@ -17,6 +17,7 @@ export type User = {
   premiumTrialStartedAt?: string;
   premiumTrialEndsAt?: string;
   premiumPaidEndsAt?: string;
+  streakDays?: number;
   themeColor?: string;
   preferences: {
     interests: string[];

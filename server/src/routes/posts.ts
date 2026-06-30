@@ -249,6 +249,85 @@ function rankFeedPosts(posts: any[], viewerId: string | undefined, followingIds:
   });
 }
 
+const FEED_STREAK_TIME_ZONE = "Asia/Ho_Chi_Minh";
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function timeZoneDayParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: FEED_STREAK_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+
+  return {
+    year: Number(parts.find((part) => part.type === "year")?.value),
+    month: Number(parts.find((part) => part.type === "month")?.value),
+    day: Number(parts.find((part) => part.type === "day")?.value)
+  };
+}
+
+function utcDayKey(date: Date) {
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getUTCDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function vietnamDayKey(date: Date) {
+  const parts = timeZoneDayParts(date);
+  return `${parts.year}-${`${parts.month}`.padStart(2, "0")}-${`${parts.day}`.padStart(2, "0")}`;
+}
+
+function vietnamDayKeyFromTodayOffset(offset: number, now = new Date()) {
+  const today = timeZoneDayParts(now);
+  const todayUtcMidnight = Date.UTC(today.year, today.month - 1, today.day);
+  return utcDayKey(new Date(todayUtcMidnight - offset * DAY_MS));
+}
+
+function postAuthorId(post: any) {
+  return post.author?._id?.toString?.() ?? post.author?.id?.toString?.() ?? post.author?.toString?.();
+}
+
+async function buildFeedAuthorStreakMap(postsOnPage: any[]) {
+  const authorIds = [...new Set(postsOnPage.map(postAuthorId).filter(Boolean))];
+  const streaks = new Map<string, number>();
+
+  if (!authorIds.length) {
+    return streaks;
+  }
+
+  const streakPosts = await Post.find({
+    author: { $in: authorIds },
+    moderationStatus: { $ne: "hidden" }
+  })
+    .select("author createdAt")
+    .lean();
+
+  const dayKeysByAuthor = new Map<string, Set<string>>();
+  for (const post of streakPosts) {
+    const authorId = post.author?.toString?.();
+    if (!authorId) continue;
+    const dayKeys = dayKeysByAuthor.get(authorId) ?? new Set<string>();
+    dayKeys.add(vietnamDayKey(new Date(post.createdAt)));
+    dayKeysByAuthor.set(authorId, dayKeys);
+  }
+
+  for (const authorId of authorIds) {
+    const dayKeys = dayKeysByAuthor.get(authorId) ?? new Set<string>();
+    let streakDays = 0;
+    for (let offset = 0; offset < dayKeys.size; offset += 1) {
+      if (!dayKeys.has(vietnamDayKeyFromTodayOffset(offset))) {
+        break;
+      }
+      streakDays += 1;
+    }
+    streaks.set(authorId, streakDays);
+  }
+
+  return streaks;
+}
+
 postsRouter.get("/feed", requireAuth, async (req, res, next) => {
   try {
     const page = Number(req.query.page ?? 1);
@@ -263,8 +342,21 @@ postsRouter.get("/feed", requireAuth, async (req, res, next) => {
       .populate("stickerId")
       .lean();
     const rankedPosts = rankFeedPosts(posts, req.user?.id, followingIds, friendIds).slice(skip, skip + limit);
+    const [serializedPosts, authorStreaks] = await Promise.all([
+      serializePostsForViewer(rankedPosts, req.user?.id),
+      buildFeedAuthorStreakMap(rankedPosts)
+    ]);
+    const postsWithAuthorStreaks = serializedPosts.map((post) => ({
+      ...post,
+      author: post.author
+        ? {
+            ...post.author,
+            streakDays: authorStreaks.get(post.author.id) ?? 0
+          }
+        : post.author
+    }));
 
-    res.json({ posts: await serializePostsForViewer(rankedPosts, req.user?.id), page, limit });
+    res.json({ posts: postsWithAuthorStreaks, page, limit });
   } catch (error) {
     next(error);
   }

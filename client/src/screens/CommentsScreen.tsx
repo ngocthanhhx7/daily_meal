@@ -11,8 +11,6 @@ import {
   TextInput,
   View,
   Keyboard,
-  LayoutAnimation,
-  UIManager,
   Modal
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,13 +28,6 @@ import type { Post } from "../types/api";
 import { IOS_MINIMUM_INPUT_FONT_SIZE, getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
 import { getParticipantAccent, getParticipantAvatarLabel, isDoubleTap } from "./messagePresentation";
 import { CameraIcon, CategoryIcon } from "../components/SvgIcons";
-
-// Enable LayoutAnimation for Android
-if (Platform.OS === "android") {
-  if (UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-  }
-}
 
 type Comment = {
   _id: string;
@@ -237,7 +228,6 @@ export function CommentsScreen({ navigation, route }: any) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isInputVisible, setIsInputVisible] = useState(false);
   const [showCategory, setShowCategory] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
@@ -248,6 +238,7 @@ export function CommentsScreen({ navigation, route }: any) {
 
   const headerHeight = insets.top + 56;
   const bottomBarHeight = insets.bottom + 100;
+  const isInputVisible = true;
 
   // Real-time comments socket room integration
   useEffect(() => {
@@ -331,30 +322,8 @@ export function CommentsScreen({ navigation, route }: any) {
       .catch(() => undefined);
   }, [token, post?._id]);
 
-  // Handle keyboard hide to return to floating button state
-  useEffect(() => {
-    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setIsInputVisible(false);
-    });
-    return () => {
-      hideSubscription.remove();
-    };
-  }, []);
-
-  // Autofocus input when it becomes visible
-  useEffect(() => {
-    if (isInputVisible) {
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [isInputVisible]);
-
   function openInput() {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setIsInputVisible(true);
+    inputRef.current?.focus();
   }
 
   async function send() {
@@ -385,8 +354,6 @@ export function CommentsScreen({ navigation, route }: any) {
 
       setBody("");
       Keyboard.dismiss();
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setIsInputVisible(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       Alert.alert("Không gửi được bình luận", error instanceof Error ? error.message : "Thử lại sau");
@@ -422,7 +389,7 @@ export function CommentsScreen({ navigation, route }: any) {
               styles.chatContent,
               {
                 paddingTop: headerHeight + 12,
-                paddingBottom: isInputVisible ? 12 : bottomBarHeight + 16
+                paddingBottom: bottomBarHeight + 18
               }
             ]}
             showsVerticalScrollIndicator={false}
@@ -522,7 +489,7 @@ export function CommentsScreen({ navigation, route }: any) {
             <BlurView
               intensity={80}
               tint="light"
-              style={[styles.inputBarOverlay, { paddingBottom: insets.bottom + 3 }]}
+              style={[styles.inputBarOverlay, { paddingBottom: insets.bottom + 10 }]}
             >
               <TextInput
                 ref={inputRef}

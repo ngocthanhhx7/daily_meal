@@ -48,6 +48,7 @@ const DEMO_IMAGES = [
 
 const DEMO_STICKER = require("../../assets/feed/home-sticker.png");
 const DEMO_AUTHOR_AVATAR = require("../../assets/feed/home-author.png");
+const STREAK_BADGE = require("../../assets/feed/streak.png");
 const PREMIUM_TRIAL_MASCOT = require("../../assets/stickers/b76f47fb-cc9c-41e7-ada3-39fc570671c9.jpg");
 
 const CATEGORY_ITEMS = [
@@ -952,6 +953,56 @@ function PremiumTrialMascot({ onPress, disabled }: { onPress: () => void; disabl
   );
 }
 
+function FeedAuthorChip({
+  post,
+  onAuthorPress,
+  expanded = false
+}: {
+  post: Post;
+  onAuthorPress: () => void;
+  expanded?: boolean;
+}) {
+  const showStreak = (post.author?.streakDays ?? 0) >= 3;
+  const chipStyle = expanded ? expandedStyles.authorChip : styles.authorChip;
+  const chipWithStreakStyle = expanded ? expandedStyles.authorChipWithStreak : styles.authorChipWithStreak;
+  const avatarStyle = expanded ? expandedStyles.authorAvatar : styles.authorAvatar;
+  const avatarImageStyle = expanded ? expandedStyles.authorAvatarImg : styles.authorAvatarImage;
+  const avatarTextStyle = expanded ? expandedStyles.authorInitial : styles.authorAvatarText;
+  const nameStyle = expanded ? expandedStyles.authorName : styles.authorName;
+  const streakBadgeStyle = expanded ? expandedStyles.authorStreakBadge : styles.authorStreakBadge;
+
+  return (
+    <Pressable
+      style={[
+        chipStyle,
+        showStreak && chipWithStreakStyle,
+        { backgroundColor: post.author?.themeColor || colors.green }
+      ]}
+      onPress={onAuthorPress}
+    >
+      {showStreak ? <Image source={STREAK_BADGE} style={streakBadgeStyle} resizeMode="contain" /> : null}
+      <View style={avatarStyle}>
+        {post.author?.avatarUrl ? (
+          <Image
+            source={authorAvatarSource(post.author.avatarUrl)}
+            style={avatarImageStyle}
+            resizeMode="cover"
+          />
+        ) : post._id.startsWith("demo") ? (
+          <Image source={DEMO_AUTHOR_AVATAR} style={avatarImageStyle} resizeMode="cover" />
+        ) : (
+          <AppText style={[avatarTextStyle, { color: post.author?.themeColor || colors.green }]}>
+            {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
+          </AppText>
+        )}
+      </View>
+      <AppText style={nameStyle} numberOfLines={1}>
+        {post.author?.displayName ?? "Daily Meal"}
+      </AppText>
+    </Pressable>
+  );
+}
+
 function PostSlide({
   post,
   index,
@@ -1034,29 +1085,7 @@ function PostSlide({
         </View>
       </Pressable>
 
-      <Pressable
-        style={[styles.authorChip, { backgroundColor: post.author?.themeColor || colors.green }]}
-        onPress={onAuthorPress}
-      >
-        <View style={styles.authorAvatar}>
-          {post.author?.avatarUrl ? (
-            <Image
-              source={authorAvatarSource(post.author.avatarUrl)}
-              style={styles.authorAvatarImage}
-              resizeMode="cover"
-            />
-          ) : post._id.startsWith("demo") ? (
-            <Image source={DEMO_AUTHOR_AVATAR} style={styles.authorAvatarImage} resizeMode="cover" />
-          ) : (
-            <AppText style={[styles.authorAvatarText, { color: post.author?.themeColor || colors.green }]}>
-              {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
-            </AppText>
-          )}
-        </View>
-        <AppText style={styles.authorName} numberOfLines={1}>
-          {post.author?.displayName ?? "Daily Meal"}
-        </AppText>
-      </Pressable>
+      <FeedAuthorChip post={post} onAuthorPress={onAuthorPress} />
     </View>
   );
 }
@@ -1415,26 +1444,7 @@ function ExpandedPostModal({
               ) : null}
             </View>
 
-            {/* Author chip */}
-            <Pressable
-              style={[expandedStyles.authorChip, { backgroundColor: post.author?.themeColor || colors.green }]}
-              onPress={onAuthorPress}
-            >
-              <View style={expandedStyles.authorAvatar}>
-                {post.author?.avatarUrl ? (
-                  <Image source={authorAvatarSource(post.author.avatarUrl)} style={expandedStyles.authorAvatarImg} resizeMode="cover" />
-                ) : post._id.startsWith("demo") ? (
-                  <Image source={DEMO_AUTHOR_AVATAR} style={expandedStyles.authorAvatarImg} resizeMode="cover" />
-                ) : (
-                  <AppText style={expandedStyles.authorInitial}>
-                    {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
-                  </AppText>
-                )}
-              </View>
-              <AppText style={expandedStyles.authorName} numberOfLines={1}>
-                {post.author?.displayName ?? "Daily Meal"}
-              </AppText>
-            </Pressable>
+            <FeedAuthorChip post={post} onAuthorPress={onAuthorPress} expanded />
           </ScrollView>
         </Pressable>
       </Pressable>
@@ -1500,6 +1510,8 @@ const expandedStyles = StyleSheet.create({
   authorChip: {
     alignSelf: "center",
     maxWidth: "86%",
+    position: "relative",
+    overflow: "visible",
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -1508,6 +1520,18 @@ const expandedStyles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 9999,
     marginTop: 4
+  },
+  authorChipWithStreak: {
+    marginLeft: 18
+  },
+  authorStreakBadge: {
+    position: "absolute",
+    left: -22,
+    top: -18,
+    width: 44,
+    height: 44,
+    zIndex: 3,
+    elevation: 8
   },
   authorAvatar: {
     width: 36,
@@ -1941,6 +1965,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
     alignSelf: "center",
     maxWidth: "86%",
+    position: "relative",
+    overflow: "visible",
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -1954,6 +1980,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowRadius: 10,
     elevation: 4
+  },
+  authorChipWithStreak: {
+    marginLeft: 20
+  },
+  authorStreakBadge: {
+    position: "absolute",
+    left: -24,
+    top: -20,
+    width: 48,
+    height: 48,
+    zIndex: 3,
+    elevation: 8
   },
   authorAvatar: {
     width: 38,

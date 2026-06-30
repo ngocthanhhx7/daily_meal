@@ -7,6 +7,7 @@ export const demoUser: User = {
   avatarUrl: undefined,
   bio: "Ghi lại món ăn, công thức và lượng calo mỗi ngày.",
   isPremium: true,
+  streakDays: 3,
   preferences: {
     interests: ["photography", "recipes"],
     eatingStyles: ["calorie-deficit"],

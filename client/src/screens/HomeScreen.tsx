@@ -964,50 +964,55 @@ function FeedAuthorChip({
 }) {
   const streakDays = post.author?.streakDays ?? 0;
   const showStreak = streakDays >= 3;
+  const chipWrapStyle = expanded ? expandedStyles.authorChipWrap : styles.authorChipWrap;
+  const chipWrapWithStreakStyle = expanded ? expandedStyles.authorChipWrapWithStreak : styles.authorChipWrapWithStreak;
   const chipStyle = expanded ? expandedStyles.authorChip : styles.authorChip;
-  const chipWithStreakStyle = expanded ? expandedStyles.authorChipWithStreak : styles.authorChipWithStreak;
   const avatarStyle = expanded ? expandedStyles.authorAvatar : styles.authorAvatar;
   const avatarImageStyle = expanded ? expandedStyles.authorAvatarImg : styles.authorAvatarImage;
   const avatarTextStyle = expanded ? expandedStyles.authorInitial : styles.authorAvatarText;
   const nameStyle = expanded ? expandedStyles.authorName : styles.authorName;
   const streakBadgeStyle = expanded ? expandedStyles.authorStreakBadge : styles.authorStreakBadge;
   const streakImageStyle = expanded ? expandedStyles.authorStreakImage : styles.authorStreakImage;
-  const streakCountStyle = expanded ? expandedStyles.authorStreakCount : styles.authorStreakCount;
+  const streakCountWrapStyle = expanded ? expandedStyles.authorStreakCountWrap : styles.authorStreakCountWrap;
+  const streakCountTextStyle = expanded ? expandedStyles.authorStreakCountText : styles.authorStreakCountText;
 
   return (
-    <Pressable
-      style={[
-        chipStyle,
-        showStreak && chipWithStreakStyle,
-        { backgroundColor: post.author?.themeColor || colors.green }
-      ]}
-      onPress={onAuthorPress}
-    >
+    <View style={[chipWrapStyle, showStreak && chipWrapWithStreakStyle]}>
       {showStreak ? (
         <View style={streakBadgeStyle} pointerEvents="none">
           <Image source={STREAK_BADGE} style={streakImageStyle} resizeMode="contain" />
-          <AppText style={streakCountStyle}>{streakDays}</AppText>
+          <View style={streakCountWrapStyle}>
+            <AppText style={streakCountTextStyle}>{streakDays}</AppText>
+          </View>
         </View>
       ) : null}
-      <View style={avatarStyle}>
-        {post.author?.avatarUrl ? (
-          <Image
-            source={authorAvatarSource(post.author.avatarUrl)}
-            style={avatarImageStyle}
-            resizeMode="cover"
-          />
-        ) : post._id.startsWith("demo") ? (
-          <Image source={DEMO_AUTHOR_AVATAR} style={avatarImageStyle} resizeMode="cover" />
-        ) : (
-          <AppText style={[avatarTextStyle, { color: post.author?.themeColor || colors.green }]}>
-            {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
-          </AppText>
-        )}
-      </View>
-      <AppText style={nameStyle} numberOfLines={1}>
-        {post.author?.displayName ?? "Daily Meal"}
-      </AppText>
-    </Pressable>
+      <Pressable
+        style={[
+          chipStyle,
+          { backgroundColor: post.author?.themeColor || colors.green }
+        ]}
+        onPress={onAuthorPress}
+      >
+        <View style={avatarStyle}>
+          {post.author?.avatarUrl ? (
+            <Image
+              source={authorAvatarSource(post.author.avatarUrl)}
+              style={avatarImageStyle}
+              resizeMode="cover"
+            />
+          ) : post._id.startsWith("demo") ? (
+            <Image source={DEMO_AUTHOR_AVATAR} style={avatarImageStyle} resizeMode="cover" />
+          ) : (
+            <AppText style={[avatarTextStyle, { color: post.author?.themeColor || colors.green }]}>
+              {post.author?.displayName?.slice(0, 1)?.toUpperCase() ?? "D"}
+            </AppText>
+          )}
+        </View>
+        <AppText style={nameStyle} numberOfLines={1}>
+          {post.author?.displayName ?? "Daily Meal"}
+        </AppText>
+      </Pressable>
+    </View>
   );
 }
 
@@ -1515,11 +1520,18 @@ const expandedStyles = StyleSheet.create({
     width: "100%",
     height: "100%"
   },
+  authorChipWrap: {
+    alignSelf: "center",
+    position: "relative",
+    overflow: "visible"
+  },
+  authorChipWrapWithStreak: {
+    marginLeft: 20
+  },
   authorChip: {
     alignSelf: "center",
     maxWidth: "86%",
-    position: "relative",
-    overflow: "visible",
+    zIndex: 2,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -1529,17 +1541,14 @@ const expandedStyles = StyleSheet.create({
     borderRadius: 9999,
     marginTop: 4
   },
-  authorChipWithStreak: {
-    marginLeft: 28
-  },
   authorStreakBadge: {
     position: "absolute",
-    left: -30,
-    top: -18,
-    width: 50,
-    height: 50,
-    zIndex: -1,
-    elevation: 0,
+    left: -26,
+    top: -15,
+    width: 52,
+    height: 52,
+    zIndex: 1,
+    elevation: 1,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -1547,12 +1556,18 @@ const expandedStyles = StyleSheet.create({
     width: "100%",
     height: "100%"
   },
-  authorStreakCount: {
+  authorStreakCountWrap: {
     position: "absolute",
-    right: 8,
-    bottom: 6,
-    minWidth: 16,
-    textAlign: "center",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  authorStreakCountText: {
+    marginTop: 3,
+    marginLeft: -1,
     color: colors.white,
     fontFamily: fonts.bold,
     fontSize: 12,
@@ -1989,12 +2004,19 @@ const styles = StyleSheet.create({
     zIndex: 99,
     elevation: 15
   },
-  authorChip: {
+  authorChipWrap: {
     marginTop: 16,
     alignSelf: "center",
-    maxWidth: "86%",
     position: "relative",
-    overflow: "visible",
+    overflow: "visible"
+  },
+  authorChipWrapWithStreak: {
+    marginLeft: 22
+  },
+  authorChip: {
+    alignSelf: "center",
+    maxWidth: "86%",
+    zIndex: 2,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -2009,17 +2031,14 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 4
   },
-  authorChipWithStreak: {
-    marginLeft: 30
-  },
   authorStreakBadge: {
     position: "absolute",
-    left: -32,
-    top: -20,
-    width: 54,
-    height: 54,
-    zIndex: -1,
-    elevation: 0,
+    left: -28,
+    top: -18,
+    width: 56,
+    height: 56,
+    zIndex: 1,
+    elevation: 1,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -2027,12 +2046,18 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%"
   },
-  authorStreakCount: {
+  authorStreakCountWrap: {
     position: "absolute",
-    right: 9,
-    bottom: 7,
-    minWidth: 17,
-    textAlign: "center",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  authorStreakCountText: {
+    marginTop: 3,
+    marginLeft: -1,
     color: colors.white,
     fontFamily: fonts.bold,
     fontSize: 13,

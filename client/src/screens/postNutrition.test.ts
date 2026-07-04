@@ -3,6 +3,8 @@ import type { Meal, NutritionDetail, NutritionSummary, Post } from "../types/api
 import {
   combineNutritionTotals,
   formatNutritionDetailRows,
+  getCaloriesOfCurrentImage,
+  getNutritionForImage,
   getNutritionDetailSections,
   mealToNutritionDetail
 } from "./postNutrition";
@@ -131,7 +133,7 @@ describe("post nutrition helpers", () => {
     const post = {
       _id: "post-1",
       nutritionSummary: total({ calories: 480, protein: 24, carbs: 50, fat: 12 })
-    } as Post;
+    } as unknown as Post;
 
     expect(getNutritionDetailSections(post)).toEqual([
       {
@@ -151,5 +153,58 @@ describe("post nutrition helpers", () => {
         warnings: []
       }
     ]);
+  });
+
+  test("returns nutrition for the requested image detail", () => {
+    const post = {
+      _id: "post-with-details",
+      images: [{ url: "/one.jpg" }, { url: "/two.jpg" }, { url: "/three.jpg" }],
+      nutritionSummary: total({ calories: 600, protein: 30, carbs: 70, fat: 20 }),
+      nutritionDetails: [
+        { imageIndex: 0, total: total({ calories: 150, protein: 7 }), items: [], warnings: [] },
+        { imageIndex: 1, total: total({ calories: 220, protein: 11 }), items: [], warnings: [] },
+        { imageIndex: 2, total: total({ calories: 230, protein: 12 }), items: [], warnings: [] }
+      ]
+    } as unknown as Post;
+
+    expect(getNutritionForImage(post, 0)?.calories).toBe(150);
+    expect(getNutritionForImage(post, 1)?.calories).toBe(220);
+    expect(getNutritionForImage(post, 2)?.calories).toBe(230);
+    expect(getCaloriesOfCurrentImage(post, 1)).toBe(220);
+  });
+
+  test("uses legacy summary only for single-image posts without details", () => {
+    const post = {
+      _id: "legacy-single",
+      images: [{ url: "/one.jpg" }],
+      nutritionSummary: total({ calories: 480, protein: 24, carbs: 50, fat: 12 })
+    } as unknown as Post;
+
+    expect(getNutritionForImage(post, 0)).toEqual(post.nutritionSummary);
+    expect(getCaloriesOfCurrentImage(post, 0)).toBe(480);
+  });
+
+  test("does not use total calories as a multi-image fallback", () => {
+    const post = {
+      _id: "legacy-multi",
+      images: [{ url: "/one.jpg" }, { url: "/two.jpg" }],
+      nutritionSummary: total({ calories: 480, protein: 24, carbs: 50, fat: 12 })
+    } as Post;
+
+    expect(getNutritionForImage(post, 0)).toBeUndefined();
+    expect(getCaloriesOfCurrentImage(post, 0)).toBeUndefined();
+  });
+
+  test("returns undefined when an image has no valid calorie detail", () => {
+    const post = {
+      _id: "partial-details",
+      images: [{ url: "/one.jpg" }, { url: "/two.jpg" }],
+      nutritionDetails: [
+        { imageIndex: 0, total: total({ calories: 180, protein: 8 }), items: [], warnings: [] }
+      ]
+    } as unknown as Post;
+
+    expect(getNutritionForImage(post, 1)).toBeUndefined();
+    expect(getCaloriesOfCurrentImage(post, 1)).toBeUndefined();
   });
 });

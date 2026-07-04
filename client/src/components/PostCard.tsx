@@ -5,6 +5,7 @@ import { api } from "../api/client";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
+import { getNutritionForImage } from "../screens/postNutrition";
 import { AppText } from "./AppText";
 import { NutritionCard } from "./NutritionCard";
 import { PostVideoPlayer } from "./PostVideoPlayer";
@@ -49,6 +50,7 @@ export function PostCard({
   onEditPress
 }: PostCardProps) {
   const [stats, setStats] = React.useState(post.stats);
+  const firstImageNutrition = getNutritionForImage(post, 0);
 
   async function toggleLike() {
     if (!token) return;
@@ -109,7 +111,7 @@ export function PostCard({
             {post.tags.map((tag) => `#${tag}`).join("  ")}
           </AppText>
         ) : null}
-        <NutritionCard nutrition={post.nutritionSummary} />
+        <NutritionCard nutrition={firstImageNutrition} />
       </View>
 
       {/* Actions */}

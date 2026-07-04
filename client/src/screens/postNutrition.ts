@@ -31,6 +31,10 @@ function formatNumber(value: number | undefined) {
   return `${Math.round(value ?? 0)}`;
 }
 
+function isUsableCalories(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 export function combineNutritionTotals(details: NutritionDetail[]): NutritionSummary | undefined {
   if (!details.length) {
     return undefined;
@@ -54,6 +58,24 @@ export function combineNutritionTotals(details: NutritionDetail[]): NutritionSum
     fat: totals.fat,
     confidence: totals.confidence / details.length
   };
+}
+
+export function getNutritionForImage(post: Post, imageIndex: number): NutritionSummary | undefined {
+  const detailTotal = post.nutritionDetails?.find((detail) => detail.imageIndex === imageIndex)?.total;
+  if (isUsableCalories(detailTotal?.calories)) {
+    return detailTotal;
+  }
+
+  const imageCount = Math.max(post.images?.length ?? 0, 1);
+  if (imageIndex === 0 && imageCount === 1 && isUsableCalories(post.nutritionSummary?.calories)) {
+    return post.nutritionSummary;
+  }
+
+  return undefined;
+}
+
+export function getCaloriesOfCurrentImage(post: Post, imageIndex: number): number | undefined {
+  return getNutritionForImage(post, imageIndex)?.calories;
 }
 
 export function mealToNutritionDetail(meal: Meal, imageIndex: number): NutritionDetail {

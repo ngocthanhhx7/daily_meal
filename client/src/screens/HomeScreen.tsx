@@ -9,6 +9,7 @@ import {
   FlatList,
   Image,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -30,9 +31,15 @@ import { analytics, createEventThrottle } from "../services/analytics";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post, PostLayout } from "../types/api";
+import {
+  getExpandedPostTargetRect,
+  getFallbackOriginRect,
+  normalizeMeasuredRect,
+  type MotionRect
+} from "../utils/expandedPostMotion";
 import { getHomeTargetIndex, getPostViewerSets, mergeTargetPostIntoFeed } from "../utils/postNavigation";
 import { stickerImageSource } from "../utils/stickers";
-import { getNutritionDetailSections } from "./postNutrition";
+import { getCaloriesOfCurrentImage, getNutritionDetailSections } from "./postNutrition";
 import { CameraIcon, CategoryIcon } from "../components/SvgIcons";
 import { PostVideoPlayer } from "../components/PostVideoPlayer";
 
@@ -126,6 +133,7 @@ export function HomeScreen({ navigation, route }: any) {
   const [isClaimingTrial, setIsClaimingTrial] = useState(false);
   const [showTrialOfferModal, setShowTrialOfferModal] = useState(false);
   const [expandedPost, setExpandedPost] = useState<Post | null>(null);
+  const [expandedPostOrigin, setExpandedPostOrigin] = useState<MotionRect | undefined>();
   const [nutritionPost, setNutritionPost] = useState<Post | null>(null);
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -138,6 +146,11 @@ export function HomeScreen({ navigation, route }: any) {
   const impressedPostIds = useRef<Set<string>>(new Set());
   const maxScrollDepthBucket = useRef(0);
   const scrollDepthThrottle = useRef(createEventThrottle(1500)).current;
+
+  const closeExpandedPost = useCallback(() => {
+    setExpandedPost(null);
+    setExpandedPostOrigin(undefined);
+  }, []);
 
   // Animation refs
   const heartScale = useRef(new Animated.Value(1)).current;
@@ -566,7 +579,7 @@ export function HomeScreen({ navigation, route }: any) {
                   index={index}
                   slideHeight={listHeight}
                   slideWidth={listWidth}
-                  onPress={() => {
+                  onPress={(originRect) => {
                     analytics.track("feed_detail_click", {
                       screen: "Home",
                       entityType: "post",
@@ -574,6 +587,7 @@ export function HomeScreen({ navigation, route }: any) {
                       entityOwnerId: item.author?.id,
                       properties: { index }
                     });
+                    setExpandedPostOrigin(originRect);
                     setExpandedPost(item);
                   }}
                   onNutritionPress={() => {
@@ -685,10 +699,11 @@ export function HomeScreen({ navigation, route }: any) {
 
         <ExpandedPostModal
           post={expandedPost}
-          onClose={() => setExpandedPost(null)}
+          originRect={expandedPostOrigin}
+          onClose={closeExpandedPost}
           onRecipePress={() => {
             const post = expandedPost;
-            setExpandedPost(null);
+            closeExpandedPost();
             if (post) {
               analytics.track("detail_recipe_click", {
                 screen: "Home",
@@ -701,7 +716,7 @@ export function HomeScreen({ navigation, route }: any) {
           }}
           onCommentPress={() => {
             const post = expandedPost;
-            setExpandedPost(null);
+            closeExpandedPost();
             if (post) {
               analytics.track("detail_comment_click", {
                 screen: "Home",
@@ -714,7 +729,7 @@ export function HomeScreen({ navigation, route }: any) {
           }}
           onAuthorPress={() => {
             const post = expandedPost;
-            setExpandedPost(null);
+            closeExpandedPost();
             analytics.track("profile_click", {
               screen: "Home",
               entityType: "user",
@@ -1034,7 +1049,7 @@ function PostSlide({
   index: number;
   slideHeight: number;
   slideWidth: number;
-  onPress: () => void;
+  onPress: (originRect?: MotionRect) => void;
   onNutritionPress: () => void;
   onRecipePress: () => void;
   onAuthorPress: () => void;
@@ -1043,11 +1058,28 @@ function PostSlide({
 }) {
   const artworkWidth = Math.min(Math.max(slideWidth - 36, 280), ARTWORK_MAX_WIDTH);
   const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 130, 320));
+  const artworkRef = useRef<View>(null);
+  const caloriesOfCurrentImage = getCaloriesOfCurrentImage(post, previewImageIndex(post));
+
+  function handleArtworkPress() {
+    const measuredView = artworkRef.current as unknown as {
+      measureInWindow?: (callback: (x: number, y: number, width: number, height: number) => void) => void;
+    };
+
+    if (!measuredView?.measureInWindow) {
+      onPress();
+      return;
+    }
+
+    measuredView.measureInWindow((x, y, width, height) => {
+      onPress(normalizeMeasuredRect({ x, y, width, height }));
+    });
+  }
 
   return (
     <View style={[styles.slide, { height: slideHeight }]}>
-      <Pressable style={[styles.artworkPress, { width: artworkWidth, height: artworkHeight }]} onPress={onPress}>
-        <View style={[styles.feedArtwork, { transform: [{ rotate: cardRotation(index) }] }]}>
+      <Pressable style={[styles.artworkPress, { width: artworkWidth, height: artworkHeight }]} onPress={handleArtworkPress}>
+        <View ref={artworkRef} collapsable={false} style={[styles.feedArtwork, { transform: [{ rotate: cardRotation(index) }] }]}>
           <FeedArtwork post={post} />
 
           {shouldShowTrialMascot && (
@@ -1085,9 +1117,9 @@ function PostSlide({
             <Ionicons name="heart" size={15} color={colors.red} />
           </View>
 
-          {post.nutritionSummary?.calories ? (
+          {caloriesOfCurrentImage ? (
             <Pressable style={styles.caloBadge} onPress={onNutritionPress} hitSlop={6}>
-              <AppText style={styles.caloText}>{Math.round(post.nutritionSummary.calories)} Calo</AppText>
+              <AppText style={styles.caloText}>{Math.round(caloriesOfCurrentImage)} Calo</AppText>
             </Pressable>
           ) : null}
 
@@ -1290,26 +1322,144 @@ function hasRecipe(post: Post) {
 
 function ExpandedPostModal({
   post,
+  originRect,
   onClose,
   onRecipePress,
   onCommentPress,
   onAuthorPress
 }: {
   post: Post | null;
+  originRect?: MotionRect;
   onClose: () => void;
   onRecipePress: () => void;
   onCommentPress: () => void;
   onAuthorPress: () => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const progress = useRef(new Animated.Value(0)).current;
+  const panY = useRef(new Animated.Value(0)).current;
+  const isClosing = useRef(false);
+  const screenWidth = Dimensions.get("window").width;
+  const screenHeight = Dimensions.get("window").height;
+  const targetRect = getExpandedPostTargetRect({
+    viewportWidth: screenWidth,
+    viewportHeight: screenHeight,
+    safeTop: insets.top,
+    safeBottom: insets.bottom,
+    bottomBarReserve: 110
+  });
+  const startRect = originRect ?? getFallbackOriginRect(targetRect);
+  const gridPadding = 20;
+  const gridGap = 10;
+  const availableWidth = Math.min(targetRect.width - gridPadding * 2, 380);
+
+  const animateClose = useCallback(() => {
+    if (isClosing.current) {
+      return;
+    }
+
+    isClosing.current = true;
+    Animated.parallel([
+      Animated.timing(progress, {
+        toValue: 0,
+        duration: 240,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: false
+      }),
+      Animated.timing(panY, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false
+      })
+    ]).start(({ finished }) => {
+      if (finished) {
+        onClose();
+      } else {
+        isClosing.current = false;
+      }
+    });
+  }, [onClose, panY, progress]);
+
+  const panResponder = React.useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          gesture.dy > 12 && Math.abs(gesture.dy) > Math.abs(gesture.dx) * 1.2,
+        onPanResponderMove: (_, gesture) => {
+          panY.setValue(Math.max(0, gesture.dy));
+        },
+        onPanResponderRelease: (_, gesture) => {
+          if (gesture.dy > 76 || gesture.vy > 0.85) {
+            animateClose();
+            return;
+          }
+
+          Animated.spring(panY, {
+            toValue: 0,
+            friction: 7,
+            tension: 160,
+            useNativeDriver: false
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(panY, {
+            toValue: 0,
+            friction: 7,
+            tension: 160,
+            useNativeDriver: false
+          }).start();
+        }
+      }),
+    [animateClose, panY]
+  );
+
+  useEffect(() => {
+    if (!post) {
+      return;
+    }
+
+    isClosing.current = false;
+    panY.setValue(0);
+    progress.setValue(0);
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 340,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false
+    }).start();
+  }, [panY, post, progress]);
+
   if (!post) return null;
 
-  const screenWidth = Dimensions.get("window").width;
   const imgCount = Math.max(post.images.length, 1);
   const stickerSource = stickerImageSource(post.stickerId) ?? (post._id.startsWith("demo") ? DEMO_STICKER : null);
   const placement = post.stickerPlacement ?? { x: 0.78, y: 0.78, scale: 1, rotation: 0 };
-  const gridPadding = 20;
-  const gridGap = 10;
-  const availableWidth = Math.min(screenWidth - gridPadding * 2, 380);
+  const overlayOpacity = progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const previewOpacity = progress.interpolate({ inputRange: [0, 0.38, 1], outputRange: [1, 0, 0], extrapolate: "clamp" });
+  const detailOpacity = progress.interpolate({ inputRange: [0, 0.28, 1], outputRange: [0, 0, 1], extrapolate: "clamp" });
+  const detailTranslateY = progress.interpolate({ inputRange: [0, 1], outputRange: [22, 0] });
+  const animatedCardStyle = {
+    left: progress.interpolate({ inputRange: [0, 1], outputRange: [startRect.x, targetRect.x] }),
+    top: progress.interpolate({ inputRange: [0, 1], outputRange: [startRect.y, targetRect.y] }),
+    width: progress.interpolate({ inputRange: [0, 1], outputRange: [startRect.width, targetRect.width] }),
+    height: progress.interpolate({ inputRange: [0, 1], outputRange: [startRect.height, targetRect.height] }),
+    borderRadius: progress.interpolate({ inputRange: [0, 1], outputRange: [22, 28] })
+  };
+
+  function renderImageCalorieBadge(imageIndex: number) {
+    const caloriesOfCurrentImage = getCaloriesOfCurrentImage(post!, imageIndex);
+
+    if (!caloriesOfCurrentImage) {
+      return null;
+    }
+
+    return (
+      <View style={expandedStyles.imageCaloBadge}>
+        <AppText style={expandedStyles.imageCaloText}>{Math.round(caloriesOfCurrentImage)} Calo</AppText>
+      </View>
+    );
+  }
 
   function renderImageGrid() {
     const hasRec = hasRecipe(post!);
@@ -1318,6 +1468,7 @@ function ExpandedPostModal({
       return (
         <View style={expandedStyles.singleImageWrap}>
           <Image source={imageSource(post!, 0)} style={expandedStyles.singleImage} resizeMode="cover" />
+          {renderImageCalorieBadge(0)}
 
           {/* Caption Overlay - Top Left */}
           <View style={[expandedStyles.overlayBadge, { left: 14, top: 14 }]}>
@@ -1369,6 +1520,7 @@ function ExpandedPostModal({
           {/* Image 1 (Always at top of left column, except below caption card if isTwoImg && hasRec) */}
           <View style={[expandedStyles.gridItem, { width: colW, height: colW * 1.25 }]}>
             <Image source={imageSource(post!, 0)} style={expandedStyles.gridImage} resizeMode="cover" />
+            {renderImageCalorieBadge(0)}
 
             {/* Caption Overlay on Image 1 (If not rendered as block card) */}
             {!(isTwoImg && hasRec) ? (
@@ -1392,6 +1544,7 @@ function ExpandedPostModal({
           {!isTwoImg && imgCount >= 3 ? (
             <View style={[expandedStyles.gridItem, { width: colW, height: colW * 0.95 }]}>
               <Image source={imageSource(post!, 2)} style={expandedStyles.gridImage} resizeMode="cover" />
+              {renderImageCalorieBadge(2)}
             </View>
           ) : null}
         </View>
@@ -1401,6 +1554,7 @@ function ExpandedPostModal({
           {/* Image 2 (Always at top of right column) */}
           <View style={[expandedStyles.gridItem, { width: colW, height: colW * 1.25 }]}>
             <Image source={imageSource(post!, 1)} style={expandedStyles.gridImage} resizeMode="cover" />
+            {renderImageCalorieBadge(1)}
 
             {/* Stats Overlay on Image 2 */}
             <View style={[expandedStyles.overlayBadge, { right: 10, top: 10 }]}>
@@ -1426,16 +1580,42 @@ function ExpandedPostModal({
   }
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={expandedStyles.overlay} onPress={onClose}>
-        <Pressable style={expandedStyles.container} onPress={() => { }}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={expandedStyles.scrollContent}>
+    <Modal visible transparent animationType="none" onRequestClose={animateClose}>
+      <View style={expandedStyles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={animateClose}>
+          <Animated.View style={[expandedStyles.dimBackdrop, { opacity: overlayOpacity }]} />
+        </Pressable>
 
-            {/* Image grid and Sticker wrapper */}
-            <View style={{ position: "relative", width: availableWidth, marginTop: 12 }}>
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[
+            expandedStyles.container,
+            animatedCardStyle,
+            {
+              transform: [{ translateY: panY }]
+            }
+          ]}
+        >
+          <Animated.View pointerEvents="none" style={[expandedStyles.previewLayer, { opacity: previewOpacity }]}>
+            <FeedArtwork post={post} />
+          </Animated.View>
+
+          <Animated.ScrollView
+            showsVerticalScrollIndicator={false}
+            style={[
+              expandedStyles.detailLayer,
+              {
+                opacity: detailOpacity,
+                transform: [{ translateY: detailTranslateY }]
+              }
+            ]}
+            contentContainerStyle={expandedStyles.scrollContent}
+          >
+            <View style={expandedStyles.dragHandle} />
+
+            <View style={{ position: "relative", width: availableWidth, marginTop: 8 }}>
               {renderImageGrid()}
 
-              {/* Sticker overlay using absolute placement */}
               {stickerSource ? (
                 <Wiggle
                   style={[
@@ -1460,26 +1640,30 @@ function ExpandedPostModal({
             </View>
 
             <FeedAuthorChip post={post} onAuthorPress={onAuthorPress} expanded />
-          </ScrollView>
-        </Pressable>
-      </Pressable>
+          </Animated.ScrollView>
+        </Animated.View>
+      </View>
     </Modal>
   );
+}
+
+function previewImageIndex(post: Post) {
+  const imageCount = Math.max(post.images.length, 1);
+  return Math.min(imageCount, 3) - 1;
 }
 
 const expandedStyles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center"
+    backgroundColor: "transparent"
+  },
+  dimBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.42)"
   },
   container: {
-    width: "90%",
-    maxWidth: 400,
-    maxHeight: "85%",
+    position: "absolute",
     backgroundColor: colors.surface,
-    borderRadius: 28,
     overflow: "hidden",
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 8 },
@@ -1487,10 +1671,25 @@ const expandedStyles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 12
   },
+  previewLayer: {
+    ...StyleSheet.absoluteFillObject,
+    padding: 0
+  },
+  detailLayer: {
+    flex: 1
+  },
   scrollContent: {
     padding: 20,
     gap: 16,
     alignItems: "center"
+  },
+  dragHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(31,31,31,0.14)",
+    marginTop: -6,
+    marginBottom: -2
   },
   statsNum: {
     fontFamily: fonts.semibold,
@@ -1627,6 +1826,27 @@ const expandedStyles = StyleSheet.create({
     fontSize: 12,
     color: colors.black,
     maxWidth: 140
+  },
+  imageCaloBadge: {
+    position: "absolute",
+    right: 10,
+    bottom: 10,
+    zIndex: 12,
+    borderRadius: 15,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
+  },
+  imageCaloText: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.black
   },
   captionCardBlock: {
     backgroundColor: colors.surface,

@@ -304,7 +304,7 @@ export function LoginScreen() {
               {passwordResetMode ? (
                 <AppText style={styles.sectionHeader}>Nhập email tài khoản của bạn</AppText>
               ) : mode === "login" ? (
-                <AppText style={styles.sectionHeader}>Đăng nhập vào tk hiện có</AppText>
+                <AppText style={styles.sectionHeader}>Đăng nhập vào tài khoản hiện có</AppText>
               ) : null}
 
               {!passwordResetMode && (mode === "register" || (authMethod === "phone" && phoneNeedsPassword)) ? (

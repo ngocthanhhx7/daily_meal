@@ -119,6 +119,7 @@ export type StickerPlacement = {
 };
 
 export type PostVisibility = "public" | "friends" | "private";
+export type PostSummaryFilter = "all" | "friends" | "following" | "strangers";
 
 export type Post = {
   _id: string;

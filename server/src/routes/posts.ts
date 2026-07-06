@@ -123,6 +123,8 @@ const commentBodySchema = z.object({
   body: z.string().min(1).max(500)
 });
 
+const postSummaryFilterSchema = z.enum(["all", "friends", "following", "strangers"]).default("all");
+
 async function assertStickerAllowed(stickerId: string | undefined, isPremium: boolean) {
   if (!stickerId) {
     return;
@@ -357,6 +359,53 @@ postsRouter.get("/feed", requireAuth, async (req, res, next) => {
     }));
 
     res.json({ posts: postsWithAuthorStreaks, page, limit });
+  } catch (error) {
+    next(error);
+  }
+});
+
+postsRouter.get("/summary", requireAuth, async (req, res, next) => {
+  try {
+    const filterType = postSummaryFilterSchema.parse(req.query.filter ?? "all");
+    const page = Math.max(Number(req.query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 30), 1), 50);
+    const skip = (page - 1) * limit;
+    const [network, blockedIds] = await Promise.all([networkIds(req.user?.id), blockedUserIdsFor(req.user?.id)]);
+    const { followingIds, friendIds } = network;
+    const viewerId = req.user?.id;
+    const followedOnlyIds = [...followingIds].filter((id) => !friendIds.has(id));
+    const excludedStrangerAuthorIds = [viewerId, ...followingIds, ...friendIds].filter(Boolean);
+
+    const relationshipFilter =
+      filterType === "friends"
+        ? { author: { $in: [...friendIds] } }
+        : filterType === "following"
+          ? { author: { $in: followedOnlyIds } }
+          : filterType === "strangers"
+            ? { author: { $nin: excludedStrangerAuthorIds } }
+            : { author: { $ne: viewerId } };
+
+    const posts = await Post.find({
+      $and: [
+        visiblePostFilter(viewerId, friendIds, blockedIds),
+        relationshipFilter
+      ]
+    })
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit + 1)
+      .populate("author", "displayName avatarUrl isPremium premiumPaidEndsAt premiumTrialEndsAt themeColor")
+      .populate("stickerId")
+      .lean();
+
+    const pagePosts = posts.slice(0, limit);
+
+    res.json({
+      posts: await serializePostsForViewer(pagePosts, viewerId),
+      page,
+      limit,
+      hasMore: posts.length > limit
+    });
   } catch (error) {
     next(error);
   }

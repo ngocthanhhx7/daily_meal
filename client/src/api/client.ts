@@ -19,6 +19,7 @@ import type {
   Meal,
   PayosPayment,
   Post,
+  PostSummaryFilter,
   PremiumPlan,
   Sticker,
   Upload,
@@ -441,6 +442,16 @@ export const api = {
     if (limit) search.set("limit", String(limit));
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return request<{ posts: Post[] }>(`/api/posts/feed${suffix}`, { token });
+  },
+  postSummary: (token: string, filter: PostSummaryFilter, page?: number, limit?: number) => {
+    const search = new URLSearchParams();
+    search.set("filter", filter);
+    if (page) search.set("page", String(page));
+    if (limit) search.set("limit", String(limit));
+    return request<{ posts: Post[]; page: number; limit: number; hasMore: boolean }>(
+      `/api/posts/summary?${search.toString()}`,
+      { token }
+    );
   },
   search: (token: string, query: string) =>
     request<{ posts: Post[] }>(`/api/posts/search?q=${encodeURIComponent(query)}`, { token }),

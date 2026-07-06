@@ -26,7 +26,8 @@ import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
 import { IOS_MINIMUM_INPUT_FONT_SIZE, getKeyboardAvoidingBehavior } from "../utils/keyboardAvoidance";
-import { getParticipantAccent, getParticipantAvatarLabel, isDoubleTap } from "./messagePresentation";
+import { isDoubleTap } from "../utils/tapGestures";
+import { getParticipantAccent, getParticipantAvatarLabel } from "./messagePresentation";
 import { CameraIcon, CategoryIcon } from "../components/SvgIcons";
 
 type Comment = {

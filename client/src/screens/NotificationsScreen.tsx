@@ -1,13 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { Alert, Animated, FlatList, PanResponder, Pressable, StyleSheet, View } from "react-native";
+import { Animated, FlatList, PanResponder, Pressable, StyleSheet, View } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { useNotifications } from "../context/NotificationContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type { Post } from "../types/api";
+import { Alert } from "../utils/alert";
 import { getFeedPostParams } from "../utils/postNavigation";
+import { runDeleteAllNotificationsConfirmation } from "./notificationActions";
 
 type NotificationItem = {
   _id: string;
@@ -50,11 +52,11 @@ export function NotificationsScreen({ navigation }: any) {
   const [enablingWebPush, setEnablingWebPush] = useState(false);
 
   function confirmDeleteAll() {
-    if (notifications.length === 0) return;
-    Alert.alert("Xóa tất cả thông báo?", "Thao tác này sẽ dọn sạch toàn bộ thông báo của bạn.", [
-      { text: "Hủy", style: "cancel" },
-      { text: "Xóa tất cả", style: "destructive", onPress: deleteAllNotifications }
-    ]);
+    runDeleteAllNotificationsConfirmation({
+      notificationCount: notifications.length,
+      deleteAllNotifications,
+      showAlert: Alert.alert
+    });
   }
 
   async function handleEnableWebPush() {

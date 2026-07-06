@@ -2185,6 +2185,88 @@ describe("Daily Meal API", () => {
     expect(captions.indexOf("Stranger today meal")).toBeLessThan(captions.indexOf("Friend yesterday meal"));
   });
 
+  it("summarizes visible posts by relationship without exposing own, friends-only, or blocked posts", async () => {
+    const viewer = await register("summary-viewer@example.com");
+    const friend = await register("summary-friend@example.com");
+    const followed = await register("summary-followed@example.com");
+    const stranger = await register("summary-stranger@example.com");
+    const blocked = await register("summary-blocked@example.com");
+    const nonFriend = await register("summary-non-friend@example.com");
+
+    await createPost(viewer.token, "Viewer own public meal");
+    await createPost(friend.token, "Friend public meal");
+    await createPost(friend.token, "Friend friends-only meal", "friends");
+    await createPost(followed.token, "Followed public meal");
+    await createPost(stranger.token, "Stranger public meal");
+    await createPost(blocked.token, "Blocked public meal");
+    await createPost(friend.token, "Friend private meal", "private");
+
+    await request(app)
+      .post(`/api/users/${friend.user.id}/follow`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    await request(app)
+      .post(`/api/users/${viewer.user.id}/follow`)
+      .set("Authorization", `Bearer ${friend.token}`)
+      .expect(200);
+    await request(app)
+      .post(`/api/users/${followed.user.id}/follow`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    await request(app)
+      .post(`/api/users/${blocked.user.id}/interactions`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .send({ type: "block" })
+      .expect(201);
+
+    const all = await request(app)
+      .get("/api/posts/summary?filter=all&limit=10")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    const allCaptions = all.body.posts.map((post: { caption: string }) => post.caption);
+    expect(allCaptions).toContain("Friend public meal");
+    expect(allCaptions).toContain("Friend friends-only meal");
+    expect(allCaptions).toContain("Followed public meal");
+    expect(allCaptions).not.toContain("Viewer own public meal");
+    expect(allCaptions).not.toContain("Blocked public meal");
+    expect(allCaptions).not.toContain("Friend private meal");
+
+    const limitedAll = await request(app)
+      .get("/api/posts/summary?filter=all&limit=3")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(limitedAll.body.hasMore).toBe(true);
+
+    const friends = await request(app)
+      .get("/api/posts/summary?filter=friends")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(friends.body.posts.map((post: { caption: string }) => post.caption)).toEqual(
+      expect.arrayContaining(["Friend public meal", "Friend friends-only meal"])
+    );
+    expect(friends.body.posts.map((post: { caption: string }) => post.caption)).not.toContain("Followed public meal");
+
+    const following = await request(app)
+      .get("/api/posts/summary?filter=following")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(following.body.posts.map((post: { caption: string }) => post.caption)).toEqual(["Followed public meal"]);
+
+    const strangers = await request(app)
+      .get("/api/posts/summary?filter=strangers")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(strangers.body.posts.map((post: { caption: string }) => post.caption)).toEqual(["Stranger public meal"]);
+
+    const nonFriendSummary = await request(app)
+      .get("/api/posts/summary?filter=all")
+      .set("Authorization", `Bearer ${nonFriend.token}`)
+      .expect(200);
+    expect(nonFriendSummary.body.posts.map((post: { caption: string }) => post.caption)).not.toContain(
+      "Friend friends-only meal"
+    );
+  });
+
   it("exposes saved posts and profile interactions", async () => {
     const viewer = await register("viewer-actions@example.com");
     const creator = await register("creator-actions@example.com");

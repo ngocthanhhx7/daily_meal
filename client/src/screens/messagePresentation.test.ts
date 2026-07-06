@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getParticipantAccent, getParticipantAvatarLabel, isDoubleTap } from "./messagePresentation";
+import { getParticipantAccent, getParticipantAvatarLabel } from "./messagePresentation";
 
 describe("message presentation helpers", () => {
   it("uses the same accent for the same participant across renders", () => {
@@ -18,11 +18,4 @@ describe("message presentation helpers", () => {
     expect(getParticipantAvatarLabel({})).toBe("D");
   });
 
-  it("detects a second tap within the default double tap window", () => {
-    expect(isDoubleTap(1000, 1240)).toBe(true);
-  });
-
-  it("ignores taps outside the default double tap window", () => {
-    expect(isDoubleTap(1000, 1400)).toBe(false);
-  });
 });

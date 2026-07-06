@@ -73,6 +73,10 @@ export function SettingsScreen({ navigation }: any) {
           <Ionicons name="bookmark" size={18} color={colors.black} />
           <AppText style={styles.rowText}>Đã lưu</AppText>
         </Pressable>
+        <Pressable style={styles.row} onPress={() => navigation.navigate("PostSummary")}>
+          <Ionicons name="albums-outline" size={18} color={colors.black} />
+          <AppText style={styles.rowText}>Tổng hợp bài đăng</AppText>
+        </Pressable>
         <Pressable style={styles.row} onPress={() => navigation.navigate("Notifications")}>
           <AppText style={styles.rowText}>Thông báo</AppText>
         </Pressable>

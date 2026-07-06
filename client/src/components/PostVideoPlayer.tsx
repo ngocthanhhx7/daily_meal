@@ -3,6 +3,7 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 import { colors } from "../theme/colors";
+import { syncVideoPlayback } from "../utils/videoPlayback";
 import { AppText } from "./AppText";
 
 type PostVideoPlayerProps = {
@@ -25,11 +26,7 @@ export function PostVideoPlayer({ uri, active = false, style, showBadge = true }
   }, [muted, player]);
 
   useEffect(() => {
-    if (active) {
-      player.play();
-    } else {
-      player.pause();
-    }
+    syncVideoPlayback(player, active);
   }, [active, player]);
 
   return (

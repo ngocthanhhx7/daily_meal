@@ -37,7 +37,9 @@ import {
   normalizeMeasuredRect,
   type MotionRect
 } from "../utils/expandedPostMotion";
+import { shouldStartFeedLoadMore } from "../utils/feedPagination";
 import { getHomeTargetIndex, getPostViewerSets, mergeTargetPostIntoFeed } from "../utils/postNavigation";
+import { DEFAULT_DOUBLE_TAP_THRESHOLD_MS, isDoubleTap, shouldLikeFromDoubleTap } from "../utils/tapGestures";
 import { stickerImageSource } from "../utils/stickers";
 import { getCaloriesOfCurrentImage, getNutritionDetailSections } from "./postNutrition";
 import { CameraIcon, CategoryIcon } from "../components/SvgIcons";
@@ -45,7 +47,8 @@ import { PostVideoPlayer } from "../components/PostVideoPlayer";
 
 const PHONE_MAX_WIDTH = 383;
 const ARTWORK_MAX_WIDTH = 380;
-const ARTWORK_ASPECT_RATIO = 1.12;
+const ARTWORK_ASPECT_RATIO = 4 / 3; // 1.333 — 3:4 portrait cards (width:height)
+const FEED_LOAD_MORE_COOLDOWN_MS = 900;
 
 const DEMO_IMAGES = [
   require("../../assets/feed/home-food-back.png"),
@@ -57,6 +60,23 @@ const DEMO_STICKER = require("../../assets/feed/home-sticker.png");
 const DEMO_AUTHOR_AVATAR = require("../../assets/feed/home-author.png");
 const STREAK_BADGE = require("../../assets/feed/streak.png");
 const PREMIUM_TRIAL_MASCOT = require("../../assets/stickers/b76f47fb-cc9c-41e7-ada3-39fc570671c9.jpg");
+const HEART_RAIN_PARTICLES = [
+  { x: -92, y: -118, scale: 0.95, rotate: "-24deg", duration: 900, delay: 0 },
+  { x: -68, y: -152, scale: 0.78, rotate: "18deg", duration: 820, delay: 35 },
+  { x: -36, y: -126, scale: 1.08, rotate: "-10deg", duration: 960, delay: 20 },
+  { x: -12, y: -176, scale: 0.86, rotate: "28deg", duration: 880, delay: 65 },
+  { x: 18, y: -136, scale: 1.16, rotate: "-18deg", duration: 930, delay: 10 },
+  { x: 48, y: -166, scale: 0.82, rotate: "12deg", duration: 840, delay: 55 },
+  { x: 76, y: -112, scale: 1, rotate: "24deg", duration: 920, delay: 30 },
+  { x: 100, y: -146, scale: 0.72, rotate: "-30deg", duration: 860, delay: 80 },
+  { x: -108, y: -76, scale: 0.66, rotate: "20deg", duration: 760, delay: 95 },
+  { x: -54, y: -92, scale: 0.9, rotate: "-16deg", duration: 810, delay: 115 },
+  { x: 0, y: -104, scale: 1.24, rotate: "0deg", duration: 940, delay: 45 },
+  { x: 58, y: -88, scale: 0.92, rotate: "16deg", duration: 790, delay: 125 },
+  { x: 112, y: -70, scale: 0.68, rotate: "-22deg", duration: 780, delay: 105 },
+  { x: -24, y: -220, scale: 0.62, rotate: "26deg", duration: 980, delay: 135 },
+  { x: 32, y: -214, scale: 0.7, rotate: "-14deg", duration: 1000, delay: 145 }
+] as const;
 
 const CATEGORY_ITEMS = [
   { icon: "search-outline" as const, label: "Tìm kiếm", screen: "Search" },
@@ -139,7 +159,13 @@ export function HomeScreen({ navigation, route }: any) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const postsRef = useRef<Post[]>(posts);
+  const currentIndexRef = useRef(currentIndex);
+  const likedSetRef = useRef<Set<string>>(likedSet);
   const flatRef = useRef<FlatList>(null);
+  const loadingMoreRef = useRef(false);
+  const lastRequestedPageRef = useRef(1);
+  const lastLoadMoreRequestAtRef = useRef(0);
+  const lastLoadMoreTriggerIndexRef = useRef(-1);
   const isInitialMount = useRef(true);
   const clearingTargetParams = useRef(false);
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 }).current;
@@ -171,6 +197,14 @@ export function HomeScreen({ navigation, route }: any) {
   useEffect(() => {
     postsRef.current = posts;
   }, [posts]);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
+    likedSetRef.current = likedSet;
+  }, [likedSet]);
 
   const scrollFeedToTop = useCallback(() => {
     setCurrentIndex(0);
@@ -216,8 +250,13 @@ export function HomeScreen({ navigation, route }: any) {
       setPosts(feedPosts);
       setPage(1);
       setHasMore(result.posts.length >= 20);
+      loadingMoreRef.current = false;
+      lastRequestedPageRef.current = 1;
+      lastLoadMoreRequestAtRef.current = 0;
+      lastLoadMoreTriggerIndexRef.current = -1;
 
       const viewerSets = getPostViewerSets(feedPosts);
+      likedSetRef.current = viewerSets.liked;
       setLikedSet(viewerSets.liked);
       setSavedSet(viewerSets.saved);
 
@@ -227,7 +266,13 @@ export function HomeScreen({ navigation, route }: any) {
     } catch {
       const fallbackPosts = mergeTargetPostIntoFeed(demoPosts, targetPostId, targetPost);
       setPosts(fallbackPosts);
+      setPage(1);
+      loadingMoreRef.current = false;
+      lastRequestedPageRef.current = 1;
+      lastLoadMoreRequestAtRef.current = 0;
+      lastLoadMoreTriggerIndexRef.current = -1;
       const viewerSets = getPostViewerSets(fallbackPosts);
+      likedSetRef.current = viewerSets.liked;
       setLikedSet(viewerSets.liked);
       setSavedSet(viewerSets.saved);
       setHasMore(false);
@@ -238,10 +283,34 @@ export function HomeScreen({ navigation, route }: any) {
   }, [scrollFeedToTop, token]);
 
   const loadMore = useCallback(async () => {
-    if (!token || loadingMore || !hasMore || posts === demoPosts) return;
+    const nextPage = page + 1;
+    const now = Date.now();
+    const triggerIndex = currentIndexRef.current;
+
+    if (!shouldStartFeedLoadMore({
+      now,
+      tokenPresent: Boolean(token),
+      loading: loadingMoreRef.current,
+      hasMore,
+      isDemoFeed: posts === demoPosts,
+      nextPage,
+      lastRequestedPage: lastRequestedPageRef.current,
+      lastRequestAt: lastLoadMoreRequestAtRef.current,
+      cooldownMs: FEED_LOAD_MORE_COOLDOWN_MS,
+      currentIndex: triggerIndex,
+      lastTriggerIndex: lastLoadMoreTriggerIndexRef.current
+    })) {
+      return;
+    }
+
+    if (!token) return;
+
+    loadingMoreRef.current = true;
+    lastRequestedPageRef.current = nextPage;
+    lastLoadMoreRequestAtRef.current = now;
+    lastLoadMoreTriggerIndexRef.current = triggerIndex;
     setLoadingMore(true);
     try {
-      const nextPage = page + 1;
       const result = await api.feed(token, nextPage, 20);
       if (result.posts.length > 0) {
         setPosts((prevPosts) => {
@@ -258,6 +327,7 @@ export function HomeScreen({ navigation, route }: any) {
               next.add(post._id);
             }
           });
+          likedSetRef.current = next;
           return next;
         });
 
@@ -278,10 +348,13 @@ export function HomeScreen({ navigation, route }: any) {
       }
     } catch (error) {
       console.error("Failed to load more posts:", error);
+      lastRequestedPageRef.current = page;
+      lastLoadMoreTriggerIndexRef.current = Math.max(-1, triggerIndex - 1);
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [token, page, loadingMore, hasMore, posts]);
+  }, [token, page, hasMore, posts]);
 
   useFocusEffect(
     useCallback(() => {
@@ -324,10 +397,11 @@ export function HomeScreen({ navigation, route }: any) {
     }
   }, [listHeight, route?.params?.postId, posts, navigation]);
 
-  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const currentPosts = postsRef.current;
     const first = viewableItems[0];
     if (first?.index != null) {
+      currentIndexRef.current = first.index;
       setCurrentIndex(first.index);
 
       if (currentPosts.length > 0) {
@@ -367,20 +441,26 @@ export function HomeScreen({ navigation, route }: any) {
         }
       });
     });
-  }, [scrollDepthThrottle]);
+  }).current;
 
   const currentPost = posts[currentIndex];
   const isLiked = currentPost ? likedSet.has(currentPost._id) : false;
   const isSaved = currentPost ? savedSet.has(currentPost._id) : false;
   const showDesktopFrame = viewportWidth >= 720 && isDesktopPointer();
 
-  async function handleLike() {
-    if (!token || !currentPost) return;
-    const postId = currentPost._id;
-    const isCurrentlyLiked = likedSet.has(postId);
+  async function handleLike(targetPost = currentPost, mode: "toggle" | "likeOnly" = "toggle") {
+    if (!token || !targetPost) return;
+    const postId = targetPost._id;
+    const isCurrentlyLiked = likedSetRef.current.has(postId);
+
+    if (mode === "likeOnly" && !shouldLikeFromDoubleTap(isCurrentlyLiked)) {
+      return;
+    }
 
     // Optimistic UI updates
-    setLikedSet((current) => toggleSet(current, postId));
+    const nextLikedSet = toggleSet(likedSetRef.current, postId);
+    likedSetRef.current = nextLikedSet;
+    setLikedSet(nextLikedSet);
     setPosts((currentPosts) =>
       currentPosts.map((p) =>
         p._id === postId
@@ -401,7 +481,9 @@ export function HomeScreen({ navigation, route }: any) {
       }
     } catch {
       // Revert optimistic updates on error
-      setLikedSet((current) => toggleSet(current, postId));
+      const revertedLikedSet = toggleSet(likedSetRef.current, postId);
+      likedSetRef.current = revertedLikedSet;
+      setLikedSet(revertedLikedSet);
       setPosts((currentPosts) =>
         currentPosts.map((p) =>
           p._id === postId
@@ -579,6 +661,9 @@ export function HomeScreen({ navigation, route }: any) {
                   index={index}
                   slideHeight={listHeight}
                   slideWidth={listWidth}
+                  isLiked={likedSet.has(item._id)}
+                  videoActive={index === currentIndex}
+                  shouldRenderVideo={Math.abs(index - currentIndex) <= 1}
                   onPress={(originRect) => {
                     analytics.track("feed_detail_click", {
                       screen: "Home",
@@ -589,6 +674,9 @@ export function HomeScreen({ navigation, route }: any) {
                     });
                     setExpandedPostOrigin(originRect);
                     setExpandedPost(item);
+                  }}
+                  onDoubleLike={() => {
+                    void handleLike(item, "likeOnly");
                   }}
                   onNutritionPress={() => {
                     analytics.track("feed_nutrition_click", {
@@ -632,6 +720,11 @@ export function HomeScreen({ navigation, route }: any) {
               )}
               pagingEnabled
               showsVerticalScrollIndicator={false}
+              initialNumToRender={3}
+              maxToRenderPerBatch={4}
+              windowSize={5}
+              updateCellsBatchingPeriod={80}
+              removeClippedSubviews={Platform.OS !== "web"}
               onViewableItemsChanged={onViewableItemsChanged}
               viewabilityConfig={viewabilityConfig}
               getItemLayout={(_, index) => ({
@@ -1033,12 +1126,16 @@ function FeedAuthorChip({
   );
 }
 
-function PostSlide({
+const PostSlide = React.memo(function PostSlide({
   post,
   index,
   slideHeight,
   slideWidth,
+  isLiked,
+  videoActive,
+  shouldRenderVideo,
   onPress,
+  onDoubleLike,
   onNutritionPress,
   onRecipePress,
   onAuthorPress,
@@ -1049,7 +1146,11 @@ function PostSlide({
   index: number;
   slideHeight: number;
   slideWidth: number;
+  isLiked: boolean;
+  videoActive: boolean;
+  shouldRenderVideo: boolean;
   onPress: (originRect?: MotionRect) => void;
+  onDoubleLike: () => void;
   onNutritionPress: () => void;
   onRecipePress: () => void;
   onAuthorPress: () => void;
@@ -1059,9 +1160,21 @@ function PostSlide({
   const artworkWidth = Math.min(Math.max(slideWidth - 36, 280), ARTWORK_MAX_WIDTH);
   const artworkHeight = Math.min(Math.round(artworkWidth * ARTWORK_ASPECT_RATIO), Math.max(slideHeight - 130, 320));
   const artworkRef = useRef<View>(null);
+  const lastArtworkTapRef = useRef<number | undefined>(undefined);
+  const singleTapTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const nextHeartBurstRef = useRef(0);
+  const [heartRainBursts, setHeartRainBursts] = useState<number[]>([]);
   const caloriesOfCurrentImage = getCaloriesOfCurrentImage(post, previewImageIndex(post));
 
-  function handleArtworkPress() {
+  useEffect(() => {
+    return () => {
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+      }
+    };
+  }, []);
+
+  function openArtworkDetail() {
     const measuredView = artworkRef.current as unknown as {
       measureInWindow?: (callback: (x: number, y: number, width: number, height: number) => void) => void;
     };
@@ -1076,11 +1189,52 @@ function PostSlide({
     });
   }
 
+  const triggerHeartRain = useCallback(() => {
+    const burstId = nextHeartBurstRef.current;
+    nextHeartBurstRef.current += 1;
+    setHeartRainBursts((current) => [...current, burstId]);
+  }, []);
+
+  const handleHeartBurstComplete = useCallback((burstId: number) => {
+    setHeartRainBursts((current) => current.filter((id) => id !== burstId));
+  }, []);
+
+  function handleArtworkPress() {
+    const now = Date.now();
+
+    if (isDoubleTap(lastArtworkTapRef.current, now)) {
+      lastArtworkTapRef.current = undefined;
+
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+        singleTapTimerRef.current = undefined;
+      }
+
+      if (shouldLikeFromDoubleTap(isLiked)) {
+        onDoubleLike();
+      }
+      triggerHeartRain();
+      return;
+    }
+
+    lastArtworkTapRef.current = now;
+
+    if (singleTapTimerRef.current) {
+      clearTimeout(singleTapTimerRef.current);
+    }
+
+    singleTapTimerRef.current = setTimeout(() => {
+      lastArtworkTapRef.current = undefined;
+      singleTapTimerRef.current = undefined;
+      openArtworkDetail();
+    }, DEFAULT_DOUBLE_TAP_THRESHOLD_MS);
+  }
+
   return (
     <View style={[styles.slide, { height: slideHeight }]}>
       <Pressable style={[styles.artworkPress, { width: artworkWidth, height: artworkHeight }]} onPress={handleArtworkPress}>
         <View ref={artworkRef} collapsable={false} style={[styles.feedArtwork, { transform: [{ rotate: cardRotation(index) }] }]}>
-          <FeedArtwork post={post} />
+          <FeedArtwork post={post} videoActive={videoActive} shouldRenderVideo={shouldRenderVideo} />
 
           {shouldShowTrialMascot && (
             <Pressable
@@ -1129,15 +1283,25 @@ function PostSlide({
               {post.caption || "Nó ngon phải biết"}
             </AppText>
           </View>
+
+          <HeartRainOverlay bursts={heartRainBursts} onBurstComplete={handleHeartBurstComplete} />
         </View>
       </Pressable>
 
       <FeedAuthorChip post={post} onAuthorPress={onAuthorPress} />
     </View>
   );
-}
+});
 
-function FeedArtwork({ post }: { post: Post }) {
+function FeedArtwork({
+  post,
+  videoActive = true,
+  shouldRenderVideo = true
+}: {
+  post: Post;
+  videoActive?: boolean;
+  shouldRenderVideo?: boolean;
+}) {
   const imageCount = Math.max(post.images.length, 1);
   const layout = post.layout ?? "stack";
   const stickerSource = stickerImageSource(post.stickerId) ?? (post._id.startsWith("demo") ? DEMO_STICKER : null);
@@ -1145,14 +1309,14 @@ function FeedArtwork({ post }: { post: Post }) {
   const imageLoadStartedAt = useRef<Record<number, number>>({});
   const reportedImageLoads = useRef<Set<number>>(new Set());
 
-  if (post.mediaType === "video" && videoSource(post)) {
+  if (post.mediaType === "video" && videoSource(post) && shouldRenderVideo) {
     const position = feedImagePosition("stack", 1, 0);
     return (
       <View style={styles.feedArtworkCanvas}>
         <View style={[styles.feedImageWrap, position, { zIndex: 10 }]}>
           <PostVideoPlayer
             uri={videoSource(post)!}
-            active
+            active={videoActive}
             style={styles.feedImage}
             showBadge={false}
           />
@@ -1279,6 +1443,110 @@ function FeedArtwork({ post }: { post: Post }) {
         </Wiggle>
       ) : null}
     </View>
+  );
+}
+
+function HeartRainOverlay({
+  bursts,
+  onBurstComplete
+}: {
+  bursts: number[];
+  onBurstComplete: (burstId: number) => void;
+}) {
+  if (!bursts.length) {
+    return null;
+  }
+
+  return (
+    <View style={styles.heartRainLayer}>
+      {bursts.map((burstId) => (
+        <HeartRainBurst key={burstId} burstId={burstId} onComplete={onBurstComplete} />
+      ))}
+    </View>
+  );
+}
+
+function HeartRainBurst({
+  burstId,
+  onComplete
+}: {
+  burstId: number;
+  onComplete: (burstId: number) => void;
+}) {
+  const particles = useRef(
+    HEART_RAIN_PARTICLES.map((spec) => ({
+      spec,
+      progress: new Animated.Value(0)
+    }))
+  ).current;
+
+  useEffect(() => {
+    const animations = particles.map(({ progress, spec }) =>
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: spec.duration,
+        delay: spec.delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      })
+    );
+
+    Animated.parallel(animations).start(({ finished }) => {
+      if (finished) {
+        onComplete(burstId);
+      }
+    });
+
+    return () => {
+      animations.forEach((animation) => animation.stop());
+    };
+  }, [burstId, onComplete, particles]);
+
+  return (
+    <>
+      {particles.map(({ progress, spec }, index) => {
+        const opacity = progress.interpolate({
+          inputRange: [0, 0.16, 0.78, 1],
+          outputRange: [0, 1, 1, 0]
+        });
+        const translateX = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, spec.x]
+        });
+        const translateY = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, spec.y]
+        });
+        const scale = progress.interpolate({
+          inputRange: [0, 0.18, 1],
+          outputRange: [0.35, spec.scale, 0.72]
+        });
+        const rotate = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: ["0deg", spec.rotate]
+        });
+
+        return (
+          <Animated.View
+            key={`${burstId}-${index}`}
+            style={[
+              styles.heartRainHeart,
+              {
+                opacity,
+                transform: [
+                  { translateX },
+                  { translateY },
+                  { scale },
+                  { rotate }
+                ]
+              }
+            ]}
+          >
+            <Ionicons name="heart" size={22} color={index % 3 === 0 ? "#FF7AA2" : colors.red} />
+          </Animated.View>
+        );
+      })}
+    </>
   );
 }
 
@@ -2229,6 +2497,24 @@ const styles = StyleSheet.create({
     height: 78,
     zIndex: 99,
     elevation: 15
+  },
+  heartRainLayer: {
+    ...StyleSheet.absoluteFillObject,
+    pointerEvents: "none",
+    zIndex: 140,
+    elevation: 24,
+    overflow: "visible"
+  },
+  heartRainHeart: {
+    position: "absolute",
+    left: "50%",
+    top: "54%",
+    width: 24,
+    height: 24,
+    marginLeft: -12,
+    marginTop: -12,
+    alignItems: "center",
+    justifyContent: "center"
   },
   authorChipWrap: {
     marginTop: 16,

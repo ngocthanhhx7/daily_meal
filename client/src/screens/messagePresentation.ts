@@ -30,11 +30,3 @@ export function getParticipantAccent(seed?: string) {
 export function getParticipantAvatarLabel(identity: AvatarIdentity) {
   return identity.displayName?.trim().slice(0, 1).toUpperCase() || "D";
 }
-
-export function isDoubleTap(previousTap: number | undefined, currentTap: number, thresholdMs = 300) {
-  if (previousTap === undefined) {
-    return false;
-  }
-
-  return currentTap - previousTap <= thresholdMs;
-}

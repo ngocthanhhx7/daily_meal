@@ -239,6 +239,67 @@ export type AdminDailyPoint = {
 
 export type AdminRangePreset = "1d" | "7d" | "30d" | "all";
 
+export type AdminAnalytics24hPreset = "last24h" | "today" | "yesterday" | "7d" | "30d" | "custom";
+
+export type AdminAnalytics24hHourlyPoint = {
+  hour: number;
+  label: string;
+  activeUsers: number;
+  events: number;
+  posts: number;
+  interactions: number;
+  likes: number;
+  saves: number;
+  comments: number;
+  reportsOpened: number;
+  payments: number;
+  paymentFailed: number;
+  revenue: number;
+  aiMealUsage: number;
+};
+
+export type AdminAnalytics24h = {
+  range: { start: string; end: string; timezone: string; preset: AdminAnalytics24hPreset | string };
+  summary: {
+    activeUsers: number;
+    newUsers: number;
+    posts: number;
+    interactions: number;
+    likes: number;
+    saves: number;
+    comments: number;
+    reportsOpened: number;
+    revenue: number;
+    paymentSuccess: number;
+    paymentFailed: number;
+    aiMealUsage: number;
+    aiToPurchaseRate: number;
+  };
+  hourly: AdminAnalytics24hHourlyPoint[];
+  interactionBreakdown: Array<{ type: "likes" | "saves" | "comments" | string; count: number }>;
+  aiFunnel: {
+    usersUsedAi: number;
+    onlyAiNoPurchase: number;
+    purchasedAfterAi: number;
+    conversionRate: number;
+  };
+  sourceTraffic: Array<{ source: string; events: number; users: number }>;
+  paymentMetrics: { success: number; failed: number; revenue: number };
+  reportMetrics: { opened: number; pending: number };
+  tables: {
+    pendingReports: Array<{ id: string; note: string; status: string; createdAt?: string }>;
+    paymentErrors: Array<{ id: string; status: string; amount: number; createdAt?: string }>;
+    recentImportantEvents: Array<{ id: string; name: string; occurredAt?: string; screen?: string }>;
+    topActions: Array<{ name: string; count: number }>;
+  };
+};
+
+export type AdminAnalyticsHeatmap = {
+  range: { start: string; end: string; timezone: string; preset: string };
+  metric: string;
+  cells: Array<{ day: string; weekday: string; hour: number; value: number }>;
+};
+
 export type AdminPostMediaKind = "single_image" | "multi_image" | "video" | "all";
 
 export type AdminPostSortBy = "createdAt" | "interactions";

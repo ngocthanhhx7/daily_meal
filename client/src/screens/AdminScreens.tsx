@@ -11,6 +11,9 @@ import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
 import type {
   AdminDashboard,
+  AdminAnalytics24h,
+  AdminAnalytics24hPreset,
+  AdminAnalyticsHeatmap,
   AdminAiReportMetric,
   AdminAiReportSection,
   AdminPostInsights,
@@ -44,8 +47,10 @@ import {
   LogoutIcon,
   MessageIcon
 } from "../components/AdminIcons";
+import { AdminDonutChart, AdminSeriesChart, AdminStackedBarChart } from "../components/admin-charts/AdminCharts";
+import { interactionColors, toDonutData, toGiftedSeries, toStackedInteractionData } from "../components/admin-charts/chartData";
 
-type AdminTab = "overview" | "analytics" | "posts" | "reports" | "payments" | "ai";
+type AdminTab = "overview" | "analytics24h" | "analytics" | "posts" | "reports" | "payments" | "ai";
 type AdminRange = AdminRangePreset;
 
 const USER_PAGE_SIZE = 50;
@@ -53,6 +58,7 @@ const POST_PAGE_SIZE = 20;
 
 const tabs: Array<{ key: AdminTab; label: string }> = [
   { key: "overview", label: "Tổng quan" },
+  { key: "analytics24h", label: "Analytics 24h" },
   { key: "analytics", label: "KPI" },
   { key: "posts", label: "Bài đăng" },
   { key: "reports", label: "Báo cáo" },
@@ -62,6 +68,7 @@ const tabs: Array<{ key: AdminTab; label: string }> = [
 
 const tabIcons: Record<AdminTab, React.ComponentType<{ size?: number; color?: string; style?: any }>> = {
   overview: CategoryIcon,
+  analytics24h: KPIIcon,
   analytics: KPIIcon,
   posts: PostsIcon,
   reports: ReportsIcon,
@@ -631,7 +638,6 @@ function DetailedChart({
   const compactData = isDesktop ? data.slice(-14) : data.slice(-7);
 
   const values = compactData.map((item) => Number(item[field] ?? 0));
-  const max = Math.max(1, ...values);
   const total = values.reduce((sum, v) => sum + v, 0);
   const avg = values.length ? total / values.length : 0;
   const peak = Math.max(0, ...values);
@@ -651,73 +657,19 @@ function DetailedChart({
     return isRevenue ? formatCurrency(val) : formatNumber(val);
   }
 
-  return (
-    <Card style={styles.chartCard}>
-      <View style={styles.chartHeader}>
-        <View style={styles.flex}>
-          <AppText variant="subtitle" style={styles.chartTitle}>{label}</AppText>
-          <AppText variant="caption" muted>{isDesktop ? 14 : 7} mốc gần nhất</AppText>
-        </View>
-        <View style={styles.chartStatsRow}>
-          <View style={styles.chartStatBox}>
-            <AppText variant="caption" style={styles.chartStatTitle} muted>Tổng cộng</AppText>
-            <AppText variant="button" style={[styles.chartStatValue, { color }]}>{formatFullValue(total)}</AppText>
-          </View>
-          <View style={styles.chartStatBox}>
-            <AppText variant="caption" style={styles.chartStatTitle} muted>Trung bình</AppText>
-            <AppText variant="button" style={styles.chartStatValue}>{formatFullValue(avg)}</AppText>
-          </View>
-          <View style={styles.chartStatBox}>
-            <AppText variant="caption" style={styles.chartStatTitle} muted>Đỉnh cao</AppText>
-            <AppText variant="button" style={[styles.chartStatValue, { color: colors.red }]}>{formatFullValue(peak)}</AppText>
-            {peakDate ? <AppText variant="caption" style={styles.chartStatDate} muted>{peakDate.slice(5)}</AppText> : null}
-          </View>
-        </View>
-      </View>
+  const subtitle = `${isDesktop ? 14 : 7} mốc gần nhất · Tổng ${formatFullValue(total)} · TB ${formatFullValue(avg)} · Đỉnh ${formatFullValue(peak)}${peakDate ? ` (${peakDate.slice(5)})` : ""}`;
 
-      {total > 0 ? (
-        <View style={styles.chartBody}>
-          <View style={styles.chartGrid}>
-            {[0.5, 1].map((ratio) => (
-              <View key={ratio} style={[styles.chartGridLine, { bottom: `${ratio * 100}%` }]}>
-                <AppText variant="caption" style={styles.chartGridLabel} muted>
-                  {formatVal(max * ratio)}
-                </AppText>
-              </View>
-            ))}
-          </View>
-          <View style={styles.barChart}>
-            {compactData.map((item) => {
-              const value = Number(item[field] ?? 0);
-              const heightPercent = (value / max) * 100;
-              return (
-                <View key={`${field}-${item.date}`} style={styles.barColumn}>
-                  <AppText variant="caption" style={styles.chartBarValue} numberOfLines={1}>
-                    {value > 0 ? formatVal(value) : ""}
-                  </AppText>
-                  <View style={styles.barTrack}>
-                    {value > 0 ? (
-                      <View
-                        testID="admin-chart-bar-fill"
-                        style={[styles.barFill, { height: `${Math.max(5, heightPercent)}%`, backgroundColor: color }]}
-                      />
-                    ) : null}
-                  </View>
-                  <AppText variant="caption" style={styles.chartDateLabel} muted numberOfLines={1}>
-                    {item.date.slice(5)}
-                  </AppText>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      ) : (
-        <View style={styles.chartEmptyState}>
-          <AppText variant="button" style={styles.chartEmptyTitle}>Chưa có dữ liệu trong khoảng này</AppText>
-          <AppText variant="caption" muted>Đổi bộ lọc thời gian để xem xu hướng.</AppText>
-        </View>
-      )}
-    </Card>
+  return (
+    <AdminSeriesChart
+      title={label}
+      subtitle={subtitle}
+      data={compactData.map((item) => ({
+        value: Number(item[field] ?? 0),
+        label: item.date.slice(5)
+      }))}
+      color={color}
+      type={field === "users" ? "area" : "bar"}
+    />
   );
 }
 
@@ -963,6 +915,254 @@ function HeaderIconButton({
   );
 }
 
+const analytics24hPresetOptions: Array<{ key: AdminAnalytics24hPreset; label: string }> = [
+  { key: "last24h", label: "24 giờ" },
+  { key: "today", label: "Hôm nay" },
+  { key: "yesterday", label: "Hôm qua" },
+  { key: "7d", label: "7 ngày" },
+  { key: "30d", label: "30 ngày" },
+  { key: "custom", label: "Tùy chỉnh" }
+];
+
+function sourceColor(source: string, index: number) {
+  const palette = ["#2F80ED", "#27AE60", "#F2994A", "#EB5757", "#9B51E0", "#00A3A3"];
+  const normalized = source.toLowerCase();
+  if (normalized.includes("facebook")) return "#2F80ED";
+  if (normalized.includes("google")) return "#27AE60";
+  if (normalized.includes("zalo")) return "#00A3A3";
+  if (normalized.includes("tiktok")) return "#191B1F";
+  if (normalized.includes("direct")) return colors.greenDark;
+  return palette[index % palette.length];
+}
+
+function AnalyticsHeatmapCard({ heatmap }: { heatmap: AdminAnalyticsHeatmap | null }) {
+  const cells = heatmap?.cells ?? [];
+  const max = Math.max(1, ...cells.map((cell) => cell.value));
+  const days = [...new Set(cells.map((cell) => cell.day))];
+  const valueByKey = new Map(cells.map((cell) => [`${cell.day}-${cell.hour}`, cell.value]));
+
+  return (
+    <Card style={styles.analyticsHeatmapCard}>
+      <View style={styles.headerRow}>
+        <View style={styles.flex}>
+          <AppText variant="subtitle" style={styles.reportMiniTitle}>Heatmap hoạt động</AppText>
+          <AppText muted variant="caption">Cường độ event theo ngày và giờ, timezone Asia/Ho_Chi_Minh.</AppText>
+        </View>
+      </View>
+      {cells.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.heatmapWrap}>
+            <View style={styles.heatmapHourRow}>
+              <View style={styles.heatmapDayLabel} />
+              {Array.from({ length: 24 }, (_, hour) => (
+                <AppText key={`hour-${hour}`} variant="caption" style={styles.heatmapHourLabel}>
+                  {hour % 2 === 0 ? String(hour).padStart(2, "0") : ""}
+                </AppText>
+              ))}
+            </View>
+            {days.map((day) => (
+              <View key={day} style={styles.heatmapRow}>
+                <AppText variant="caption" style={styles.heatmapDayLabel} numberOfLines={1}>
+                  {day.slice(5)}
+                </AppText>
+                {Array.from({ length: 24 }, (_, hour) => {
+                  const value = valueByKey.get(`${day}-${hour}`) ?? 0;
+                  const opacity = value > 0 ? 0.18 + (value / max) * 0.72 : 0.04;
+                  return (
+                    <View
+                      key={`${day}-${hour}`}
+                      style={[
+                        styles.heatmapCell,
+                        {
+                          backgroundColor: `rgba(82,106,69,${opacity})`
+                        }
+                      ]}
+                    />
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      ) : (
+        <EmptyState label="Chưa có dữ liệu heatmap trong khoảng này." />
+      )}
+    </Card>
+  );
+}
+
+function Analytics24hTab({
+  analytics,
+  heatmap,
+  isDesktop,
+  preset,
+  onPresetChange,
+  activityChartMode,
+  onActivityChartModeChange,
+  interactionChartMode,
+  onInteractionChartModeChange
+}: {
+  analytics: AdminAnalytics24h | null;
+  heatmap: AdminAnalyticsHeatmap | null;
+  isDesktop: boolean;
+  preset: AdminAnalytics24hPreset;
+  onPresetChange: (preset: AdminAnalytics24hPreset) => void;
+  activityChartMode: "area" | "line" | "bar";
+  onActivityChartModeChange: (mode: "area" | "line" | "bar") => void;
+  interactionChartMode: "stacked" | "donut";
+  onInteractionChartModeChange: (mode: "stacked" | "donut") => void;
+}) {
+  if (!analytics) {
+    return <EmptyState label="Chưa tải được dữ liệu Analytics 24h." />;
+  }
+
+  const sourceColorMap = Object.fromEntries(analytics.sourceTraffic.map((item, index) => [item.source, sourceColor(item.source, index)]));
+  const sourceDonutData = toDonutData(
+    analytics.sourceTraffic.map((item) => ({ type: item.source, count: item.events })),
+    sourceColorMap
+  );
+  const interactionLegend = [
+    { label: "Thích", color: interactionColors.likes },
+    { label: "Lưu", color: interactionColors.saves },
+    { label: "Bình luận", color: interactionColors.comments }
+  ];
+
+  return (
+    <View style={{ gap: 14 }}>
+      <SectionHeader
+        title="Báo cáo Analytics 24h"
+        subtitle={`Cập nhật từ ${formatDate(analytics.range.start)} đến ${formatDate(analytics.range.end)} · ${analytics.range.timezone}`}
+      />
+      <Card style={styles.filterPanelCard}>
+        <View style={styles.filterGroup}>
+          <AppText variant="caption" muted style={styles.filterGroupLabel}>Khoảng thời gian</AppText>
+          <View style={styles.filterChipRow}>
+            {analytics24hPresetOptions.map((option) => (
+              <SmallFilterButton
+                key={option.key}
+                label={option.label}
+                active={preset === option.key}
+                onPress={() => onPresetChange(option.key)}
+              />
+            ))}
+          </View>
+        </View>
+      </Card>
+
+      <View style={isDesktop ? styles.desktopGrid4 : styles.grid}>
+        <MetricCard label="Người dùng trong khoảng" value={analytics.summary.activeUsers} note={`${formatNumber(analytics.summary.newUsers)} user mới`} isDesktop={isDesktop} />
+        <MetricCard label="Bài đăng trong khoảng" value={analytics.summary.posts} note="Bài mới theo giờ" isDesktop={isDesktop} />
+        <MetricCard label="Tương tác trong khoảng" value={analytics.summary.interactions} note={`${formatNumber(analytics.summary.likes)} thích · ${formatNumber(analytics.summary.saves)} lưu · ${formatNumber(analytics.summary.comments)} bình luận`} isDesktop={isDesktop} />
+        <MetricCard label="Doanh thu trong khoảng" value={formatCurrency(analytics.summary.revenue)} note={`${formatNumber(analytics.summary.paymentSuccess)} thành công · ${formatNumber(analytics.summary.paymentFailed)} lỗi`} isDesktop={isDesktop} />
+        <MetricCard label="AI meal trong khoảng" value={analytics.summary.aiMealUsage} note={`${formatNumber(analytics.aiFunnel.purchasedAfterAi)} mua sau AI`} isDesktop={isDesktop} />
+        <MetricCard label="Thanh toán premium" value={formatPercent(analytics.aiFunnel.conversionRate)} note="AI Meal -> Purchase" isDesktop={isDesktop} />
+        <MetricCard label="Báo cáo mở" value={analytics.summary.reportsOpened} note={`${formatNumber(analytics.reportMetrics.pending)} đang chờ`} isDesktop={isDesktop} />
+        <MetricCard label="Phản hồi API" value={analytics.tables.recentImportantEvents.length} note="Sự kiện kỹ thuật quan trọng" isDesktop={isDesktop} />
+      </View>
+
+      <Card style={styles.filterPanelCard}>
+        <View style={isDesktop ? styles.filterPanelGrid : styles.filterPanelStack}>
+          <View style={styles.filterGroup}>
+            <AppText variant="caption" muted style={styles.filterGroupLabel}>Biểu đồ hoạt động</AppText>
+            <View style={styles.filterChipRow}>
+              <SmallFilterButton label="Vùng" active={activityChartMode === "area"} onPress={() => onActivityChartModeChange("area")} />
+              <SmallFilterButton label="Đường" active={activityChartMode === "line"} onPress={() => onActivityChartModeChange("line")} />
+              <SmallFilterButton label="Cột" active={activityChartMode === "bar"} onPress={() => onActivityChartModeChange("bar")} />
+            </View>
+          </View>
+          <View style={styles.filterGroup}>
+            <AppText variant="caption" muted style={styles.filterGroupLabel}>Tương tác</AppText>
+            <View style={styles.filterChipRow}>
+              <SmallFilterButton label="Stacked" active={interactionChartMode === "stacked"} onPress={() => onInteractionChartModeChange("stacked")} />
+              <SmallFilterButton label="Donut" active={interactionChartMode === "donut"} onPress={() => onInteractionChartModeChange("donut")} />
+            </View>
+          </View>
+        </View>
+      </Card>
+
+      <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
+        <AdminSeriesChart
+          title="Người dùng active theo giờ"
+          subtitle="Unique user/session có event trong khoảng lọc."
+          data={toGiftedSeries(analytics.hourly, "activeUsers", { maxPoints: 24 })}
+          color={colors.greenDark}
+          type={activityChartMode}
+        />
+        <AdminSeriesChart
+          title="Doanh thu theo giờ"
+          subtitle="Tổng payment PAID theo từng giờ."
+          data={toGiftedSeries(analytics.hourly, "revenue", { maxPoints: 24 })}
+          color={colors.yellow}
+          type="bar"
+        />
+      </View>
+
+      <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
+        {interactionChartMode === "stacked" ? (
+          <AdminStackedBarChart
+            title="Tương tác theo loại"
+            subtitle="Like, save và comment theo từng giờ."
+            data={toStackedInteractionData(analytics.hourly, { maxPoints: 24 })}
+            legend={interactionLegend}
+          />
+        ) : (
+          <AdminDonutChart
+            title="Tỷ trọng tương tác"
+            subtitle="Tổng like, save và comment trong khoảng lọc."
+            data={toDonutData(analytics.interactionBreakdown, interactionColors)}
+            centerLabel={formatNumber(analytics.summary.interactions)}
+            legend={interactionLegend}
+          />
+        )}
+        <AdminDonutChart
+          title="Nguồn truy cập"
+          subtitle="Dựa trên UTM/referrer trong AnalyticsEvent."
+          data={sourceDonutData}
+          centerLabel={formatNumber(analytics.sourceTraffic.reduce((sum, item) => sum + item.events, 0))}
+          legend={analytics.sourceTraffic.map((item, index) => ({ label: item.source, color: sourceColor(item.source, index) }))}
+        />
+      </View>
+
+      <View style={isDesktop ? styles.desktopGrid3 : styles.grid}>
+        <MetricCard label="AI Meal usage" value={analytics.aiFunnel.usersUsedAi} note="Users có phân tích món ăn" isDesktop={isDesktop} />
+        <MetricCard label="Users đã mua sau AI" value={analytics.aiFunnel.purchasedAfterAi} note={formatPercent(analytics.aiFunnel.conversionRate)} isDesktop={isDesktop} />
+        <MetricCard label="Users chưa mua sau AI" value={analytics.aiFunnel.onlyAiNoPurchase} note="Có AI Meal, chưa có PAID payment" isDesktop={isDesktop} />
+      </View>
+
+      <AnalyticsHeatmapCard heatmap={heatmap} />
+
+      <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
+        <Card style={styles.reportMiniCard}>
+          <AppText variant="subtitle" style={styles.reportMiniTitle}>Top actions</AppText>
+          {analytics.tables.topActions.length ? (
+            analytics.tables.topActions.map((item) => (
+              <View key={item.name} style={styles.usageReportRow}>
+                <AppText variant="body" style={styles.flex} numberOfLines={1}>{item.name}</AppText>
+                <AppText variant="button">{formatNumber(item.count)}</AppText>
+              </View>
+            ))
+          ) : (
+            <EmptyState label="Chưa có action." />
+          )}
+        </Card>
+        <Card style={styles.reportMiniCard}>
+          <AppText variant="subtitle" style={styles.reportMiniTitle}>Cần chú ý</AppText>
+          {[...analytics.tables.pendingReports, ...analytics.tables.paymentErrors].slice(0, 6).length ? (
+            [...analytics.tables.pendingReports, ...analytics.tables.paymentErrors].slice(0, 6).map((item: any) => (
+              <View key={item.id} style={styles.usageReportRow}>
+                <AppText variant="body" style={styles.flex} numberOfLines={1}>{item.note ?? item.status}</AppText>
+                <Pill label={item.status} tone={item.status === "open" ? "warn" : "bad"} />
+              </View>
+            ))
+          ) : (
+            <EmptyState label="Không có báo cáo hoặc lỗi thanh toán trong khoảng này." />
+          )}
+        </Card>
+      </View>
+    </View>
+  );
+}
+
 function Sidebar({
   navigation,
   activeTab,
@@ -984,6 +1184,7 @@ function Sidebar({
 }) {
   const tabsList: Array<{ key: AdminTab; label: string }> = [
     { key: "overview", label: "Tổng quan" },
+    { key: "analytics24h", label: "Analytics 24h" },
     { key: "analytics", label: "KPI" },
     { key: "posts", label: "Bài đăng" },
     { key: "reports", label: "Báo cáo" },
@@ -1163,9 +1364,14 @@ export function AdminDashboardScreen({ route, navigation }: any) {
   const [customEndDate, setCustomEndDate] = useState("");
   const [dashboardStartTime, setDashboardStartTime] = useState("");
   const [dashboardEndTime, setDashboardEndTime] = useState("");
+  const [analytics24hPreset, setAnalytics24hPreset] = useState<AdminAnalytics24hPreset>("last24h");
+  const [activityChartMode, setActivityChartMode] = useState<"area" | "line" | "bar">("area");
+  const [interactionChartMode, setInteractionChartMode] = useState<"stacked" | "donut">("stacked");
   const [postMediaKind, setPostMediaKind] = useState<AdminPostMediaKind>("all");
   const [postSortBy, setPostSortBy] = useState<AdminPostSortBy>("createdAt");
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
+  const [analytics24h, setAnalytics24h] = useState<AdminAnalytics24h | null>(null);
+  const [analyticsHeatmap, setAnalyticsHeatmap] = useState<AdminAnalyticsHeatmap | null>(null);
   const [postInsights, setPostInsights] = useState<AdminPostInsights | null>(null);
   const [posts, setPosts] = useState<AdminPostSummary[]>([]);
   const [reports, setReports] = useState<AdminReportItem[]>([]);
@@ -1187,6 +1393,9 @@ export function AdminDashboardScreen({ route, navigation }: any) {
     customEndDate,
     dashboardStartTime,
     dashboardEndTime,
+    analytics24hPreset,
+    activityChartMode,
+    interactionChartMode,
     posts.length,
     postInsights?.summary.totalPosts ?? 0
   ]);
@@ -1207,18 +1416,31 @@ export function AdminDashboardScreen({ route, navigation }: any) {
     }),
     [dashboardRangeParams, postMediaKind, postSortBy]
   );
+  const analytics24hParams = useMemo(() => {
+    const params: { preset: AdminAnalytics24hPreset; from?: string; to?: string; timezone: string } = {
+      preset: analytics24hPreset,
+      timezone: "Asia/Ho_Chi_Minh"
+    };
+    if (analytics24hPreset === "custom") {
+      params.from = isoStartOfDate(customStartDate);
+      params.to = isoEndOfDate(customEndDate);
+    }
+    return params;
+  }, [analytics24hPreset, customStartDate, customEndDate]);
 
   const loadDashboard = useCallback(async () => {
     if (!adminToken) return;
     setError(null);
     setLoading(true);
     try {
-      const [dashboardResult, postsResult, reportsResult, paymentsResult, postInsightsResult] = await Promise.all([
+      const [dashboardResult, postsResult, reportsResult, paymentsResult, postInsightsResult, analytics24hResult, heatmapResult] = await Promise.all([
         api.adminDashboard(adminToken, dashboardRangeParams),
         api.adminPosts(adminToken, { ...postQueryParams, limit: POST_PAGE_SIZE }),
         api.adminReports(adminToken, { status: "open", limit: 20 }),
         api.adminPayments(adminToken, { limit: 20 }),
-        api.adminPostInsights(adminToken, postQueryParams)
+        api.adminPostInsights(adminToken, postQueryParams),
+        api.adminAnalytics24h(adminToken, analytics24hParams),
+        api.adminAnalyticsHeatmap(adminToken, { ...analytics24hParams, metric: "events" })
       ]);
       setDashboard(dashboardResult);
       setPosts(postsResult.posts);
@@ -1226,12 +1448,14 @@ export function AdminDashboardScreen({ route, navigation }: any) {
       setReports(reportsResult.reports);
       setPayments(paymentsResult.payments);
       setPostInsights(postInsightsResult);
+      setAnalytics24h(analytics24hResult);
+      setAnalyticsHeatmap(heatmapResult);
     } catch (err: any) {
       setError(err?.message ?? "Không tải được dashboard admin");
     } finally {
       setLoading(false);
     }
-  }, [adminToken, dashboardRangeParams, postQueryParams]);
+  }, [adminToken, dashboardRangeParams, postQueryParams, analytics24hParams]);
 
   const loadMorePosts = useCallback(async () => {
     if (!adminToken || !postsPagination || loadingMorePosts || posts.length >= postsPagination.total || postsPagination.page >= postsPagination.pages) {
@@ -1352,7 +1576,7 @@ export function AdminDashboardScreen({ route, navigation }: any) {
   );
   const loadedPostCount = posts.length;
   const totalPostCount = postsPagination?.total ?? posts.length;
-  const showDashboardTimeControls = activeTab === "overview" || activeTab === "analytics";
+  const showDashboardTimeControls = activeTab === "overview" || activeTab === "analytics" || activeTab === "analytics24h";
   const postMediaBreakdown = useMemo(() => {
     const counts = new Map<AdminPostMediaKind, number>();
     postInsights?.mediaBreakdown.forEach((item) => counts.set(item.key, item.count));
@@ -1414,6 +1638,20 @@ export function AdminDashboardScreen({ route, navigation }: any) {
             )}
           </View>
         </>
+      )}
+
+      {activeTab === "analytics24h" && (
+        <Analytics24hTab
+          analytics={analytics24h}
+          heatmap={analyticsHeatmap}
+          isDesktop={isDesktop}
+          preset={analytics24hPreset}
+          onPresetChange={setAnalytics24hPreset}
+          activityChartMode={activityChartMode}
+          onActivityChartModeChange={setActivityChartMode}
+          interactionChartMode={interactionChartMode}
+          onInteractionChartModeChange={setInteractionChartMode}
+        />
       )}
 
       {activeTab === "analytics" && (
@@ -1916,50 +2154,26 @@ export function AdminUsersScreen({ navigation }: any) {
             <MetricCard label="Khung giờ cao điểm" value={peakActivity && peakActivity.sessions > 0 ? formatHourLabel(peakActivity.hour) : "--"} note={peakActivity && peakActivity.sessions > 0 ? `${formatNumber(peakActivity.sessions)} phiên · ${formatDuration(peakActivity.totalDurationMs)}` : "Chưa có dữ liệu"} isDesktop={isDesktop} />
           </View>
           <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
-            <Card style={styles.insightPanelCard}>
-              <View style={styles.headerRow}>
-                <View style={styles.flex}>
-                  <AppText variant="subtitle" style={styles.reportMiniTitle}>Thời gian dùng mỗi ngày</AppText>
-                  <AppText muted variant="caption">Tổng thời lượng phiên của users theo từng ngày.</AppText>
-                </View>
-              </View>
-              <View style={styles.detailSectionList}>
-                {latestDailyUsage.length ? latestDailyUsage.map((item) => (
-                  <View key={item.date} testID="admin-animate-row" style={styles.usageReportRow}>
-                    <View style={styles.flex}>
-                      <AppText variant="button" style={styles.detailItemTitle}>{item.date}</AppText>
-                      <AppText muted variant="caption">
-                        {formatNumber(item.sessions)} phiên · {formatNumber(item.activeUsers)} users
-                      </AppText>
-                    </View>
-                    <AppText variant="button" style={styles.usageReportValue}>{formatDuration(item.totalDurationMs)}</AppText>
-                  </View>
-                )) : <AppText muted variant="caption">Chưa có dữ liệu thời lượng trong khoảng này.</AppText>}
-              </View>
-            </Card>
-            <Card style={styles.insightPanelCard}>
-              <View style={styles.headerRow}>
-                <View style={styles.flex}>
-                  <AppText variant="subtitle" style={styles.reportMiniTitle}>Khung giờ hoạt động nhiều nhất</AppText>
-                  <AppText muted variant="caption">Xếp hạng theo số phiên trong ngày.</AppText>
-                </View>
-              </View>
-              <View style={styles.detailSectionList}>
-                {activeHours.length ? activeHours.map((item, index) => (
-                  <View key={item.hour} testID="admin-animate-row" style={styles.activeUserRow}>
-                    <View style={styles.activeUserRank}>
-                      <AppText style={styles.activeUserRankText}>{index + 1}</AppText>
-                    </View>
-                    <View style={styles.flex}>
-                      <AppText variant="button" style={styles.detailItemTitle}>{formatHourLabel(item.hour)}</AppText>
-                      <AppText muted variant="caption">
-                        {formatNumber(item.sessions)} phiên · {formatNumber(item.activeUsers)} users · {formatDuration(item.totalDurationMs)}
-                      </AppText>
-                    </View>
-                  </View>
-                )) : <AppText muted variant="caption">Chưa có khung giờ hoạt động nổi bật.</AppText>}
-              </View>
-            </Card>
+            <AdminSeriesChart
+              title="Thời gian dùng mỗi ngày"
+              subtitle="Tổng thời lượng phiên của users theo từng ngày."
+              data={latestDailyUsage.map((item) => ({
+                value: Math.round(item.totalDurationMs / 60000),
+                label: item.date.slice(5)
+              }))}
+              color={colors.greenDark}
+              type="area"
+            />
+            <AdminSeriesChart
+              title="Phiên hoạt động theo giờ"
+              subtitle="Số phiên user active trong từng khung giờ."
+              data={userInsights.hourlyActivity.map((item) => ({
+                value: item.sessions,
+                label: item.label
+              }))}
+              color={colors.blue}
+              type="bar"
+            />
           </View>
           <Card style={styles.reportMiniCard}>
             <View style={styles.headerRow}>
@@ -2779,6 +2993,13 @@ const styles = StyleSheet.create({
   reportMiniCard: { minHeight: 144 },
   insightPanelCard: { flex: 1, minWidth: 0, minHeight: 150 },
   reportMiniTitle: { fontFamily: fonts.bold, color: colors.ink },
+  analyticsHeatmapCard: { gap: 14 },
+  heatmapWrap: { gap: 5, paddingVertical: 4, paddingRight: 8 },
+  heatmapHourRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  heatmapRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  heatmapDayLabel: { width: 42, color: colors.muted, fontFamily: fonts.medium, fontSize: 10 },
+  heatmapHourLabel: { width: 18, textAlign: "center", color: colors.muted, fontSize: 8 },
+  heatmapCell: { width: 18, height: 18, borderRadius: 4, borderWidth: 1, borderColor: "rgba(82,106,69,0.08)" },
   usageReportRow: {
     flexDirection: "row",
     alignItems: "center",

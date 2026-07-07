@@ -16,6 +16,7 @@ import { PostSave } from "../models/PostSave.js";
 import { User } from "../models/User.js";
 import { UserInteraction } from "../models/UserInteraction.js";
 import { generateAdminReport } from "../services/adminReport.js";
+import { buildAdminAnalytics24h, buildAdminAnalyticsHeatmap } from "../services/adminAnalytics24h.js";
 import { hasActivePremium, premiumTrialDto } from "../utils/premium.js";
 import { buildAnalyticsSummary, parseAnalyticsSummaryQuery, type AnalyticsRangePreset } from "./analytics.js";
 
@@ -75,6 +76,18 @@ const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const adminUserInsightsQuerySchema = adminRangeBodySchema.extend({
   startTime: timeOfDaySchema.optional(),
   endTime: timeOfDaySchema.optional()
+});
+
+const adminAnalytics24hQuerySchema = z.object({
+  preset: z.enum(["last24h", "today", "yesterday", "7d", "30d", "custom"]).default("last24h"),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  timezone: z.string().trim().min(1).max(80).default("Asia/Ho_Chi_Minh"),
+  eventTypes: z.string().trim().optional()
+});
+
+const adminAnalyticsHeatmapQuerySchema = adminAnalytics24hQuerySchema.extend({
+  metric: z.enum(["events", "activeUsers", "interactions", "aiMeal"]).default("events")
 });
 
 type AdminJwtPayload = {
@@ -202,6 +215,45 @@ async function resolveRange(input: unknown) {
   }
 
   return defaultRange();
+}
+
+function startOfLocalDay(date = new Date()) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function resolveAdminAnalyticsRange(query: z.infer<typeof adminAnalytics24hQuerySchema>) {
+  const end = query.to ?? new Date();
+  let start: Date;
+
+  if (query.preset === "custom") {
+    if (!query.from || !query.to) {
+      throw new HttpError(400, "Báo cáo Analytics 24h cần from và to khi dùng custom range.");
+    }
+    start = query.from;
+  } else if (query.preset === "today") {
+    start = startOfLocalDay(end);
+  } else if (query.preset === "yesterday") {
+    const today = startOfLocalDay(end);
+    start = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    return { start, end: today, preset: query.preset, timezone: query.timezone };
+  } else if (query.preset === "7d") {
+    start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+  } else if (query.preset === "30d") {
+    start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+  } else {
+    start = query.from ?? new Date(end.getTime() - 24 * 60 * 60 * 1000);
+  }
+
+  if (start >= end) {
+    throw new HttpError(400, "Thời gian bắt đầu Analytics phải trước thời gian kết thúc.");
+  }
+
+  const maxRangeMs = 31 * 24 * 60 * 60 * 1000;
+  if (end.getTime() - start.getTime() > maxRangeMs) {
+    throw new HttpError(413, "Khoảng thời gian Analytics tối đa là 31 ngày.");
+  }
+
+  return { start, end, preset: query.preset, timezone: query.timezone };
 }
 
 function toIso(value?: Date | null) {
@@ -1031,6 +1083,26 @@ adminRouter.get("/analytics/summary", requireAdmin, async (req, res, next) => {
   try {
     const query = parseAnalyticsSummaryQuery(req.query);
     res.json({ summary: await buildAnalyticsSummary(query) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get("/analytics/24h", requireAdmin, async (req, res, next) => {
+  try {
+    const query = adminAnalytics24hQuerySchema.parse(req.query);
+    const range = resolveAdminAnalyticsRange(query);
+    res.json(await buildAdminAnalytics24h(range));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.get("/analytics/heatmap", requireAdmin, async (req, res, next) => {
+  try {
+    const query = adminAnalyticsHeatmapQuerySchema.parse(req.query);
+    const range = resolveAdminAnalyticsRange(query);
+    res.json(await buildAdminAnalyticsHeatmap({ ...range, metric: query.metric }));
   } catch (error) {
     next(error);
   }

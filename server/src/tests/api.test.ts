@@ -10,6 +10,7 @@ import { createPayosSignature } from "../services/payos.js";
 import { broadcastToRoom, emitToUser } from "../services/socket.js";
 import { AnalyticsEvent } from "../models/AnalyticsEvent.js";
 import { Comment } from "../models/Comment.js";
+import { Meal } from "../models/Meal.js";
 import { Payment } from "../models/Payment.js";
 import { PostLike } from "../models/PostLike.js";
 import { PostSave } from "../models/PostSave.js";
@@ -1390,6 +1391,220 @@ describe("Daily Meal API", () => {
       paymentCompletionRate: 1
     });
   });
+
+  it("returns admin 24h analytics and heatmap data with hourly business metrics", async () => {
+    Object.assign(env, { ADMIN_EMAIL: "analytics-24h-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const buyer = await register("analytics-24h-buyer@example.com");
+    const aiOnly = await register("analytics-24h-ai-only@example.com");
+    const viewer = await register("analytics-24h-viewer@example.com");
+
+    const morning = new Date("2026-03-01T01:15:00.000Z");
+    const morningLater = new Date("2026-03-01T01:45:00.000Z");
+    const evening = new Date("2026-03-01T13:05:00.000Z");
+    const oldEvent = new Date("2026-02-28T02:00:00.000Z");
+    const start = "2026-03-01T00:00:00.000Z";
+    const end = "2026-03-02T00:00:00.000Z";
+
+    await Promise.all([
+      User.collection.updateOne({ _id: new mongoose.Types.ObjectId(buyer.user.id) }, { $set: { createdAt: morning, updatedAt: morning } }),
+      User.collection.updateOne({ _id: new mongoose.Types.ObjectId(aiOnly.user.id) }, { $set: { createdAt: evening, updatedAt: evening } }),
+      User.collection.updateOne({ _id: new mongoose.Types.ObjectId(viewer.user.id) }, { $set: { createdAt: oldEvent, updatedAt: oldEvent } })
+    ]);
+
+    const post = await Post.create({
+      author: buyer.user.id,
+      images: [{ url: "/uploads/analytics-24h.jpg" }],
+      caption: "Analytics 24h post",
+      tags: [],
+      visibility: "public",
+      createdAt: morning,
+      updatedAt: morning
+    });
+    const [like, save, comment] = await Promise.all([
+      PostLike.create({ post: post._id, user: viewer.user.id }),
+      PostSave.create({ post: post._id, user: viewer.user.id }),
+      Comment.create({ post: post._id, author: viewer.user.id, body: "Great analytics meal" })
+    ]);
+    await Promise.all([
+      PostLike.collection.updateOne({ _id: like._id }, { $set: { createdAt: morningLater, updatedAt: morningLater } }),
+      PostSave.collection.updateOne({ _id: save._id }, { $set: { createdAt: morningLater, updatedAt: morningLater } }),
+      Comment.collection.updateOne({ _id: comment._id }, { $set: { createdAt: evening, updatedAt: evening } })
+    ]);
+
+    await Promise.all([
+      Meal.create({
+        user: buyer.user.id,
+        image: { url: "/uploads/meal-buyer.jpg" },
+        result: { items: [], total: { calories: 100, protein: 10, carbs: 12, fat: 3 }, warnings: [] },
+        createdAt: morning,
+        updatedAt: morning
+      }),
+      Meal.create({
+        user: aiOnly.user.id,
+        image: { url: "/uploads/meal-ai-only.jpg" },
+        result: { items: [], total: { calories: 120, protein: 8, carbs: 18, fat: 4 }, warnings: [] },
+        createdAt: evening,
+        updatedAt: evening
+      }),
+      Payment.create({
+        provider: "payos",
+        user: buyer.user.id,
+        planId: "premium_month",
+        orderCode: 9345678901,
+        amount: 99000,
+        currency: "VND",
+        description: "Analytics 24h paid payment",
+        status: "PAID",
+        paidAt: morningLater,
+        createdAt: morningLater,
+        updatedAt: morningLater
+      }),
+      Payment.create({
+        provider: "payos",
+        user: aiOnly.user.id,
+        planId: "premium_month",
+        orderCode: 9345678902,
+        amount: 99000,
+        currency: "VND",
+        description: "Analytics 24h failed payment",
+        status: "CANCELLED",
+        createdAt: evening,
+        updatedAt: evening
+      }),
+      UserInteraction.create({
+        actor: viewer.user.id,
+        target: buyer.user.id,
+        type: "report",
+        note: "Analytics 24h report",
+        createdAt: evening,
+        updatedAt: evening
+      }),
+      AnalyticsEvent.create([
+        {
+          name: "session_start",
+          occurredAt: morning,
+          receivedAt: morning,
+          sessionId: "analytics-24h-buyer-session",
+          subjectKey: `user:${buyer.user.id}`,
+          user: buyer.user.id,
+          source: "client",
+          properties: { utm: { utm_source: "facebook" }, referrer: "https://facebook.com/daily-meal" }
+        },
+        {
+          name: "feed_click",
+          occurredAt: morningLater,
+          receivedAt: morningLater,
+          sessionId: "analytics-24h-buyer-session",
+          subjectKey: `user:${buyer.user.id}`,
+          user: buyer.user.id,
+          source: "client",
+          properties: { utm: { utm_source: "facebook" } }
+        },
+        {
+          name: "session_start",
+          occurredAt: evening,
+          receivedAt: evening,
+          sessionId: "analytics-24h-ai-only-session",
+          subjectKey: `user:${aiOnly.user.id}`,
+          user: aiOnly.user.id,
+          source: "client",
+          properties: { referrer: "https://google.com/search?q=daily+meal" }
+        },
+        {
+          name: "session_start",
+          occurredAt: oldEvent,
+          receivedAt: oldEvent,
+          sessionId: "analytics-24h-old-session",
+          subjectKey: `user:${viewer.user.id}`,
+          user: viewer.user.id,
+          source: "client",
+          properties: { utm: { utm_source: "zalo" } }
+        }
+      ])
+    ]);
+
+    await request(app).get("/api/admin/analytics/24h").expect(401);
+    await request(app)
+      .get("/api/admin/analytics/24h")
+      .set("Authorization", `Bearer ${buyer.token}`)
+      .expect(403);
+
+    const login = await request(app)
+      .post("/api/admin/login")
+      .send({ email: "analytics-24h-admin@example.com", password: "admin-secret" })
+      .expect(200);
+
+    const response = await request(app)
+      .get(`/api/admin/analytics/24h?preset=custom&from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}&timezone=Asia/Ho_Chi_Minh`)
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+
+    expect(response.body.range).toMatchObject({ timezone: "Asia/Ho_Chi_Minh", preset: "custom" });
+    expect(response.body.hourly).toHaveLength(24);
+    expect(response.body.summary).toMatchObject({
+      activeUsers: 2,
+      newUsers: 2,
+      posts: 1,
+      interactions: 3,
+      likes: 1,
+      saves: 1,
+      comments: 1,
+      reportsOpened: 1,
+      revenue: 99000,
+      paymentSuccess: 1,
+      paymentFailed: 1,
+      aiMealUsage: 2
+    });
+    expect(response.body.aiFunnel).toMatchObject({
+      usersUsedAi: 2,
+      onlyAiNoPurchase: 1,
+      purchasedAfterAi: 1,
+      conversionRate: 0.5
+    });
+    expect(response.body.hourly.find((item: any) => item.hour === 8)).toMatchObject({
+      activeUsers: 1,
+      posts: 1,
+      likes: 1,
+      saves: 1,
+      payments: 1,
+      revenue: 99000,
+      aiMealUsage: 1
+    });
+    expect(response.body.hourly.find((item: any) => item.hour === 20)).toMatchObject({
+      activeUsers: 1,
+      comments: 1,
+      reportsOpened: 1,
+      paymentFailed: 1,
+      aiMealUsage: 1
+    });
+    expect(response.body.interactionBreakdown).toEqual(
+      expect.arrayContaining([
+        { type: "likes", count: 1 },
+        { type: "saves", count: 1 },
+        { type: "comments", count: 1 }
+      ])
+    );
+    expect(response.body.sourceTraffic).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "facebook", events: 2, users: 1 }),
+        expect.objectContaining({ source: "google", events: 1, users: 1 })
+      ])
+    );
+    expect(response.body.tables.pendingReports[0]).toMatchObject({ note: "Analytics 24h report", status: "open" });
+
+    const heatmap = await request(app)
+      .get(`/api/admin/analytics/heatmap?from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}&timezone=Asia/Ho_Chi_Minh&metric=events`)
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+
+    expect(heatmap.body.cells).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ hour: 8, value: 2 }),
+        expect.objectContaining({ hour: 20, value: 1 })
+      ])
+    );
+  });
+
   it("creates a PayOS checkout link for a selected Premium plan", async () => {
     Object.assign(env, {
       PAYOS_CLIENT_ID: "client-id",
@@ -2186,6 +2401,16 @@ describe("Daily Meal API", () => {
   });
 
   it("summarizes visible posts by relationship without exposing own, friends-only, or blocked posts", async () => {
+    const marker = "summary-relationship-fixture";
+    const captions = {
+      own: `${marker} viewer own public meal`,
+      friendPublic: `${marker} friend public meal`,
+      friendFriendsOnly: `${marker} friend friends-only meal`,
+      followed: `${marker} followed public meal`,
+      stranger: `${marker} stranger public meal`,
+      blocked: `${marker} blocked public meal`,
+      friendPrivate: `${marker} friend private meal`,
+    };
     const viewer = await register("summary-viewer@example.com");
     const friend = await register("summary-friend@example.com");
     const followed = await register("summary-followed@example.com");
@@ -2193,13 +2418,13 @@ describe("Daily Meal API", () => {
     const blocked = await register("summary-blocked@example.com");
     const nonFriend = await register("summary-non-friend@example.com");
 
-    await createPost(viewer.token, "Viewer own public meal");
-    await createPost(friend.token, "Friend public meal");
-    await createPost(friend.token, "Friend friends-only meal", "friends");
-    await createPost(followed.token, "Followed public meal");
-    await createPost(stranger.token, "Stranger public meal");
-    await createPost(blocked.token, "Blocked public meal");
-    await createPost(friend.token, "Friend private meal", "private");
+    await createPost(viewer.token, captions.own);
+    await createPost(friend.token, captions.friendPublic);
+    await createPost(friend.token, captions.friendFriendsOnly, "friends");
+    await createPost(followed.token, captions.followed);
+    await createPost(stranger.token, captions.stranger);
+    await createPost(blocked.token, captions.blocked);
+    await createPost(friend.token, captions.friendPrivate, "private");
 
     await request(app)
       .post(`/api/users/${friend.user.id}/follow`)
@@ -2224,12 +2449,12 @@ describe("Daily Meal API", () => {
       .set("Authorization", `Bearer ${viewer.token}`)
       .expect(200);
     const allCaptions = all.body.posts.map((post: { caption: string }) => post.caption);
-    expect(allCaptions).toContain("Friend public meal");
-    expect(allCaptions).toContain("Friend friends-only meal");
-    expect(allCaptions).toContain("Followed public meal");
-    expect(allCaptions).not.toContain("Viewer own public meal");
-    expect(allCaptions).not.toContain("Blocked public meal");
-    expect(allCaptions).not.toContain("Friend private meal");
+    expect(allCaptions).toContain(captions.friendPublic);
+    expect(allCaptions).toContain(captions.friendFriendsOnly);
+    expect(allCaptions).toContain(captions.followed);
+    expect(allCaptions).not.toContain(captions.own);
+    expect(allCaptions).not.toContain(captions.blocked);
+    expect(allCaptions).not.toContain(captions.friendPrivate);
 
     const limitedAll = await request(app)
       .get("/api/posts/summary?filter=all&limit=3")
@@ -2242,28 +2467,36 @@ describe("Daily Meal API", () => {
       .set("Authorization", `Bearer ${viewer.token}`)
       .expect(200);
     expect(friends.body.posts.map((post: { caption: string }) => post.caption)).toEqual(
-      expect.arrayContaining(["Friend public meal", "Friend friends-only meal"])
+      expect.arrayContaining([captions.friendPublic, captions.friendFriendsOnly])
     );
-    expect(friends.body.posts.map((post: { caption: string }) => post.caption)).not.toContain("Followed public meal");
+    expect(friends.body.posts.map((post: { caption: string }) => post.caption)).not.toContain(captions.followed);
 
     const following = await request(app)
       .get("/api/posts/summary?filter=following")
       .set("Authorization", `Bearer ${viewer.token}`)
       .expect(200);
-    expect(following.body.posts.map((post: { caption: string }) => post.caption)).toEqual(["Followed public meal"]);
+    expect(
+      following.body.posts
+        .map((post: { caption: string }) => post.caption)
+        .filter((caption: string) => caption.startsWith(marker))
+    ).toEqual([captions.followed]);
 
     const strangers = await request(app)
       .get("/api/posts/summary?filter=strangers")
       .set("Authorization", `Bearer ${viewer.token}`)
       .expect(200);
-    expect(strangers.body.posts.map((post: { caption: string }) => post.caption)).toEqual(["Stranger public meal"]);
+    expect(
+      strangers.body.posts
+        .map((post: { caption: string }) => post.caption)
+        .filter((caption: string) => caption.startsWith(marker))
+    ).toEqual([captions.stranger]);
 
     const nonFriendSummary = await request(app)
       .get("/api/posts/summary?filter=all")
       .set("Authorization", `Bearer ${nonFriend.token}`)
       .expect(200);
     expect(nonFriendSummary.body.posts.map((post: { caption: string }) => post.caption)).not.toContain(
-      "Friend friends-only meal"
+      captions.friendFriendsOnly
     );
   });
 

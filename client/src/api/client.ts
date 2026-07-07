@@ -1,6 +1,9 @@
 import { NativeModules, Platform } from "react-native";
 import type {
   AdminDashboard,
+  AdminAnalytics24h,
+  AdminAnalytics24hPreset,
+  AdminAnalyticsHeatmap,
   AdminPostInsights,
   AdminPostMediaKind,
   AdminPostSortBy,
@@ -190,6 +193,26 @@ export const api = {
     if (params?.endTime) search.set("endTime", params.endTime);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     return request<{ summary: AdminDashboard["analytics"] }>(`/api/admin/analytics/summary${suffix}`, { token });
+  },
+  adminAnalytics24h: (token: string, params?: { preset?: AdminAnalytics24hPreset; from?: string; to?: string; timezone?: string; eventTypes?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.preset) search.set("preset", params.preset);
+    if (params?.from) search.set("from", params.from);
+    if (params?.to) search.set("to", params.to);
+    if (params?.timezone) search.set("timezone", params.timezone);
+    if (params?.eventTypes) search.set("eventTypes", params.eventTypes);
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<AdminAnalytics24h>(`/api/admin/analytics/24h${suffix}`, { token });
+  },
+  adminAnalyticsHeatmap: (token: string, params?: { preset?: AdminAnalytics24hPreset; from?: string; to?: string; timezone?: string; metric?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.preset) search.set("preset", params.preset);
+    if (params?.from) search.set("from", params.from);
+    if (params?.to) search.set("to", params.to);
+    if (params?.timezone) search.set("timezone", params.timezone);
+    if (params?.metric) search.set("metric", params.metric);
+    const suffix = search.toString() ? `?${search.toString()}` : "";
+    return request<AdminAnalyticsHeatmap>(`/api/admin/analytics/heatmap${suffix}`, { token });
   },
   adminAiReport: (token: string, body?: { range?: AdminRangePreset; start?: string; end?: string }) =>
     request<AdminReport>("/api/admin/reports/ai", {

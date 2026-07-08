@@ -44,8 +44,6 @@ google-services.json
 
 # Except README.md
 !README.md
-!docs/
-!docs/**/*.md
 
 # Node.js / React Dependencies
 node_modules/
@@ -80,4 +78,6 @@ font-text/
 test-results/
 gsap-skills/
 figma-export/
+docs/
+scripts/
 

@@ -18,10 +18,7 @@
     "build:aab": "npm --workspace client run build:aab",
     "build:aab:clean": "npm --workspace client run build:aab:clean",
     "typecheck": "npm --workspace server run typecheck && npm --workspace client run typecheck",
-    "test": "npm --workspace server run test",
-    "measurement:scan": "node scripts/scan-mojibake.mjs",
-    "measurement:test": "node scripts/test-mojibake-scanner.mjs",
-    "measurement:report": "node scripts/generate-measurement-report.mjs"
+    "test": "npm --workspace server run test"
   },
   "engines": {
     "node": ">=20"

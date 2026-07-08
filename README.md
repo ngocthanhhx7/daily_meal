@@ -6,7 +6,6 @@ Daily Meal is a TypeScript monorepo with an Expo React Native client and a Node.
 
 - `client/` - Expo React Native app.
 - `server/` - Express, MongoDB, Gemini, uploads API.
-- `docs/IMPLEMENTATION.md` - setup, architecture, API map, and asset notes.
 
 ## Quick Start
 

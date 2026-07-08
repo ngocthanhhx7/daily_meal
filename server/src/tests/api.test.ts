@@ -222,6 +222,28 @@ describe("Daily Meal API", () => {
     expect(response.body.preferences.completedOnboarding).toBe(true);
   });
 
+  it("keeps onboarding complete when preferences are updated later", async () => {
+    const session = await register("onboarding-profile-update@example.com");
+
+    await request(app)
+      .patch("/api/onboarding/preferences")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({ interests: ["ThÃ­ch chá»¥p áº£nh"], eatingStyles: ["KhÃ´ng theo phong cÃ¡ch nÃ o"] })
+      .expect(200);
+
+    const response = await request(app)
+      .patch("/api/onboarding/preferences")
+      .set("Authorization", `Bearer ${session.token}`)
+      .send({ interests: ["Muá»‘n tÃ¬m nhá»¯ng cÃ´ng thá»©c má»›i"], eatingStyles: ["ThÃ¢m há»¥t calo"] })
+      .expect(200);
+
+    expect(response.body.preferences).toMatchObject({
+      interests: ["Muá»‘n tÃ¬m nhá»¯ng cÃ´ng thá»©c má»›i"],
+      eatingStyles: ["ThÃ¢m há»¥t calo"],
+      completedOnboarding: true
+    });
+  });
+
   it("does not let profile updates grant Premium", async () => {
     const session = await register("profile-premium@example.com");
 
@@ -354,6 +376,125 @@ describe("Daily Meal API", () => {
 
     expect(owner.body.user.email).toBe("privacy-target@example.com");
     expect(owner.body.user.phone).toBe("0900000001");
+  });
+
+  it("suggests users from profile preferences when search query is empty", async () => {
+    const viewer = await register("suggest-users-viewer@example.com");
+    const recipeCreator = await register("suggest-users-recipe@example.com");
+    const unrelatedCreator = await register("suggest-users-unrelated@example.com");
+
+    await request(app)
+      .patch("/api/onboarding/preferences")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .send({ interests: ["Muá»‘n tÃ¬m nhá»¯ng cÃ´ng thá»©c má»›i"], eatingStyles: ["Cháº¿ Ä‘á»™ keto"] })
+      .expect(200);
+
+    await User.findByIdAndUpdate(recipeCreator.user.id, {
+      displayName: "Keto Recipe Creator",
+      email: "hidden-recipe@example.com",
+      preferences: {
+        interests: ["ThÃ­ch note láº¡i cÃ´ng thá»©c náº¥u Äƒn"],
+        eatingStyles: ["Cháº¿ Ä‘á»™ keto"],
+        completedOnboarding: true
+      },
+      counts: { posts: 4, followers: 8, following: 0, friends: 0 }
+    });
+    await User.findByIdAndUpdate(unrelatedCreator.user.id, {
+      displayName: "Photo Only Creator",
+      preferences: {
+        interests: ["ThÃ­ch chá»¥p áº£nh"],
+        eatingStyles: ["KhÃ´ng theo phong cÃ¡ch nÃ o"],
+        completedOnboarding: true
+      },
+      counts: { posts: 1, followers: 1, following: 0, friends: 0 }
+    });
+
+    const response = await request(app)
+      .get("/api/users/search?q=")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    expect(response.body.users[0]).toMatchObject({
+      id: recipeCreator.user.id,
+      displayName: "Keto Recipe Creator"
+    });
+    expect(response.body.users[0]).not.toHaveProperty("email");
+    expect(response.body.users.map((user: { id: string }) => user.id)).not.toContain(viewer.user.id);
+  });
+
+  it("ranks empty post search by viewer preferences while preserving search filters", async () => {
+    const viewer = await register("suggest-posts-viewer@example.com");
+    const creator = await register("suggest-posts-creator@example.com");
+    const sticker = await Sticker.findOne({ premiumOnly: true }).lean();
+    await makePremium(creator.user.id);
+
+    await request(app)
+      .patch("/api/onboarding/preferences")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .send({ interests: ["Muá»‘n tÃ¬m nhá»¯ng cÃ´ng thá»©c má»›i"], eatingStyles: ["ThÃ¢m há»¥t calo"] })
+      .expect(200);
+
+    const preferred = await request(app)
+      .post("/api/posts")
+      .set("Authorization", `Bearer ${creator.token}`)
+      .send({
+        images: [{ url: "/uploads/light-recipe.jpg" }],
+        caption: "CÃ´ng thá»©c salad calo tháº¥p",
+        tags: ["recipe", "healthy"],
+        recipe: { title: "Salad healthy", ingredients: ["rau", "trá»©ng"], steps: ["trá»™n"] },
+        nutritionSummary: { calories: 420, protein: 20, carbs: 12, fat: 8, confidence: 1 },
+        visibility: "public"
+      })
+      .expect(201);
+
+    const popularButUnmatched = await request(app)
+      .post("/api/posts")
+      .set("Authorization", `Bearer ${creator.token}`)
+      .send({
+        images: [{ url: "/uploads/cake.jpg" }],
+        caption: "BÃ¡nh ngá»t nhiá»u calo",
+        tags: ["dessert"],
+        nutritionSummary: { calories: 900, protein: 4, carbs: 80, fat: 35, confidence: 1 },
+        stickerId: sticker?._id.toString(),
+        visibility: "public"
+      })
+      .expect(201);
+
+    await Post.findByIdAndUpdate(popularButUnmatched.body.post._id, {
+      "stats.likes": 50,
+      "stats.saves": 20,
+      "stats.comments": 5
+    });
+    await request(app)
+      .post(`/api/posts/${preferred.body.post._id}/save`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    const personalized = await request(app)
+      .get("/api/posts/search?q=")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(personalized.body.posts[0]._id).toBe(preferred.body.post._id);
+
+    const lowCalorie = await request(app)
+      .get("/api/posts/search?q=&maxCalories=500")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(lowCalorie.body.posts.map((post: { _id: string }) => post._id)).toContain(preferred.body.post._id);
+    expect(lowCalorie.body.posts.map((post: { _id: string }) => post._id)).not.toContain(popularButUnmatched.body.post._id);
+
+    const saved = await request(app)
+      .get("/api/posts/search?q=&saved=true")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(saved.body.posts.map((post: { _id: string }) => post._id)).toEqual([preferred.body.post._id]);
+
+    const premiumSticker = await request(app)
+      .get("/api/posts/search?q=&premiumSticker=true")
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+    expect(premiumSticker.body.posts.map((post: { _id: string }) => post._id)).toContain(popularButUnmatched.body.post._id);
+    expect(premiumSticker.body.posts.map((post: { _id: string }) => post._id)).not.toContain(preferred.body.post._id);
   });
 
   it("enforces block restrictions on follow, conversation, message, profile, feed, and search", async () => {

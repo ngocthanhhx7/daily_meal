@@ -103,6 +103,14 @@ type ApiTelemetryEvent = {
   ok: boolean;
 };
 
+type SearchParams = {
+  q?: string;
+  maxCalories?: number;
+  saved?: boolean;
+  premiumSticker?: boolean;
+  personalized?: boolean;
+};
+
 let telemetryReporter: ((event: ApiTelemetryEvent) => void) | undefined;
 
 function nowMs() {
@@ -111,6 +119,27 @@ function nowMs() {
   }
 
   return Date.now();
+}
+
+function searchQueryString(input?: string | SearchParams) {
+  const params = new URLSearchParams();
+  const body = typeof input === "string" ? { q: input } : input ?? {};
+  if (body.q !== undefined) params.set("q", body.q);
+  if (body.maxCalories !== undefined) params.set("maxCalories", String(body.maxCalories));
+  if (body.saved !== undefined) params.set("saved", String(body.saved));
+  if (body.premiumSticker !== undefined) params.set("premiumSticker", String(body.premiumSticker));
+  if (body.personalized !== undefined) params.set("personalized", String(body.personalized));
+  const suffix = params.toString();
+  return suffix ? `?${suffix}` : "";
+}
+
+function userSearchQueryString(input?: string | Pick<SearchParams, "q" | "personalized">) {
+  const params = new URLSearchParams();
+  const body = typeof input === "string" ? { q: input } : input ?? {};
+  if (body.q !== undefined) params.set("q", body.q);
+  if (body.personalized !== undefined) params.set("personalized", String(body.personalized));
+  const suffix = params.toString();
+  return suffix ? `?${suffix}` : "";
 }
 
 async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
@@ -409,8 +438,8 @@ export const api = {
       token,
       body
     }),
-  searchUsers: (token: string, query: string) =>
-    request<{ users: User[] }>(`/api/users/search?q=${encodeURIComponent(query)}`, { token }),
+  searchUsers: (token: string, query?: string | Pick<SearchParams, "q" | "personalized">) =>
+    request<{ users: User[] }>(`/api/users/search${userSearchQueryString(query)}`, { token }),
   getBlockedUsers: (token: string) =>
     request<{ users: User[] }>("/api/users/me/interactions/blocked", { token }),
   getUser: (token: string, id: string) => request<{ user: User }>(`/api/users/${id}`, { token }),
@@ -476,8 +505,8 @@ export const api = {
       { token }
     );
   },
-  search: (token: string, query: string) =>
-    request<{ posts: Post[] }>(`/api/posts/search?q=${encodeURIComponent(query)}`, { token }),
+  search: (token: string, query?: string | SearchParams) =>
+    request<{ posts: Post[] }>(`/api/posts/search${searchQueryString(query)}`, { token }),
   createPost: (token: string, body: Record<string, unknown>) =>
     request<{ post: Post }>("/api/posts", {
       method: "POST",

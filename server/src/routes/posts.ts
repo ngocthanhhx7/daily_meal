@@ -14,6 +14,7 @@ import { emitToUser, broadcastToRoom, broadcastGlobal } from "../services/socket
 import { sendPushNotification } from "../services/pushNotification.js";
 import { hasActivePremium } from "../utils/premium.js";
 import { assertNotBlocked, blockedUserIdsFor } from "../utils/userSafety.js";
+import { rankPostsForSearch } from "../utils/searchScoring.js";
 
 export const postsRouter = Router();
 
@@ -418,8 +419,13 @@ postsRouter.get("/search", requireAuth, async (req, res, next) => {
     const tag = typeof req.query.tag === "string" ? req.query.tag.toLowerCase() : undefined;
     const savedOnly = req.query.saved === "true";
     const premiumStickerOnly = req.query.premiumSticker === "true";
+    const personalized = req.query.personalized !== "false";
 
-    const [network, blockedIds] = await Promise.all([networkIds(req.user?.id), blockedUserIdsFor(req.user?.id)]);
+    const [network, blockedIds, viewer] = await Promise.all([
+      networkIds(req.user?.id),
+      blockedUserIdsFor(req.user?.id),
+      User.findById(req.user?.id).select("preferences").lean()
+    ]);
     const filter: Record<string, unknown> = visiblePostFilter(req.user?.id, network.friendIds, blockedIds);
 
     if (q) {
@@ -429,7 +435,10 @@ postsRouter.get("/search", requireAuth, async (req, res, next) => {
           $or: [
             { caption: searchRegex },
             { tags: searchRegex },
-            { "recipe.title": searchRegex }
+            { "recipe.title": searchRegex },
+            { "recipe.ingredients": searchRegex },
+            { "recipes.title": searchRegex },
+            { "recipes.ingredients": searchRegex }
           ]
         }
       ];
@@ -459,7 +468,17 @@ postsRouter.get("/search", requireAuth, async (req, res, next) => {
       posts = posts.filter((post: any) => Boolean(post.stickerId?.premiumOnly));
     }
 
-    res.json({ posts: await serializePostsForViewer(posts, req.user?.id) });
+    const rankedPosts = personalized
+      ? rankPostsForSearch(posts, {
+          query: q,
+          viewerId: req.user?.id,
+          viewerPreferences: viewer?.preferences,
+          followingIds: network.followingIds,
+          friendIds: network.friendIds
+        })
+      : posts;
+
+    res.json({ posts: await serializePostsForViewer(rankedPosts, req.user?.id) });
   } catch (error) {
     next(error);
   }

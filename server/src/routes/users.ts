@@ -13,6 +13,7 @@ import { emitToUser } from "../services/socket.js";
 import { sendPushNotification } from "../services/pushNotification.js";
 import { hasActivePremium, premiumTrialDto } from "../utils/premium.js";
 import { assertNotBlocked, assertTargetHasNotBlockedViewer, blockedUserIdsFor, hasBlockBetween } from "../utils/userSafety.js";
+import { rankUsersForSearch } from "../utils/searchScoring.js";
 
 export const usersRouter = Router();
 
@@ -178,6 +179,24 @@ async function friendIdsFor(viewerId: string | undefined) {
   const followerIds = new Set(followers.map((item) => item.follower.toString()));
 
   return new Set([...followingIds].filter((id) => followerIds.has(id)));
+}
+
+async function networkIdsFor(viewerId: string | undefined) {
+  if (!viewerId) {
+    return { followingIds: new Set<string>(), friendIds: new Set<string>() };
+  }
+
+  const [following, followers] = await Promise.all([
+    Follow.find({ follower: viewerId }).select("following").lean(),
+    Follow.find({ following: viewerId }).select("follower").lean()
+  ]);
+  const followingIds = new Set(following.map((item) => item.following.toString()));
+  const followerIds = new Set(followers.map((item) => item.follower.toString()));
+
+  return {
+    followingIds,
+    friendIds: new Set([...followingIds].filter((id) => followerIds.has(id)))
+  };
 }
 
 function visiblePostFilter(viewerId: string | undefined, friendIds: Set<string>) {
@@ -354,26 +373,40 @@ usersRouter.get("/me/interactions/blocked", requireAuth, async (req, res, next) 
 usersRouter.get("/search", requireAuth, async (req, res, next) => {
   try {
     const q = String(req.query.q ?? "").trim();
+    const personalized = req.query.personalized !== "false";
+    const [blockedIds, viewer, network] = await Promise.all([
+      blockedUserIdsFor(req.user?.id),
+      User.findById(req.user?.id).select("preferences").lean(),
+      networkIdsFor(req.user?.id)
+    ]);
+    const filter: Record<string, unknown> = {
+      _id: { $nin: [req.user?.id, ...blockedIds] }
+    };
 
-    if (!q) {
-      res.json({ users: [] });
-      return;
+    if (q) {
+      const searchRegex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      filter.$or = [
+        { displayName: searchRegex },
+        { email: searchRegex },
+        { bio: searchRegex }
+      ];
     }
 
-    const blockedIds = await blockedUserIdsFor(req.user?.id);
-    const users = await User.find({
-      _id: { $nin: [req.user?.id, ...blockedIds] },
-      $or: [
-        { displayName: new RegExp(q, "i") },
-        { email: new RegExp(q, "i") },
-        { bio: new RegExp(q, "i") }
-      ]
-    })
+    const users = await User.find(filter)
       .sort({ displayName: 1 })
-      .limit(25)
+      .limit(q ? 50 : 75)
       .lean();
+    const rankedUsers = personalized
+      ? rankUsersForSearch(users, {
+          query: q,
+          viewerId: req.user?.id,
+          viewerPreferences: viewer?.preferences,
+          followingIds: network.followingIds,
+          friendIds: network.friendIds
+        }).slice(0, 25)
+      : users.slice(0, 25);
 
-    res.json({ users: await userListDto(users, req.user?.id) });
+    res.json({ users: await userListDto(rankedUsers, req.user?.id) });
   } catch (error) {
     next(error);
   }

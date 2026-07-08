@@ -7,6 +7,7 @@ import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
 import { TextField } from "../components/TextField";
+import { eatingOptions, interestOptions } from "../constants/preferences";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
 
@@ -83,8 +84,12 @@ const visibilityOptions: Array<{ value: BirthdayVisibility; label: string }> = [
   { value: "full", label: "Đầy đủ" }
 ];
 
+function sameValues(left: string[], right: string[]) {
+  return left.length === right.length && left.every((item) => right.includes(item));
+}
+
 export function EditProfileScreen({ navigation }: any) {
-  const { token, user, updateUser } = useAuth();
+  const { token, user, savePreferences, updateUser } = useAuth();
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [birthday, setBirthday] = useState(user?.birthday?.date ?? "");
@@ -93,7 +98,13 @@ export function EditProfileScreen({ navigation }: any) {
   );
   const [avatarUri, setAvatarUri] = useState(user?.avatarUrl ?? "");
   const [themeColor, setThemeColor] = useState(user?.themeColor ?? "#8BA58A");
+  const [interests, setInterests] = useState<string[]>(user?.preferences?.interests ?? []);
+  const [eatingStyles, setEatingStyles] = useState<string[]>(user?.preferences?.eatingStyles ?? []);
   const [loading, setLoading] = useState(false);
+
+  function togglePreference(value: string, current: string[], setter: (next: string[]) => void) {
+    setter(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+  }
 
   async function pickAvatar() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -137,6 +148,14 @@ export function EditProfileScreen({ navigation }: any) {
       if (avatarUri.startsWith("file:") || avatarUri.startsWith("blob:") || avatarUri.startsWith("data:")) {
         const upload = await api.uploadImage(token, avatarUri, "avatar");
         nextAvatarUrl = upload.upload.url;
+      }
+
+      const preferencesChanged =
+        !sameValues(interests, user?.preferences?.interests ?? []) ||
+        !sameValues(eatingStyles, user?.preferences?.eatingStyles ?? []);
+
+      if (preferencesChanged) {
+        await savePreferences(interests, eatingStyles);
       }
 
       await updateUser({
@@ -251,6 +270,41 @@ export function EditProfileScreen({ navigation }: any) {
           ))}
         </View>
       </View>
+      <View style={styles.section}>
+        <AppText variant="button">Sở thích tìm kiếm</AppText>
+        <View style={styles.preferenceGroup}>
+          {interestOptions.map((option) => (
+            <Pressable
+              key={option}
+              onPress={() => togglePreference(option, interests, setInterests)}
+              style={[styles.preferenceChip, interests.includes(option) && styles.preferenceChipActive]}
+            >
+              <AppText
+                variant="caption"
+                style={interests.includes(option) ? styles.preferenceChipTextActive : undefined}
+              >
+                {option}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+        <View style={styles.preferenceGroup}>
+          {eatingOptions.map((option) => (
+            <Pressable
+              key={option}
+              onPress={() => togglePreference(option, eatingStyles, setEatingStyles)}
+              style={[styles.preferenceChip, eatingStyles.includes(option) && styles.preferenceChipActive]}
+            >
+              <AppText
+                variant="caption"
+                style={eatingStyles.includes(option) ? styles.preferenceChipTextActive : undefined}
+              >
+                {option}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+      </View>
       <AppButton label="Lưu hồ sơ" onPress={save} loading={loading} />
       <AppButton label="Hủy" variant="ghost" onPress={() => navigation.goBack()} />
     </AppScreen>
@@ -311,6 +365,28 @@ const styles = StyleSheet.create({
     borderColor: colors.black
   },
   segmentLabelActive: {
+    color: colors.white
+  },
+  preferenceGroup: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  preferenceChip: {
+    minHeight: 34,
+    maxWidth: "100%",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface
+  },
+  preferenceChipActive: {
+    backgroundColor: colors.black,
+    borderColor: colors.black
+  },
+  preferenceChipTextActive: {
     color: colors.white
   },
   cuteAvatarScroll: {

@@ -76,6 +76,8 @@ figma_extract/
 .claude/
 .superpowers/
 font-text/
-figma-export/*
-!figma-export/.gitkeep
+.logs/
+test-results/
+gsap-skills/
+figma-export/
 

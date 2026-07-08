@@ -3,25 +3,10 @@ import { Alert, Image, ImageBackground, Pressable, StyleSheet, View } from "reac
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppButton } from "../components/AppButton";
 import { AppText } from "../components/AppText";
+import { eatingOptions, interestOptions } from "../constants/preferences";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
-
-const interestOptions = [
-  "Thích chụp ảnh",
-  "Thích ăn uống",
-  "Thích note lại công thức nấu ăn",
-  "Muốn tìm những công thức mới",
-  "Khác...."
-];
-
-const eatingOptions = [
-  "Ăn chay niệm phật",
-  "Thâm hụt calo",
-  "Chế độ keto",
-  "Không theo phong cách nào",
-  "Khác..."
-];
 
 const interestOffsetKeys = [
   "offsetRightWide",

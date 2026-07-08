@@ -15,6 +15,7 @@ import { fonts } from "../theme/typography";
 import type { Post, User } from "../types/api";
 
 type SearchMode = "posts" | "people";
+type SearchFilter = string;
 
 function avatarSource(url?: string) {
   if (!url) return undefined;
@@ -36,6 +37,7 @@ export function SearchScreen({ navigation, route }: any) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<SearchFilter[]>([]);
 
   useEffect(() => {
     const initialQuery = route?.params?.initialQuery;
@@ -45,33 +47,58 @@ export function SearchScreen({ navigation, route }: any) {
       setQuery(initialQuery);
       setMode(initialMode ?? "people");
       if (token) {
-        runSearch(initialQuery, initialMode ?? "people");
+        runSearch(initialQuery, initialMode ?? "people", activeFilters);
       }
     }
   }, [route?.params?.initialQuery, route?.params?.initialMode, token]);
 
+  useEffect(() => {
+    if (token && !route?.params?.initialQuery) {
+      runSearch(query, mode, activeFilters);
+    }
+  }, [token]);
+
   async function search() {
-    await runSearch(query, mode);
+    await runSearch(query, mode, activeFilters);
   }
 
-  async function runSearch(searchQuery: string, currentMode: SearchMode) {
+  function searchParams(searchQuery: string, filters: SearchFilter[]) {
+    return {
+      q: searchQuery,
+      maxCalories: filters.some((filter) => filter.includes("500")) ? 500 : undefined,
+      saved: filters.some((filter) => !filter.includes("500") && !filter.includes("Sticker")) ? true : undefined,
+      premiumSticker: filters.some((filter) => filter.includes("Sticker")) ? true : undefined
+    };
+  }
+
+  async function runSearch(searchQuery: string, currentMode: SearchMode, filters: SearchFilter[]) {
     if (!token) return;
     setLoading(true);
     try {
       const [postResult, userResult] = await Promise.all([
-        api.search(token, searchQuery),
-        api.searchUsers(token, searchQuery)
+        api.search(token, searchParams(searchQuery, filters)),
+        api.searchUsers(token, { q: searchQuery })
       ]);
       setPosts(postResult.posts);
       setUsers(userResult.users);
       if (currentMode === "posts" && !postResult.posts.length && userResult.users.length) {
         setMode("people");
+      } else if (currentMode === "people" && !userResult.users.length && postResult.posts.length) {
+        setMode("posts");
       }
     } catch (error) {
       Alert.alert("Không thể tìm kiếm", error instanceof Error ? error.message : "Thử lại sau");
     } finally {
       setLoading(false);
     }
+  }
+
+  function toggleFilter(filter: SearchFilter) {
+    const nextFilters = activeFilters.includes(filter)
+      ? activeFilters.filter((item) => item !== filter)
+      : [...activeFilters, filter];
+    setActiveFilters(nextFilters);
+    runSearch(query, mode, nextFilters);
   }
 
   async function toggleFollow(target: User) {
@@ -140,8 +167,17 @@ export function SearchScreen({ navigation, route }: any) {
       {/* Quick filters */}
       <View style={styles.filters}>
         {["Dưới 500 calo", "Đã lưu", "Sticker VIP"].map((filter) => (
-          <BouncePress key={filter} style={styles.filter} onPress={search}>
-            <AppText variant="caption">{filter}</AppText>
+          <BouncePress
+            key={filter}
+            style={[styles.filter, activeFilters.includes(filter) && styles.filterActive]}
+            onPress={() => toggleFilter(filter)}
+          >
+            <AppText
+              variant="caption"
+              style={activeFilters.includes(filter) ? styles.filterLabelActive : undefined}
+            >
+              {filter}
+            </AppText>
           </BouncePress>
         ))}
       </View>
@@ -307,6 +343,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.line
+  },
+  filterActive: {
+    backgroundColor: colors.black,
+    borderColor: colors.black
+  },
+  filterLabelActive: {
+    color: colors.white
   },
   segment: {
     flexDirection: "row",

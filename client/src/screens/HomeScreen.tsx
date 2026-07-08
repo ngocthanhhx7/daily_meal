@@ -14,8 +14,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  type StyleProp,
   useWindowDimensions,
   View,
+  type ViewStyle,
   ViewToken
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -60,6 +62,7 @@ const DEMO_STICKER = require("../../assets/feed/home-sticker.png");
 const DEMO_AUTHOR_AVATAR = require("../../assets/feed/home-author.png");
 const STREAK_BADGE = require("../../assets/feed/streak.png");
 const PREMIUM_TRIAL_MASCOT = require("../../assets/stickers/b76f47fb-cc9c-41e7-ada3-39fc570671c9.jpg");
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const HEART_RAIN_PARTICLES = [
   { x: -92, y: -118, scale: 0.95, rotate: "-24deg", duration: 900, delay: 0 },
   { x: -68, y: -152, scale: 0.78, rotate: "18deg", duration: 820, delay: 35 },
@@ -77,6 +80,23 @@ const HEART_RAIN_PARTICLES = [
   { x: -24, y: -220, scale: 0.62, rotate: "26deg", duration: 980, delay: 135 },
   { x: 32, y: -214, scale: 0.7, rotate: "-14deg", duration: 1000, delay: 145 }
 ] as const;
+
+type FeedImagePosition = {
+  width: `${number}%`;
+  height: `${number}%`;
+  left: `${number}%`;
+  top: `${number}%`;
+  baseRotation: number;
+};
+
+type FeedImageFrame = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  rotate: number;
+  zIndex: number;
+};
 
 const CATEGORY_ITEMS = [
   { icon: "search-outline" as const, label: "Tìm kiếm", screen: "Search" },
@@ -154,6 +174,7 @@ export function HomeScreen({ navigation, route }: any) {
   const [showTrialOfferModal, setShowTrialOfferModal] = useState(false);
   const [expandedPost, setExpandedPost] = useState<Post | null>(null);
   const [expandedPostOrigin, setExpandedPostOrigin] = useState<MotionRect | undefined>();
+  const [spreadPostId, setSpreadPostId] = useState<string | null>(null);
   const [nutritionPost, setNutritionPost] = useState<Post | null>(null);
   const [page, setPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -200,6 +221,10 @@ export function HomeScreen({ navigation, route }: any) {
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
+    setSpreadPostId(null);
   }, [currentIndex]);
 
   useEffect(() => {
@@ -664,6 +689,7 @@ export function HomeScreen({ navigation, route }: any) {
                   isLiked={likedSet.has(item._id)}
                   videoActive={index === currentIndex}
                   shouldRenderVideo={Math.abs(index - currentIndex) <= 1}
+                  spreadOpen={spreadPostId === item._id}
                   onPress={(originRect) => {
                     analytics.track("feed_detail_click", {
                       screen: "Home",
@@ -672,6 +698,21 @@ export function HomeScreen({ navigation, route }: any) {
                       entityOwnerId: item.author?.id,
                       properties: { index }
                     });
+                    if (item.mediaType !== "video" && item.images.length > 1) {
+                      setExpandedPost(null);
+                      setExpandedPostOrigin(undefined);
+                      setSpreadPostId((current) => current === item._id ? null : item._id);
+                      return;
+                    }
+
+                    if (item.mediaType !== "video") {
+                      setExpandedPost(null);
+                      setExpandedPostOrigin(undefined);
+                      setSpreadPostId(null);
+                      return;
+                    }
+
+                    setSpreadPostId(null);
                     setExpandedPostOrigin(originRect);
                     setExpandedPost(item);
                   }}
@@ -736,7 +777,7 @@ export function HomeScreen({ navigation, route }: any) {
               snapToAlignment="start"
               decelerationRate="fast"
               disableIntervalMomentum
-              extraData={currentIndex}
+              extraData={{ currentIndex, spreadPostId, likedSet, savedSet }}
               onEndReached={loadMore}
               onEndReachedThreshold={0.5}
             />
@@ -1134,6 +1175,7 @@ const PostSlide = React.memo(function PostSlide({
   isLiked,
   videoActive,
   shouldRenderVideo,
+  spreadOpen = false,
   onPress,
   onDoubleLike,
   onNutritionPress,
@@ -1149,6 +1191,7 @@ const PostSlide = React.memo(function PostSlide({
   isLiked: boolean;
   videoActive: boolean;
   shouldRenderVideo: boolean;
+  spreadOpen?: boolean;
   onPress: (originRect?: MotionRect) => void;
   onDoubleLike: () => void;
   onNutritionPress: () => void;
@@ -1163,8 +1206,18 @@ const PostSlide = React.memo(function PostSlide({
   const lastArtworkTapRef = useRef<number | undefined>(undefined);
   const singleTapTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const nextHeartBurstRef = useRef(0);
+  const spreadProgress = useRef(new Animated.Value(0)).current;
   const [heartRainBursts, setHeartRainBursts] = useState<number[]>([]);
   const caloriesOfCurrentImage = getCaloriesOfCurrentImage(post, previewImageIndex(post));
+
+  useEffect(() => {
+    Animated.timing(spreadProgress, {
+      toValue: spreadOpen ? 1 : 0,
+      duration: spreadOpen ? 360 : 230,
+      easing: spreadOpen ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+      useNativeDriver: false
+    }).start();
+  }, [spreadOpen, spreadProgress]);
 
   useEffect(() => {
     return () => {
@@ -1230,11 +1283,65 @@ const PostSlide = React.memo(function PostSlide({
     }, DEFAULT_DOUBLE_TAP_THRESHOLD_MS);
   }
 
+  const artworkRotate = spreadProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [cardRotation(index), "0deg"]
+  });
+  const imageLimit = Math.min(Math.max(post.images.length, 1), 4);
+  const canSpreadChips = post.mediaType !== "video" && imageLimit > 1;
+  const topLeftFrame = canSpreadChips ? spreadFeedImageFrame(imageLimit, 0, artworkWidth, artworkHeight) : null;
+  const topRightFrame = canSpreadChips ? spreadFeedImageFrame(imageLimit, 1, artworkWidth, artworkHeight) : null;
+  const recipeSourceTop = shouldShowTrialMascot ? 75 : 24;
+  const chipHeight = 44;
+  const chipGap = 6;
+  const stackedChipGap = 10;
+  const recipeChipMotionStyle = topLeftFrame
+    ? {
+        left: spreadProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, topLeftFrame.left]
+        }),
+        top: spreadProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [recipeSourceTop, Math.max(0, topLeftFrame.top - chipHeight - chipGap)]
+        })
+      }
+    : null;
+  const statsChipMotionStyle = topRightFrame
+    ? {
+        right: Math.max(0, artworkWidth - (topRightFrame.left + topRightFrame.width)),
+        top: spreadProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [
+            22,
+            Math.max(0, topRightFrame.top - chipHeight - (caloriesOfCurrentImage ? chipHeight + chipGap + stackedChipGap : chipGap))
+          ]
+        })
+      }
+    : null;
+  const caloBadgeMotionStyle = topRightFrame
+    ? {
+        right: Math.max(0, artworkWidth - (topRightFrame.left + topRightFrame.width)),
+        top: spreadProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [76, Math.max(0, topRightFrame.top - chipHeight - chipGap)]
+        })
+      }
+    : null;
+
   return (
     <View style={[styles.slide, { height: slideHeight }]}>
       <Pressable style={[styles.artworkPress, { width: artworkWidth, height: artworkHeight }]} onPress={handleArtworkPress}>
-        <View ref={artworkRef} collapsable={false} style={[styles.feedArtwork, { transform: [{ rotate: cardRotation(index) }] }]}>
-          <FeedArtwork post={post} videoActive={videoActive} shouldRenderVideo={shouldRenderVideo} />
+        <Animated.View ref={artworkRef} collapsable={false} style={[styles.feedArtwork, { transform: [{ rotate: artworkRotate }] }]}>
+          <FeedArtwork
+            post={post}
+            videoActive={videoActive}
+            shouldRenderVideo={shouldRenderVideo}
+            spreadOpen={spreadOpen}
+            spreadProgress={spreadProgress}
+            canvasWidth={artworkWidth}
+            canvasHeight={artworkHeight}
+          />
 
           {shouldShowTrialMascot && (
             <Pressable
@@ -1253,28 +1360,30 @@ const PostSlide = React.memo(function PostSlide({
           )}
 
           {(post.recipe?.title || post.recipe?.ingredients?.length || (post.recipes && post.recipes.length > 0)) ? (
-            <Pressable
-              style={[styles.recipeChip, shouldShowTrialMascot && { top: 75 }]}
+            <AnimatedPressable
+              style={[styles.recipeChip, shouldShowTrialMascot && { top: 75 }, recipeChipMotionStyle]}
               onPress={(event) => {
                 event.stopPropagation();
                 onRecipePress();
               }}
             >
               <AppText style={styles.recipeChipText}>Công thức</AppText>
-            </Pressable>
+            </AnimatedPressable>
           ) : null}
 
-          <View style={styles.statsChip}>
+          <Animated.View style={[styles.statsChip, statsChipMotionStyle]}>
             <AppText style={styles.statsNum}>{Math.max(0, post.stats?.comments ?? 0)}</AppText>
             <Ionicons name="chatbubble-outline" size={15} color={colors.black} />
             <AppText style={styles.statsNum}>{Math.max(0, post.stats?.likes ?? 0)}</AppText>
             <Ionicons name="heart" size={15} color={colors.red} />
-          </View>
+          </Animated.View>
 
           {caloriesOfCurrentImage ? (
-            <Pressable style={styles.caloBadge} onPress={onNutritionPress} hitSlop={6}>
-              <AppText style={styles.caloText}>{Math.round(caloriesOfCurrentImage)} Calo</AppText>
-            </Pressable>
+            <CalorieActionBadge
+              calories={caloriesOfCurrentImage}
+              style={caloBadgeMotionStyle}
+              onPress={onNutritionPress}
+            />
           ) : null}
 
           <View style={styles.captionChip}>
@@ -1285,7 +1394,7 @@ const PostSlide = React.memo(function PostSlide({
           </View>
 
           <HeartRainOverlay bursts={heartRainBursts} onBurstComplete={handleHeartBurstComplete} />
-        </View>
+        </Animated.View>
       </Pressable>
 
       <FeedAuthorChip post={post} onAuthorPress={onAuthorPress} />
@@ -1293,16 +1402,116 @@ const PostSlide = React.memo(function PostSlide({
   );
 });
 
+function CalorieActionBadge({
+  calories,
+  style,
+  onPress
+}: {
+  calories: number;
+  style?: StyleProp<ViewStyle>;
+  onPress: () => void;
+}) {
+  const wobble = useRef(new Animated.Value(0)).current;
+  const [showHint, setShowHint] = useState(false);
+
+  useEffect(() => {
+    const textTimer = setInterval(() => {
+      setShowHint((current) => !current);
+    }, 2000);
+    const wobbleAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.delay(1280),
+        Animated.timing(wobble, {
+          toValue: 1,
+          duration: 70,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true
+        }),
+        Animated.timing(wobble, {
+          toValue: -1,
+          duration: 90,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true
+        }),
+        Animated.timing(wobble, {
+          toValue: 0.6,
+          duration: 80,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true
+        }),
+        Animated.timing(wobble, {
+          toValue: 0,
+          duration: 90,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true
+        })
+      ])
+    );
+
+    wobbleAnimation.start();
+
+    return () => {
+      clearInterval(textTimer);
+      wobbleAnimation.stop();
+    };
+  }, [wobble]);
+
+  const translateX = wobble.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [-2.5, 2.5]
+  });
+  const rotate = wobble.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ["-1.6deg", "1.6deg"]
+  });
+  const badgeBackgroundColor = calories < 500 ? "#8BA58A" : colors.red;
+  const badgeLabel = showHint ? "chạm để xem calo" : `${Math.round(calories)} Calo`;
+
+  return (
+    <AnimatedPressable
+      style={[
+        styles.caloBadge,
+        style,
+        {
+          backgroundColor: badgeBackgroundColor,
+          transform: [
+            { translateX },
+            { rotate }
+          ]
+        }
+      ]}
+      onPress={onPress}
+      hitSlop={6}
+    >
+      <AppText numberOfLines={showHint ? 2 : 1} style={[styles.caloText, showHint && styles.caloHintText]}>
+        {badgeLabel}
+      </AppText>
+      <AppText numberOfLines={showHint ? 2 : 1} style={[{ display: "none" }, styles.caloText, showHint && styles.caloHintText]}>
+        {showHint ? "chạm vào đây để xem lượng calo" : `${Math.round(calories)} Calo`}
+      </AppText>
+    </AnimatedPressable>
+  );
+}
+
 function FeedArtwork({
   post,
   videoActive = true,
-  shouldRenderVideo = true
+  shouldRenderVideo = true,
+  spreadOpen = false,
+  spreadProgress,
+  canvasWidth,
+  canvasHeight
 }: {
   post: Post;
   videoActive?: boolean;
   shouldRenderVideo?: boolean;
+  spreadOpen?: boolean;
+  spreadProgress?: Animated.Value;
+  canvasWidth?: number;
+  canvasHeight?: number;
 }) {
   const imageCount = Math.max(post.images.length, 1);
+  const visibleImageCount = Math.min(imageCount, 4);
   const layout = post.layout ?? "stack";
   const stickerSource = stickerImageSource(post.stickerId) ?? (post._id.startsWith("demo") ? DEMO_STICKER : null);
   const placement = post.stickerPlacement ?? { x: 0.78, y: 0.78, scale: 1, rotation: 0 };
@@ -1350,7 +1559,7 @@ function FeedArtwork({
 
   return (
     <View style={styles.feedArtworkCanvas}>
-      {Array.from({ length: Math.min(imageCount, 3) }).map((_, index) => {
+      {Array.from({ length: visibleImageCount }).map((_, index) => {
         const transform = post.imageTransforms?.[index] ?? {
           scale: 1,
           rotation: 0,
@@ -1358,19 +1567,55 @@ function FeedArtwork({
           offsetY: 0
         };
         const { baseRotation, ...position } = feedImagePosition(layout, imageCount, index);
+        const canAnimateSpread = !!spreadProgress && !!canvasWidth && !!canvasHeight && visibleImageCount > 1;
+        const sourceFrame = canAnimateSpread
+          ? feedImageFrame(layout, imageCount, index, canvasWidth!, canvasHeight!)
+          : null;
+        const targetFrame = canAnimateSpread
+          ? spreadFeedImageFrame(visibleImageCount, index, canvasWidth!, canvasHeight!)
+          : null;
+        const frameStyle = canAnimateSpread && sourceFrame && targetFrame
+          ? animatedFeedImageFrame(spreadProgress!, sourceFrame, targetFrame)
+          : position;
+        const translateX = canAnimateSpread
+          ? spreadProgress!.interpolate({
+              inputRange: [0, 1],
+              outputRange: [transform.offsetX * 0.35, 0]
+            })
+          : transform.offsetX * 0.35;
+        const translateY = canAnimateSpread
+          ? spreadProgress!.interpolate({
+              inputRange: [0, 1],
+              outputRange: [transform.offsetY * 0.35, 0]
+            })
+          : transform.offsetY * 0.35;
+        const rotate = canAnimateSpread
+          ? spreadProgress!.interpolate({
+              inputRange: [0, 1],
+              outputRange: [`${baseRotation + transform.rotation}deg`, "0deg"]
+            })
+          : `${baseRotation + transform.rotation}deg`;
+        const scale = canAnimateSpread
+          ? spreadProgress!.interpolate({
+              inputRange: [0, 1],
+              outputRange: [transform.scale, 1]
+            })
+          : transform.scale;
+
         return (
-          <View
+          <Animated.View
             key={`${post._id}-${index}`}
             style={[
               styles.feedImageWrap,
-              position,
+              frameStyle,
               {
-                zIndex: 10 + index,
+                zIndex: spreadOpen && targetFrame ? targetFrame.zIndex : 10 + index,
+                elevation: spreadOpen && targetFrame ? targetFrame.zIndex : 10 + index,
                 transform: [
-                  { translateX: transform.offsetX * 0.35 },
-                  { translateY: transform.offsetY * 0.35 },
-                  { rotate: `${baseRotation + transform.rotation}deg` },
-                  { scale: transform.scale }
+                  { translateX },
+                  { translateY },
+                  { rotate },
+                  { scale }
                 ]
               }
             ]}
@@ -1415,7 +1660,7 @@ function FeedArtwork({
                 });
               }}
             />
-          </View>
+          </Animated.View>
         );
       })}
 
@@ -1550,38 +1795,207 @@ function HeartRainBurst({
   );
 }
 
-function feedImagePosition(layout: PostLayout, count: number, index: number) {
+function percentToPixels(value: string, total: number) {
+  return (Number.parseFloat(value) / 100) * total;
+}
+
+function feedImageFrame(layout: PostLayout, count: number, index: number, canvasWidth: number, canvasHeight: number): FeedImageFrame {
+  const position = feedImagePosition(layout, count, index);
+
+  return {
+    left: percentToPixels(position.left, canvasWidth),
+    top: percentToPixels(position.top, canvasHeight),
+    width: percentToPixels(position.width, canvasWidth),
+    height: percentToPixels(position.height, canvasHeight),
+    rotate: position.baseRotation,
+    zIndex: 10 + index
+  };
+}
+
+function spreadFeedImageFrame(count: number, index: number, canvasWidth: number, canvasHeight: number): FeedImageFrame {
+  const imageLimit = Math.min(Math.max(count, 1), 4);
+  const sidePad = 0;
+  const gap = Math.max(10, canvasWidth * 0.032);
+  const innerWidth = canvasWidth - sidePad * 2;
+  const columnWidth = (innerWidth - gap) / 2;
+
+  if (imageLimit === 2) {
+    const imageHeight = Math.min(canvasHeight * 0.62, columnWidth * 1.58);
+    const frames = [
+      {
+        left: sidePad,
+        top: Math.min(canvasHeight - imageHeight - 48, canvasHeight * 0.32),
+        width: columnWidth,
+        height: imageHeight,
+        rotate: 0,
+        zIndex: 24
+      },
+      {
+        left: sidePad + columnWidth + gap,
+        top: canvasHeight * 0.22,
+        width: columnWidth,
+        height: imageHeight,
+        rotate: 0,
+        zIndex: 26
+      }
+    ];
+
+    return frames[index] ?? frames[0]!;
+  }
+
+  if (imageLimit === 3) {
+    const top = canvasHeight * 0.15;
+    const heroWidth = innerWidth * 0.56;
+    const rightWidth = innerWidth - heroWidth - gap;
+    const heroHeight = Math.min(canvasHeight * 0.44, heroWidth * 1.08);
+    const rightHeight = Math.min(canvasHeight * 0.4, rightWidth * 1.28);
+    const bottomWidth = Math.min(heroWidth * 0.64, innerWidth * 0.38);
+    const bottomHeight = Math.min(canvasHeight - (top + heroHeight + gap) - 24, bottomWidth * 1.32);
+    const frames = [
+      {
+        left: sidePad,
+        top,
+        width: heroWidth,
+        height: heroHeight,
+        rotate: 0,
+        zIndex: 24
+      },
+      {
+        left: sidePad + heroWidth + gap,
+        top: top + heroHeight * 0.5,
+        width: rightWidth,
+        height: rightHeight,
+        rotate: 0,
+        zIndex: 26
+      },
+      {
+        left: sidePad + heroWidth * 0.35,
+        top: top + heroHeight + gap,
+        width: bottomWidth,
+        height: bottomHeight,
+        rotate: 0,
+        zIndex: 22
+      }
+    ];
+
+    return frames[index] ?? frames[0]!;
+  }
+
+  const leftWidth = innerWidth * 0.53;
+  const rightWidth = innerWidth - leftWidth - gap;
+  const topLeft = canvasHeight * 0.2;
+  const topRight = canvasHeight * 0.2;
+  const leftHeroHeight = Math.min(canvasHeight * 0.42, leftWidth * 1.08);
+  const rightHeroHeight = Math.min(canvasHeight * 0.48, rightWidth * 1.48);
+  const bottomLeftWidth = leftWidth * 0.72;
+  const bottomLeftHeight = Math.min(canvasHeight * 0.27, bottomLeftWidth * 1.12);
+  const bottomRightWidth = rightWidth * 0.72;
+  const bottomRightHeight = Math.min(canvasHeight * 0.26, bottomRightWidth * 1.2);
+  const frames = [
+    {
+      left: sidePad,
+      top: topLeft,
+      width: leftWidth,
+      height: leftHeroHeight,
+      rotate: 0,
+      zIndex: 24
+    },
+    {
+      left: sidePad + leftWidth + gap,
+      top: topRight,
+      width: rightWidth,
+      height: rightHeroHeight,
+      rotate: 0,
+      zIndex: 26
+    },
+    {
+      left: sidePad + leftWidth * 0.28,
+      top: topLeft + leftHeroHeight + gap,
+      width: bottomLeftWidth,
+      height: bottomLeftHeight,
+      rotate: 0,
+      zIndex: 22
+    },
+    {
+      left: sidePad + leftWidth + gap,
+      top: topRight + rightHeroHeight + gap,
+      width: bottomRightWidth,
+      height: bottomRightHeight,
+      rotate: 0,
+      zIndex: 23
+    }
+  ];
+
+  return frames[index] ?? frames[0]!;
+}
+
+function animatedFeedImageFrame(progress: Animated.Value, sourceFrame: FeedImageFrame, targetFrame: FeedImageFrame) {
+  return {
+    position: "absolute" as const,
+    left: progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [sourceFrame.left, targetFrame.left]
+    }),
+    top: progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [sourceFrame.top, targetFrame.top]
+    }),
+    width: progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [sourceFrame.width, targetFrame.width]
+    }),
+    height: progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [sourceFrame.height, targetFrame.height]
+    })
+  };
+}
+
+function feedImagePosition(layout: PostLayout, count: number, index: number): FeedImagePosition {
+  const pick = (positions: FeedImagePosition[]) => positions[Math.min(index, positions.length - 1)]!;
+  const imageLimit = Math.min(Math.max(count, 1), 4);
+
   if (count === 1) {
     return { width: "92%" as const, height: "88%" as const, left: "4%" as const, top: "6%" as const, baseRotation: 0 };
   }
 
   if (layout === "grid") {
-    if (count === 2) {
-      return [
+    if (imageLimit === 2) {
+      return pick([
         { width: "55%" as const, height: "72%" as const, left: "2%" as const, top: "14%" as const, baseRotation: -2 },
         { width: "55%" as const, height: "72%" as const, left: "43%" as const, top: "14%" as const, baseRotation: 2 }
-      ][index];
+      ]);
     }
-    return [
-      { width: "82%" as const, height: "82%" as const, left: "2%" as const, top: "9%" as const, baseRotation: -6 },
-      { width: "82%" as const, height: "82%" as const, left: "12%" as const, top: "4%" as const, baseRotation: 3 },
-      { width: "82%" as const, height: "82%" as const, left: "6%" as const, top: "11%" as const, baseRotation: 0 }
-    ][index];
+    if (imageLimit === 3) {
+      return pick([
+        { width: "82%" as const, height: "82%" as const, left: "2%" as const, top: "9%" as const, baseRotation: -6 },
+        { width: "82%" as const, height: "82%" as const, left: "12%" as const, top: "4%" as const, baseRotation: 3 },
+        { width: "82%" as const, height: "82%" as const, left: "6%" as const, top: "11%" as const, baseRotation: 0 }
+      ]);
+    }
+    return pick([
+      { width: "52%" as const, height: "42%" as const, left: "5%" as const, top: "13%" as const, baseRotation: -2 },
+      { width: "48%" as const, height: "42%" as const, left: "47%" as const, top: "15%" as const, baseRotation: 2 },
+      { width: "44%" as const, height: "34%" as const, left: "12%" as const, top: "55%" as const, baseRotation: -1 },
+      { width: "38%" as const, height: "30%" as const, left: "54%" as const, top: "58%" as const, baseRotation: 1 }
+    ]);
   }
 
   if (layout === "cascade") {
-    return [
+    return pick([
       { width: "82%" as const, height: "82%" as const, left: "2%" as const, top: "9%" as const, baseRotation: -6 },
       { width: "82%" as const, height: "82%" as const, left: "12%" as const, top: "4%" as const, baseRotation: 3 },
-      { width: "82%" as const, height: "82%" as const, left: "6%" as const, top: "11%" as const, baseRotation: 0 }
-    ][index];
+      { width: "82%" as const, height: "82%" as const, left: "6%" as const, top: "11%" as const, baseRotation: 0 },
+      { width: "72%" as const, height: "72%" as const, left: "17%" as const, top: "17%" as const, baseRotation: -2 }
+    ]);
   }
 
-  return [
+  return pick([
     { width: "82%" as const, height: "82%" as const, left: "2%" as const, top: "9%" as const, baseRotation: -6 },
     { width: "82%" as const, height: "82%" as const, left: "12%" as const, top: "4%" as const, baseRotation: 3 },
-    { width: "82%" as const, height: "82%" as const, left: "6%" as const, top: "11%" as const, baseRotation: 0 }
-  ][index];
+    { width: "82%" as const, height: "82%" as const, left: "6%" as const, top: "11%" as const, baseRotation: 0 },
+    { width: "72%" as const, height: "72%" as const, left: "17%" as const, top: "17%" as const, baseRotation: -2 }
+  ]);
 }
 
 function hasRecipe(post: Post) {
@@ -1701,6 +2115,7 @@ function ExpandedPostModal({
   if (!post) return null;
 
   const imgCount = Math.max(post.images.length, 1);
+  const isSpreadDetail = post.mediaType !== "video" && imgCount > 1;
   const stickerSource = stickerImageSource(post.stickerId) ?? (post._id.startsWith("demo") ? DEMO_STICKER : null);
   const placement = post.stickerPlacement ?? { x: 0.78, y: 0.78, scale: 1, rotation: 0 };
   const overlayOpacity = progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
@@ -1847,6 +2262,311 @@ function ExpandedPostModal({
     );
   }
 
+  function getSpreadStage() {
+    const width = Math.min(screenWidth - 36, 370);
+    const height = Math.min(screenHeight - insets.top - insets.bottom - 84, width * 1.5);
+    const x = (screenWidth - width) / 2;
+    const y = insets.top + Math.max(14, (screenHeight - insets.top - insets.bottom - height - 48) / 2);
+    return { x, y, width, height };
+  }
+
+  function spreadImageFrame(index: number) {
+    const stage = getSpreadStage();
+    const twoImageFrames = [
+      {
+        left: stage.x + stage.width * 0.06,
+        top: stage.y + stage.width * 0.4,
+        width: stage.width * 0.43,
+        height: stage.width * 0.62,
+        rotate: "0deg",
+        zIndex: 24
+      },
+      {
+        left: stage.x + stage.width * 0.53,
+        top: stage.y + stage.width * 0.18,
+        width: stage.width * 0.43,
+        height: stage.width * 0.62,
+        rotate: "0deg",
+        zIndex: 26
+      }
+    ];
+    const threeImageFrames = [
+      {
+        left: stage.x + stage.width * 0.06,
+        top: stage.y + stage.width * 0.18,
+        width: stage.width * 0.5,
+        height: stage.width * 0.52,
+        rotate: "0deg",
+        zIndex: 24
+      },
+      {
+        left: stage.x + stage.width * 0.6,
+        top: stage.y + stage.width * 0.2,
+        width: stage.width * 0.36,
+        height: stage.width * 0.46,
+        rotate: "0deg",
+        zIndex: 28
+      },
+      {
+        left: stage.x + stage.width * 0.26,
+        top: stage.y + stage.width * 0.74,
+        width: stage.width * 0.36,
+        height: stage.width * 0.34,
+        rotate: "0deg",
+        zIndex: 22
+      }
+    ];
+    const fourImageFrames = [
+      {
+        left: stage.x + stage.width * 0.04,
+        top: stage.y + stage.width * 0.18,
+        width: stage.width * 0.44,
+        height: stage.width * 0.42,
+        rotate: "0deg",
+        zIndex: 24
+      },
+      {
+        left: stage.x + stage.width * 0.52,
+        top: stage.y + stage.width * 0.18,
+        width: stage.width * 0.44,
+        height: stage.width * 0.42,
+        rotate: "0deg",
+        zIndex: 26
+      },
+      {
+        left: stage.x + stage.width * 0.14,
+        top: stage.y + stage.width * 0.66,
+        width: stage.width * 0.36,
+        height: stage.width * 0.32,
+        rotate: "0deg",
+        zIndex: 22
+      },
+      {
+        left: stage.x + stage.width * 0.54,
+        top: stage.y + stage.width * 0.66,
+        width: stage.width * 0.34,
+        height: stage.width * 0.32,
+        rotate: "0deg",
+        zIndex: 23
+      }
+    ];
+
+    if (imgCount === 2) {
+      return twoImageFrames[index] ?? twoImageFrames[0]!;
+    }
+
+    if (imgCount === 3) {
+      return threeImageFrames[index] ?? threeImageFrames[0]!;
+    }
+
+    return fourImageFrames[index] ?? fourImageFrames[0]!;
+  }
+
+  function spreadMetaFrame(kind: "caption" | "stats" | "recipe" | "author" | "sticker" | "close") {
+    const stage = getSpreadStage();
+
+    if (kind === "caption") {
+      return { left: stage.x + stage.width * 0.06, top: stage.y + stage.width * 0.08, width: stage.width * (imgCount === 2 ? 0.66 : 0.48) };
+    }
+
+    if (kind === "stats") {
+      return { left: stage.x + stage.width * 0.58, top: stage.y + stage.width * 0.06, width: stage.width * 0.38 };
+    }
+
+    if (kind === "recipe") {
+      return {
+        left: stage.x + stage.width * (imgCount === 2 ? 0.58 : 0.66),
+        top: stage.y + stage.width * (imgCount >= 4 ? 1.02 : 0.78),
+        width: stage.width * 0.28
+      };
+    }
+
+    if (kind === "author") {
+      return { left: stage.x + stage.width * 0.18, top: stage.y + stage.width * 1.18, width: stage.width * 0.64 };
+    }
+
+    if (kind === "sticker") {
+      return {
+        left: stage.x + stage.width * (imgCount === 2 ? 0.14 : 0.04),
+        top: stage.y + stage.width * (imgCount === 2 ? 0.2 : 0.96),
+        width: 76
+      };
+    }
+
+    return { left: screenWidth - 60, top: insets.top + 10, width: 42 };
+  }
+
+  function spreadSourceFrame(index: number) {
+    const imageLimit = Math.min(imgCount, 4);
+    const gap = Math.min(10, startRect.width * 0.025);
+
+    if (imageLimit === 2) {
+      const width = (startRect.width - gap) / 2;
+      const height = startRect.height * 0.68;
+      return {
+        left: startRect.x + index * (width + gap),
+        top: startRect.y + startRect.height * 0.16,
+        width,
+        height
+      };
+    }
+
+    const width = (startRect.width - gap) / 2;
+    const height = (startRect.height - gap) / 2;
+    return {
+      left: startRect.x + (index % 2) * (width + gap),
+      top: startRect.y + Math.floor(index / 2) * (height + gap),
+      width,
+      height
+    };
+  }
+
+  function animatedSpreadFrame(frame: { left: number; top: number; width: number; height?: number; rotate?: string }, index: number) {
+    const sourceFrame = spreadSourceFrame(index);
+
+    return {
+      left: progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [sourceFrame.left, frame.left]
+      }),
+      top: progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [sourceFrame.top, frame.top]
+      }),
+      width: progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [sourceFrame.width, frame.width]
+      }),
+      height: progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [sourceFrame.height, frame.height ?? frame.width]
+      }),
+      opacity: progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 1],
+        extrapolate: "clamp"
+      }),
+      transform: [
+        {
+          rotate: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: ["0deg", frame.rotate ?? "0deg"]
+          })
+        }
+      ]
+    };
+  }
+
+  function animatedSpreadMeta(frame: { left: number; top: number; width: number }, yOffset = 14) {
+    return {
+      left: frame.left,
+      top: progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [frame.top + yOffset, frame.top]
+      }),
+      width: frame.width,
+      opacity: progress.interpolate({
+        inputRange: [0, 0.58, 1],
+        outputRange: [0, 0, 1],
+        extrapolate: "clamp"
+      }),
+      transform: [
+        {
+          scale: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.92, 1]
+          })
+        }
+      ]
+    };
+  }
+
+  function renderSpreadDetail() {
+    const imageLimit = Math.min(imgCount, 4);
+    const recipeFrame = spreadMetaFrame("recipe");
+    const authorFrame = spreadMetaFrame("author");
+    const stickerFrame = spreadMetaFrame("sticker");
+    const closeFrame = spreadMetaFrame("close");
+
+    return (
+      <Modal visible transparent animationType="none" onRequestClose={animateClose}>
+        <View style={expandedStyles.overlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={animateClose}>
+            <View style={expandedStyles.spreadBackdrop} />
+          </Pressable>
+
+          <Animated.View pointerEvents="box-none" style={[expandedStyles.spreadLayer, { transform: [{ translateY: panY }] }]}>
+            {Array.from({ length: imageLimit }).map((_, index) => {
+              const frame = spreadImageFrame(index);
+
+              return (
+                <Animated.View
+                  key={`${post!._id}-spread-${index}`}
+                  style={[
+                    expandedStyles.spreadImageCard,
+                    {
+                      zIndex: frame.zIndex,
+                      elevation: frame.zIndex,
+                      ...animatedSpreadFrame(frame, index)
+                    }
+                  ]}
+                >
+                  <Image source={imageSource(post!, index)} style={expandedStyles.spreadImage} resizeMode="cover" />
+                  {renderImageCalorieBadge(index)}
+                </Animated.View>
+              );
+            })}
+
+            <Animated.View style={[expandedStyles.spreadCaptionBubble, animatedSpreadMeta(spreadMetaFrame("caption"))]}>
+              <Ionicons name="location" size={17} color={colors.black} />
+              <AppText numberOfLines={2} style={expandedStyles.spreadCaptionText}>
+                {post!.caption || "NÃ³ ngon pháº£i biáº¿t"}
+              </AppText>
+            </Animated.View>
+
+            <Animated.View style={[expandedStyles.spreadStatsBubble, animatedSpreadMeta(spreadMetaFrame("stats"), 20)]}>
+              <AppText style={expandedStyles.spreadStatsText}>{Math.max(0, post!.stats?.comments ?? 0)}</AppText>
+              <Ionicons name="chatbubble-outline" size={16} color={colors.black} />
+              <AppText style={expandedStyles.spreadStatsText}>{Math.max(0, post!.stats?.likes ?? 0)}</AppText>
+              <Ionicons name="heart" size={17} color={colors.red} />
+            </Animated.View>
+
+            {hasRecipe(post!) ? (
+              <Animated.View style={[expandedStyles.spreadRecipeWrap, animatedSpreadMeta(recipeFrame, 26)]}>
+                <Pressable style={expandedStyles.spreadRecipeCard} onPress={onRecipePress}>
+                  <Ionicons name="clipboard-outline" size={30} color={colors.muted} />
+                  <AppText style={expandedStyles.spreadRecipeText}>CÃ´ng thá»©c</AppText>
+                </Pressable>
+              </Animated.View>
+            ) : null}
+
+            {stickerSource ? (
+              <Animated.View style={[expandedStyles.spreadSticker, animatedSpreadMeta(stickerFrame, -18)]}>
+                <Wiggle style={{ width: "100%", height: "100%" }}>
+                  <Image source={stickerSource} style={{ width: "100%", height: "100%" }} resizeMode="contain" />
+                </Wiggle>
+              </Animated.View>
+            ) : null}
+
+            <Animated.View style={[expandedStyles.spreadAuthorWrap, animatedSpreadMeta(authorFrame, 24)]}>
+              <FeedAuthorChip post={post!} onAuthorPress={onAuthorPress} expanded />
+            </Animated.View>
+
+            <Animated.View style={[expandedStyles.spreadCloseWrap, animatedSpreadMeta(closeFrame, -10)]}>
+              <Pressable style={expandedStyles.spreadCloseButton} onPress={animateClose} hitSlop={10}>
+                <Ionicons name="close" size={22} color={colors.black} />
+              </Pressable>
+            </Animated.View>
+          </Animated.View>
+        </View>
+      </Modal>
+    );
+  }
+
+  if (isSpreadDetail) {
+    return renderSpreadDetail();
+  }
+
   return (
     <Modal visible transparent animationType="none" onRequestClose={animateClose}>
       <View style={expandedStyles.overlay}>
@@ -1958,6 +2678,127 @@ const expandedStyles = StyleSheet.create({
     backgroundColor: "rgba(31,31,31,0.14)",
     marginTop: -6,
     marginBottom: -2
+  },
+  spreadLayer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "visible"
+  },
+  spreadBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.canvas
+  },
+  spreadImageCard: {
+    position: "absolute",
+    borderRadius: 22,
+    overflow: "hidden",
+    backgroundColor: colors.canvasStrong,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18
+  },
+  spreadImage: {
+    width: "100%",
+    height: "100%"
+  },
+  spreadCaptionBubble: {
+    position: "absolute",
+    zIndex: 40,
+    elevation: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    paddingHorizontal: 15,
+    paddingVertical: 9,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.14,
+    shadowRadius: 12
+  },
+  spreadCaptionText: {
+    flex: 1,
+    color: colors.black,
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    lineHeight: 18
+  },
+  spreadStatsBubble: {
+    position: "absolute",
+    zIndex: 42,
+    elevation: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.14,
+    shadowRadius: 12
+  },
+  spreadStatsText: {
+    color: colors.black,
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    lineHeight: 18
+  },
+  spreadRecipeWrap: {
+    position: "absolute",
+    zIndex: 34,
+    elevation: 34
+  },
+  spreadRecipeCard: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "rgba(82,82,82,0.32)",
+    backgroundColor: "rgba(255,255,255,0.62)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5
+  },
+  spreadRecipeText: {
+    color: colors.muted,
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    lineHeight: 15,
+    textAlign: "center"
+  },
+  spreadSticker: {
+    position: "absolute",
+    height: 76,
+    zIndex: 48,
+    elevation: 48
+  },
+  spreadAuthorWrap: {
+    position: "absolute",
+    zIndex: 44,
+    elevation: 44,
+    alignItems: "center"
+  },
+  spreadCloseWrap: {
+    position: "absolute",
+    zIndex: 60,
+    elevation: 60
+  },
+  spreadCloseButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10
   },
   statsNum: {
     fontFamily: fonts.semibold,
@@ -2231,8 +3072,11 @@ function NutritionDetailModal({ post, onClose }: { post: Post | null; onClose: (
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={[styles.nutritionSheet, { paddingBottom: insets.bottom + 18 }]} onPress={() => { }}>
           <View style={styles.sheetHandle} />
-          <View style={styles.nutritionHeader}>
-            <View>
+          <View style={styles.nutritionHero}>
+            <View style={styles.nutritionHeroIcon}>
+              <Ionicons name="flame" size={25} color={colors.red} />
+            </View>
+            <View style={styles.nutritionHeroCopy}>
               <AppText variant="subtitle" style={styles.nutritionTitle}>Chi tiết calo</AppText>
               <AppText variant="caption" muted numberOfLines={1}>
                 {post.caption || "Bài viết Daily Meal"}
@@ -2247,9 +3091,9 @@ function NutritionDetailModal({ post, onClose }: { post: Post | null; onClose: (
 
           {total ? (
             <View style={styles.macroRow}>
-              <MacroPill label="Protein" value={`${Math.round(total.protein)}g`} />
-              <MacroPill label="Carbs" value={`${Math.round(total.carbs)}g`} />
-              <MacroPill label="Fat" value={`${Math.round(total.fat)}g`} />
+              <MacroPill label="Protein" value={`${Math.round(total.protein)}g`} icon="barbell-outline" />
+              <MacroPill label="Carbs" value={`${Math.round(total.carbs)}g`} icon="leaf-outline" />
+              <MacroPill label="Fat" value={`${Math.round(total.fat)}g`} icon="water-outline" />
             </View>
           ) : null}
 
@@ -2257,7 +3101,10 @@ function NutritionDetailModal({ post, onClose }: { post: Post | null; onClose: (
             {sections.map((section) => (
               <View key={section.title} style={styles.nutritionSection}>
                 <View style={styles.nutritionSectionHeader}>
-                  <AppText variant="button">{section.title}</AppText>
+                  <View style={styles.nutritionSectionBadge}>
+                    <Ionicons name="image-outline" size={16} color={colors.greenDark} />
+                    <AppText style={styles.nutritionSectionTitle}>{section.title}</AppText>
+                  </View>
                   {!section.hasDetails ? (
                     <AppText variant="caption" muted>Chưa có bảng thành phần</AppText>
                   ) : null}
@@ -2296,10 +3143,13 @@ function NutritionDetailModal({ post, onClose }: { post: Post | null; onClose: (
   );
 }
 
-function MacroPill({ label, value }: { label: string; value: string }) {
+function MacroPill({ label, value, icon }: { label: string; value: string; icon: keyof typeof Ionicons.glyphMap }) {
   return (
     <View style={styles.macroPill}>
-      <AppText variant="caption" muted>{label}</AppText>
+      <View style={styles.macroIconWrap}>
+        <Ionicons name={icon} size={15} color={colors.greenDark} />
+      </View>
+      <AppText style={styles.macroLabel}>{label}</AppText>
       <AppText style={styles.macroValue}>{value}</AppText>
     </View>
   );
@@ -2390,10 +3240,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvasStrong,
     overflow: "hidden",
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    elevation: 9
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.34,
+    shadowRadius: 24,
+    elevation: 15
   },
   feedImage: {
     width: "100%",
@@ -2406,17 +3256,18 @@ const styles = StyleSheet.create({
     left: 0,
     zIndex: 90,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.95)",
+    borderBottomLeftRadius: 0,
+    backgroundColor: "#8BA58A",
     paddingHorizontal: 16,
     paddingVertical: 9,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 4
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.28,
+    shadowRadius: 13,
+    elevation: 8
   },
   recipeChipText: {
-    color: colors.black,
+    color: colors.white,
     fontFamily: fonts.semibold,
     fontSize: 14,
     lineHeight: 18
@@ -2430,14 +3281,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     borderRadius: 16,
+    borderBottomRightRadius: 0,
     backgroundColor: "rgba(255,255,255,0.95)",
     paddingHorizontal: 13,
     paddingVertical: 9,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 4
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.28,
+    shadowRadius: 13,
+    elevation: 8
   },
   statsNum: {
     fontFamily: fonts.semibold,
@@ -2451,20 +3303,31 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 90,
     borderRadius: 15,
+    borderBottomRightRadius: 0,
     backgroundColor: "rgba(255,255,255,0.95)",
     paddingHorizontal: 14,
     paddingVertical: 9,
+    width: 152,
+    minHeight: 38,
+    alignItems: "center",
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 4
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.28,
+    shadowRadius: 13,
+    elevation: 8
   },
   caloText: {
     fontFamily: fonts.semibold,
     fontSize: 14,
     lineHeight: 18,
-    color: colors.black
+    color: colors.white,
+    textAlign: "center"
+  },
+  caloHintText: {
+    maxWidth: 142,
+    fontSize: 14,
+    lineHeight: 18,
+    color: colors.white
   },
   captionChip: {
     position: "absolute",
@@ -2480,10 +3343,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 4
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.28,
+    shadowRadius: 13,
+    elevation: 8
   },
   captionText: {
     color: colors.black,
@@ -2517,7 +3380,7 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
   authorChipWrap: {
-    marginTop: 16,
+    marginTop: 10,
     alignSelf: "center",
     maxWidth: "86%",
     position: "relative",
@@ -2534,15 +3397,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     backgroundColor: colors.green,
-    paddingLeft: 6,
-    paddingRight: 20,
-    paddingVertical: 6,
+    paddingLeft: 5,
+    paddingRight: 16,
+    paddingVertical: 4,
     borderRadius: 9999,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 4
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.28,
+    shadowRadius: 13,
+    elevation: 8
   },
   authorStreakBadge: {
     position: "absolute",
@@ -2583,9 +3446,9 @@ const styles = StyleSheet.create({
     transform: [{ rotate: "-30deg" }]
   },
   authorAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center"
@@ -2593,7 +3456,7 @@ const styles = StyleSheet.create({
   authorAvatarImage: {
     width: "100%",
     height: "100%",
-    borderRadius: 19
+    borderRadius: 16
   },
   authorAvatarText: {
     fontFamily: fonts.bold,
@@ -2604,8 +3467,8 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.white,
     fontFamily: fonts.bold,
-    fontSize: 16,
-    lineHeight: 20
+    fontSize: 14,
+    lineHeight: 18
   },
   swipeHint: {
     marginTop: 8,
@@ -2885,11 +3748,35 @@ const styles = StyleSheet.create({
   },
   nutritionSheet: {
     maxHeight: "86%",
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 12,
+    backgroundColor: "#FFFDF7",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 14,
     paddingHorizontal: 18
+  },
+  nutritionHero: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 22,
+    backgroundColor: "#F4F8EB",
+    borderWidth: 1,
+    borderColor: "rgba(139,165,138,0.28)",
+    paddingHorizontal: 13,
+    paddingVertical: 13,
+    marginBottom: 12
+  },
+  nutritionHeroIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: "#FFF2D2",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  nutritionHeroCopy: {
+    flex: 1,
+    minWidth: 0
   },
   nutritionHeader: {
     flexDirection: "row",
@@ -2899,44 +3786,94 @@ const styles = StyleSheet.create({
     marginBottom: 14
   },
   nutritionTitle: {
-    marginBottom: 4
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    lineHeight: 21,
+    marginTop: 2
+  },
+  nutritionEyebrow: {
+    color: colors.greenDark,
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    lineHeight: 15
   },
   nutritionTotalPill: {
-    borderRadius: 16,
-    backgroundColor: colors.green,
-    paddingHorizontal: 12,
-    paddingVertical: 8
+    minWidth: 72,
+    borderRadius: 18,
+    backgroundColor: colors.greenDark,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    alignItems: "center",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3
   },
   nutritionTotalText: {
     color: colors.white,
     fontFamily: fonts.bold,
-    fontSize: 14
+    fontSize: 15,
+    lineHeight: 18
   },
   macroRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
     marginBottom: 14
   },
   macroPill: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: "rgba(139,165,138,0.24)",
     paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: colors.white
+    paddingVertical: 10,
+    backgroundColor: colors.white,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 2
+  },
+  macroIconWrap: {
+    width: 25,
+    height: 25,
+    borderRadius: 10,
+    backgroundColor: "#EEF5E8",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 7
+  },
+  macroLabel: {
+    color: colors.muted,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 14
   },
   macroValue: {
-    marginTop: 2,
-    color: colors.black,
-    fontFamily: fonts.semibold,
-    fontSize: 14
+    marginTop: 1,
+    color: colors.greenDark,
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    lineHeight: 20
   },
   nutritionScroll: {
-    maxHeight: 460
+    maxHeight: 460,
+    paddingTop: 2
   },
   nutritionSection: {
-    marginBottom: 18
+    marginBottom: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(139,165,138,0.2)",
+    backgroundColor: colors.white,
+    padding: 11,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 9,
+    elevation: 2
   },
   nutritionSectionHeader: {
     flexDirection: "row",
@@ -2945,28 +3882,43 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 8
   },
+  nutritionSectionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: "#EEF5E8",
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+  nutritionSectionTitle: {
+    color: colors.greenDark,
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    lineHeight: 16
+  },
   nutritionTable: {
     borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 8,
+    borderColor: "rgba(139,165,138,0.2)",
+    borderRadius: 14,
     overflow: "hidden",
-    backgroundColor: colors.black
+    backgroundColor: "#FFFDF7"
   },
   nutritionTableRow: {
     flexDirection: "row",
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.12)"
+    borderTopColor: "rgba(139,165,138,0.16)"
   },
   nutritionTableHead: {
     borderTopWidth: 0,
-    backgroundColor: "rgba(255,255,255,0.08)"
+    backgroundColor: "#EEF5E8"
   },
   nutritionTotalRow: {
-    backgroundColor: "rgba(255,255,255,0.06)"
+    backgroundColor: "#FFF5D8"
   },
   nutritionCell: {
     flex: 0.8,
-    color: colors.white,
+    color: colors.black,
     fontFamily: fonts.medium,
     fontSize: 11,
     lineHeight: 15,
@@ -2980,10 +3932,25 @@ const styles = StyleSheet.create({
     flex: 1.18
   },
   nutritionStrongCell: {
-    fontFamily: fonts.bold
+    fontFamily: fonts.bold,
+    color: colors.greenDark
+  },
+  nutritionSectionMeta: {
+    color: colors.muted,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 14
   },
   nutritionWarning: {
-    marginTop: 7
+    marginTop: 8,
+    borderRadius: 12,
+    backgroundColor: "#FFF5D8",
+    color: colors.greenDark,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 15,
+    paddingHorizontal: 10,
+    paddingVertical: 7
   },
   categoryGrid: {
     flexDirection: "row",

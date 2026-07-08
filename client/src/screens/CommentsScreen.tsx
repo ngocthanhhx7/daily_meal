@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../api/client";
 import { FigmaLineBackground } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
@@ -160,12 +161,15 @@ function CommentBubble({
               ]}
             >
               {!isMine && (
-                <Avatar
-                  name={comment.author?.displayName}
-                  id={comment.author?.id}
-                  avatarUrl={comment.author?.avatarUrl}
-                  size={36}
-                />
+                <View style={styles.commentAvatarBadge}>
+                  <Avatar
+                    name={comment.author?.displayName}
+                    id={comment.author?.id}
+                    avatarUrl={comment.author?.avatarUrl}
+                    size={32}
+                    bg={colors.greenDark}
+                  />
+                </View>
               )}
               <View style={{ flexShrink: 1 }}>
                 <AppText style={[styles.commentBubbleText, { color: textColor }]}>
@@ -407,25 +411,36 @@ export function CommentsScreen({ navigation, route }: any) {
                   style={styles.postHero}
                   imageStyle={styles.postHeroImage}
                   resizeMode="cover"
-                />
+                >
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.86)", "rgba(255,255,255,1)"]}
+                    locations={[0, 0.58, 1]}
+                    style={styles.postHeroFade}
+                  />
+                </ImageBackground>
 
                 {/* ── ENGAGEMENT PILL ── */}
                 <View style={styles.engagementPillContainerScroll}>
                   <View style={styles.statsRow}>
-                    <Avatar
-                      name={post?.author?.displayName ?? "K"}
-                      id={post?.author?.id}
-                      avatarUrl={post?.author?.avatarUrl}
-                      size={26}
-                      bg={colors.greenDark}
-                    />
-                    <View style={styles.statItem}>
-                      <Ionicons name="chatbubble-outline" size={14} color={colors.muted} />
-                      <AppText variant="caption" style={styles.statText}>{totalComments}</AppText>
+                    <View style={styles.statsGreenCard}>
+                      <Avatar
+                        name={post?.author?.displayName ?? "K"}
+                        id={post?.author?.id}
+                        avatarUrl={post?.author?.avatarUrl}
+                        size={34}
+                        bg={colors.green}
+                      />
                     </View>
-                    <View style={styles.statItem}>
-                      <Ionicons name="heart" size={14} color={colors.red} />
-                      <AppText variant="caption" style={styles.statText}>{totalLikes}</AppText>
+                    <View style={styles.statsCountSegment}>
+                      <View style={styles.statItem}>
+                        <AppText variant="caption" style={styles.statText}>{totalComments}</AppText>
+                        <Ionicons name="chatbubble-outline" size={17} color={colors.black} />
+                      </View>
+                      <View style={styles.statItem}>
+                        <AppText variant="caption" style={styles.statText}>{totalLikes}</AppText>
+                        <Ionicons name="heart" size={17} color={colors.red} />
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -671,42 +686,74 @@ const styles = StyleSheet.create({
 
   // Post hero
   postHero: {
-    height: 180,
-    marginHorizontal: 12,
-    marginTop: 12,
+    height: 128,
+    marginHorizontal: 28,
+    marginTop: -4,
     overflow: "hidden",
-    borderRadius: 20,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     backgroundColor: colors.canvasStrong
   },
   postHeroImage: {
-    borderRadius: 20
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28
+  },
+  postHeroFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 58,
+    backgroundColor: "rgba(255,255,255,0.66)"
   },
   scrollHeroContainer: {
     width: "100%",
-    marginBottom: 8
+    marginBottom: 8,
+    marginTop: -4
   },
   engagementPillContainerScroll: {
     alignItems: "center",
     zIndex: 10,
-    marginTop: -20
+    marginTop: -18
   },
 
   // Engagement Pill
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
+    borderRadius: 22,
+    backgroundColor: "transparent",
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 5
+  },
+  statsGreenCard: {
+    width: 78,
+    height: 40,
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: "#8BA58A",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingLeft: 6,
+    paddingRight: 16,
+    marginRight: -20,
+    zIndex: 2
+  },
+  statsCountSegment: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+    paddingLeft: 34,
+    paddingRight: 18,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    zIndex: 3
   },
   statItem: {
     flexDirection: "row",
@@ -714,8 +761,8 @@ const styles = StyleSheet.create({
     gap: 5
   },
   statText: {
-    fontFamily: fonts.semibold,
-    fontSize: 13,
+    fontFamily: fonts.bold,
+    fontSize: 14,
     color: colors.ink
   },
 
@@ -753,13 +800,27 @@ const styles = StyleSheet.create({
   },
   commentBubble: {
     borderRadius: 20,
-    paddingLeft: 8,
+    paddingLeft: 6,
     paddingRight: 16,
     paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    maxWidth: "100%"
+    maxWidth: "100%",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.16,
+    shadowRadius: 9,
+    elevation: 4
+  },
+  commentAvatarBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: -2
   },
   commentBubbleText: {
     fontFamily: fonts.regular,

@@ -54,7 +54,7 @@ describe("analytics client", () => {
     await client.flushNow();
 
     expect(fetcher).toHaveBeenCalledWith(
-      "https://api.test/api/analytics/events",
+      "https://api.test/api/ingest/events",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({

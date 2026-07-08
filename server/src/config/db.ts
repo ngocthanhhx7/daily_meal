@@ -17,7 +17,22 @@ function isMatchingPartialUniqueStringIndex(index: any, field: string) {
   );
 }
 
+function isNamespaceExistsError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    ("code" in error || "codeName" in error) &&
+    ((error as { code?: unknown }).code === 48 || (error as { codeName?: unknown }).codeName === "NamespaceExists")
+  );
+}
+
 export async function repairUserUniqueIndexes() {
+  await User.createCollection().catch((error) => {
+    if (!isNamespaceExistsError(error)) {
+      throw error;
+    }
+  });
+
   for (const { field } of uniqueStringIndexes) {
     await User.collection.updateMany({ [field]: null }, { $unset: { [field]: "" } });
   }

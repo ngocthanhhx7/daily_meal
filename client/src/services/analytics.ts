@@ -468,7 +468,7 @@ export function createAnalyticsClient(options: AnalyticsClientOptions) {
     isFlushing = true;
 
     try {
-      const response = await fetcher(`${options.baseUrl}/api/analytics/events`, {
+      const response = await fetcher(`${options.baseUrl}/api/ingest/events`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

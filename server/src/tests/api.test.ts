@@ -1236,10 +1236,10 @@ describe("Daily Meal API", () => {
   it("validates analytics ingestion batches", async () => {
     await AnalyticsEvent.deleteMany({ sessionId: /^analytics-invalid-/ });
 
-    await request(app).post("/api/analytics/events").send({ events: [] }).expect(400);
+    await request(app).post("/api/ingest/events").send({ events: [] }).expect(400);
 
     await request(app)
-      .post("/api/analytics/events")
+      .post("/api/ingest/events")
       .send({
         events: [
           {
@@ -1252,7 +1252,7 @@ describe("Daily Meal API", () => {
       .expect(400);
 
     await request(app)
-      .post("/api/analytics/events")
+      .post("/api/ingest/events")
       .send({
         events: [
           {
@@ -1269,7 +1269,7 @@ describe("Daily Meal API", () => {
     const session = await register("analytics-ingest@example.com");
 
     const anonymous = await request(app)
-      .post("/api/analytics/events")
+      .post("/api/ingest/events")
       .send({
         events: [
           {
@@ -1286,7 +1286,7 @@ describe("Daily Meal API", () => {
     expect(anonymous.body.accepted).toBe(1);
 
     const authenticated = await request(app)
-      .post("/api/analytics/events")
+      .post("/api/ingest/events")
       .set("Authorization", `Bearer ${session.token}`)
       .send({
         events: [

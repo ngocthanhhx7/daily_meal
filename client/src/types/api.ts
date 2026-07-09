@@ -177,6 +177,39 @@ export type MealAnalysisItem = {
   confidence: number;
 };
 
+export type MealSuitabilityTarget = {
+  label: string;
+  reason: string;
+};
+
+export type MealSuitabilityItemInsight = {
+  key?: string;
+  imageIndex: number;
+  itemIndex: number;
+  name: string;
+  portion: string;
+  calories: number;
+  protein: number;
+  verdict: string;
+  macroNote: string;
+  suitableFor: MealSuitabilityTarget[];
+  cautionFor: MealSuitabilityTarget[];
+  suggestions: string[];
+  confidence: number;
+};
+
+export type MealSuitabilityInsight = {
+  headline: string;
+  summary: string;
+  macroBalance: string;
+  suitableFor: MealSuitabilityTarget[];
+  cautionFor: MealSuitabilityTarget[];
+  itemInsights?: MealSuitabilityItemInsight[];
+  suggestions: string[];
+  confidence: number;
+  source?: "gemini" | "fallback";
+};
+
 export type NutritionDetail = {
   imageIndex: number;
   items: MealAnalysisItem[];

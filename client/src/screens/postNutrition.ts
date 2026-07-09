@@ -117,7 +117,7 @@ export function getNutritionDetailSections(post: Post): NutritionDetailSection[]
       .sort((left, right) => left.imageIndex - right.imageIndex)
       .map((detail) => ({
         imageIndex: detail.imageIndex,
-        title: `Ảnh ${detail.imageIndex + 1}`,
+        title: `Món ăn ${detail.imageIndex + 1}`,
         hasDetails: detail.items.length > 0,
         rows: formatNutritionDetailRows(detail),
         warnings: detail.warnings ?? []

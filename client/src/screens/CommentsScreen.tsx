@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,7 +15,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
+import Svg, {
+  Defs,
+  Image as SvgImage,
+  LinearGradient as SvgLinearGradient,
+  Mask,
+  Rect,
+  Stop
+} from "react-native-svg";
 import { api } from "../api/client";
 import { FigmaLineBackground } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
@@ -406,32 +412,36 @@ export function CommentsScreen({ navigation, route }: any) {
             <Pressable onPress={Keyboard.dismiss} style={{ gap: 12, width: "100%" }}>
               {/* ── POST HERO SCROLLING CARD ── */}
               <View style={styles.scrollHeroContainer}>
-                <ImageBackground
-                  source={imageSource(post)}
-                  style={styles.postHero}
-                  imageStyle={styles.postHeroImage}
-                  resizeMode="cover"
-                >
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.86)", "rgba(255,255,255,1)"]}
-                    locations={[0, 0.58, 1]}
-                    style={styles.postHeroFade}
-                  />
-                </ImageBackground>
+                <View style={styles.postHero}>
+                  <Svg width="100%" height="100%" style={styles.postHeroSvg}>
+                    <Defs>
+                      <SvgLinearGradient id="postHeroAlphaMask" x1="0" y1="0" x2="0" y2="1">
+                        <Stop offset="0" stopColor="white" stopOpacity="1" />
+                        <Stop offset="0.18" stopColor="white" stopOpacity="1" />
+                        <Stop offset="0.48" stopColor="white" stopOpacity="0.09" />
+                        <Stop offset="0.76" stopColor="white" stopOpacity="0.02" />
+                        <Stop offset="1" stopColor="white" stopOpacity="0" />
+                      </SvgLinearGradient>
+                      <Mask id="postHeroMask" x="0" y="0" width="100%" height="100%">
+                        <Rect width="100%" height="100%" fill="url(#postHeroAlphaMask)" />
+                      </Mask>
+                    </Defs>
+                    <SvgImage
+                      href={imageSource(post)}
+                      x="-8%"
+                      y="-3%"
+                      width="116%"
+                      height="110%"
+                      preserveAspectRatio="xMidYMid slice"
+                      mask="url(#postHeroMask)"
+                    />
+                  </Svg>
+                </View>
 
                 {/* ── ENGAGEMENT PILL ── */}
                 <View style={styles.engagementPillContainerScroll}>
                   <View style={styles.statsRow}>
-                    <View style={styles.statsGreenCard}>
-                      <Avatar
-                        name={post?.author?.displayName ?? "K"}
-                        id={post?.author?.id}
-                        avatarUrl={post?.author?.avatarUrl}
-                        size={34}
-                        bg={colors.green}
-                      />
-                    </View>
+                    <View style={styles.statsGreenCard} />
                     <View style={styles.statsCountSegment}>
                       <View style={styles.statItem}>
                         <AppText variant="caption" style={styles.statText}>{totalComments}</AppText>
@@ -441,6 +451,15 @@ export function CommentsScreen({ navigation, route }: any) {
                         <AppText variant="caption" style={styles.statText}>{totalLikes}</AppText>
                         <Ionicons name="heart" size={17} color={colors.red} />
                       </View>
+                    </View>
+                    <View pointerEvents="none" style={styles.statsAvatarLayer}>
+                      <Avatar
+                        name={post?.author?.displayName ?? "K"}
+                        id={post?.author?.id}
+                        avatarUrl={post?.author?.avatarUrl}
+                        size={42}
+                        bg={colors.green}
+                      />
                     </View>
                   </View>
                 </View>
@@ -692,19 +711,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
-    backgroundColor: colors.canvasStrong
+    backgroundColor: "transparent"
   },
-  postHeroImage: {
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28
-  },
-  postHeroFade: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 58,
-    backgroundColor: "rgba(255,255,255,0.66)"
+  postHeroSvg: {
+    ...StyleSheet.absoluteFillObject
   },
   scrollHeroContainer: {
     width: "100%",
@@ -714,14 +724,16 @@ const styles = StyleSheet.create({
   engagementPillContainerScroll: {
     alignItems: "center",
     zIndex: 10,
-    marginTop: -18
+    marginTop: -20
   },
 
   // Engagement Pill
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 22,
+    height: 50,
+    position: "relative",
+    borderRadius: 25,
     backgroundColor: "transparent",
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 5 },
@@ -730,28 +742,36 @@ const styles = StyleSheet.create({
     elevation: 5
   },
   statsGreenCard: {
-    width: 78,
-    height: 40,
-    borderTopLeftRadius: 20,
-    borderBottomLeftRadius: 20,
-    borderTopRightRadius: 4,
-    borderBottomRightRadius: 4,
+    width: 94,
+    height: 50,
+    borderTopLeftRadius: 25,
+    borderBottomLeftRadius: 25,
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
     backgroundColor: "#8BA58A",
+    marginRight: -34,
+    zIndex: 1
+  },
+  statsAvatarLayer: {
+    position: "absolute",
+    left: 11,
+    top: 4,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
-    paddingLeft: 6,
-    paddingRight: 16,
-    marginRight: -20,
-    zIndex: 2
+    backgroundColor: colors.white,
+    zIndex: 5
   },
   statsCountSegment: {
-    minHeight: 40,
+    height: 50,
     flexDirection: "row",
     alignItems: "center",
-    gap: 13,
-    paddingLeft: 34,
-    paddingRight: 18,
-    borderRadius: 20,
+    gap: 18,
+    paddingLeft: 52,
+    paddingRight: 24,
+    borderRadius: 25,
     backgroundColor: colors.white,
     zIndex: 3
   },

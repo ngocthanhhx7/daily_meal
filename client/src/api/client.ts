@@ -20,6 +20,7 @@ import type {
   ChatMessage,
   Conversation,
   Meal,
+  MealSuitabilityInsight,
   PayosPayment,
   Post,
   PostSummaryFilter,
@@ -531,6 +532,11 @@ export const api = {
     }),
   savePost: (token: string, postId: string) =>
     request<{ saved: boolean; stats: Post["stats"] }>(`/api/posts/${postId}/save`, {
+      method: "POST",
+      token
+    }),
+  postNutritionInsight: (token: string, postId: string) =>
+    request<{ insight: MealSuitabilityInsight }>(`/api/posts/${postId}/nutrition-insight`, {
       method: "POST",
       token
     }),

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
@@ -32,7 +33,7 @@ import { demoPosts } from "../data/sample";
 import { analytics, createEventThrottle } from "../services/analytics";
 import { colors } from "../theme/colors";
 import { fonts } from "../theme/typography";
-import type { Post, PostLayout } from "../types/api";
+import type { MealSuitabilityInsight, Post, PostLayout } from "../types/api";
 import {
   getExpandedPostTargetRect,
   getFallbackOriginRect,
@@ -43,7 +44,7 @@ import { shouldStartFeedLoadMore } from "../utils/feedPagination";
 import { getHomeTargetIndex, getPostViewerSets, mergeTargetPostIntoFeed } from "../utils/postNavigation";
 import { DEFAULT_DOUBLE_TAP_THRESHOLD_MS, isDoubleTap, shouldLikeFromDoubleTap } from "../utils/tapGestures";
 import { stickerImageSource } from "../utils/stickers";
-import { getCaloriesOfCurrentImage, getNutritionDetailSections } from "./postNutrition";
+import { formatNutritionDetailRows, getCaloriesOfCurrentImage } from "./postNutrition";
 import { CameraIcon, CategoryIcon } from "../components/SvgIcons";
 import { PostVideoPlayer } from "../components/PostVideoPlayer";
 
@@ -881,7 +882,7 @@ export function HomeScreen({ navigation, route }: any) {
           }}
         />
 
-        <NutritionDetailModal post={nutritionPost} onClose={() => setNutritionPost(null)} />
+        <NutritionDetailModal post={nutritionPost} token={token} onClose={() => setNutritionPost(null)} />
 
         <CategoryModal
           visible={showCategory}
@@ -1483,7 +1484,7 @@ function CalorieActionBadge({
       onPress={onPress}
       hitSlop={6}
     >
-      <AppText numberOfLines={showHint ? 2 : 1} style={[styles.caloText, showHint && styles.caloHintText]}>
+      <AppText numberOfLines={1} style={[styles.caloText, showHint && styles.caloHintText]}>
         {badgeLabel}
       </AppText>
       <AppText numberOfLines={showHint ? 2 : 1} style={[{ display: "none" }, styles.caloText, showHint && styles.caloHintText]}>
@@ -3057,21 +3058,79 @@ function CategoryModal({
   );
 }
 
-function NutritionDetailModal({ post, onClose }: { post: Post | null; onClose: () => void }) {
+function NutritionDetailModal({ post, token, onClose }: { post: Post | null; token?: string | null; onClose: () => void }) {
   const insets = useSafeAreaInsets();
+  const { height: viewportHeight } = useWindowDimensions();
+  const [insightCache, setInsightCache] = useState<Record<string, MealSuitabilityInsight>>({});
+  const [insightLoadingPostId, setInsightLoadingPostId] = useState<string | null>(null);
+  const [insightError, setInsightError] = useState<string | null>(null);
+  const attemptedInsightPostIds = useRef<Set<string>>(new Set());
+  const postId = post?._id;
+  const insight = postId ? insightCache[postId] : undefined;
+  const isInsightLoading = Boolean(postId && insightLoadingPostId === postId);
+  const hasNutritionForInsight = Boolean(
+    post?.nutritionSummary?.calories ||
+    post?.nutritionDetails?.some((detail) => detail.total?.calories || detail.items?.length)
+  );
+  const canAnalyzeInsight = Boolean(token && postId && !postId.startsWith("demo") && hasNutritionForInsight);
+
+  const loadInsight = useCallback(async (force = false) => {
+    if (!token || !postId || postId.startsWith("demo")) {
+      return;
+    }
+
+    if (!force && attemptedInsightPostIds.current.has(postId)) {
+      return;
+    }
+
+    attemptedInsightPostIds.current.add(postId);
+    setInsightError(null);
+    setInsightLoadingPostId(postId);
+
+    try {
+      const result = await api.postNutritionInsight(token, postId);
+      setInsightCache((current) => ({
+        ...current,
+        [postId]: result.insight
+      }));
+    } catch (error) {
+      setInsightError(error instanceof Error ? error.message : "Không thể phân tích bữa ăn lúc này");
+    } finally {
+      setInsightLoadingPostId((current) => (current === postId ? null : current));
+    }
+  }, [postId, token]);
+
+  useEffect(() => {
+    setInsightError(null);
+  }, [postId]);
+
+  useEffect(() => {
+    if (!postId || !canAnalyzeInsight || insight || isInsightLoading) {
+      return;
+    }
+
+    void loadInsight();
+  }, [canAnalyzeInsight, insight, isInsightLoading, loadInsight, postId]);
 
   if (!post) {
     return null;
   }
 
-  const sections = getNutritionDetailSections(post);
   const total = post.nutritionSummary;
+  const nutritionScrollMaxHeight = Math.max(280, Math.round(viewportHeight * 0.76));
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={[styles.nutritionSheet, { paddingBottom: insets.bottom + 18 }]} onPress={() => { }}>
+        <Pressable style={styles.nutritionSheet} onPress={() => { }}>
           <View style={styles.sheetHandle} />
+          <ScrollView
+            style={[styles.nutritionScroll, { maxHeight: nutritionScrollMaxHeight }]}
+            contentContainerStyle={[styles.nutritionScrollContent, { paddingBottom: insets.bottom + 18 }]}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+          >
           <View style={styles.nutritionHero}>
             <View style={styles.nutritionHeroIcon}>
               <Ionicons name="flame" size={25} color={colors.red} />
@@ -3097,49 +3156,227 @@ function NutritionDetailModal({ post, onClose }: { post: Post | null; onClose: (
             </View>
           ) : null}
 
-          <ScrollView style={styles.nutritionScroll} showsVerticalScrollIndicator={false}>
-            {sections.map((section) => (
-              <View key={section.title} style={styles.nutritionSection}>
-                <View style={styles.nutritionSectionHeader}>
-                  <View style={styles.nutritionSectionBadge}>
-                    <Ionicons name="image-outline" size={16} color={colors.greenDark} />
-                    <AppText style={styles.nutritionSectionTitle}>{section.title}</AppText>
-                  </View>
-                  {!section.hasDetails ? (
-                    <AppText variant="caption" muted>Chưa có bảng thành phần</AppText>
-                  ) : null}
-                </View>
-
-                <View style={styles.nutritionTable}>
-                  <View style={[styles.nutritionTableRow, styles.nutritionTableHead]}>
-                    <AppText style={[styles.nutritionCell, styles.ingredientCell]}>Thành phần</AppText>
-                    <AppText style={[styles.nutritionCell, styles.portionCell]}>Định lượng</AppText>
-                    <AppText style={styles.nutritionCell}>Calo</AppText>
-                    <AppText style={styles.nutritionCell}>Protein</AppText>
-                  </View>
-                  {section.rows.map((row) => (
-                    <View key={row.key} style={[styles.nutritionTableRow, row.isTotal && styles.nutritionTotalRow]}>
-                      <AppText style={[styles.nutritionCell, styles.ingredientCell, row.isTotal && styles.nutritionStrongCell]}>
-                        {row.ingredient}
-                      </AppText>
-                      <AppText style={[styles.nutritionCell, styles.portionCell]}>{row.portion}</AppText>
-                      <AppText style={[styles.nutritionCell, row.isTotal && styles.nutritionStrongCell]}>{row.calories}</AppText>
-                      <AppText style={[styles.nutritionCell, row.isTotal && styles.nutritionStrongCell]}>{row.protein}</AppText>
-                    </View>
-                  ))}
-                </View>
-
-                {section.warnings.length ? (
-                  <AppText variant="caption" muted style={styles.nutritionWarning}>
-                    {section.warnings.join(" ")}
-                  </AppText>
-                ) : null}
-              </View>
-            ))}
+          <MealInsightCard
+            insight={insight}
+            loading={isInsightLoading}
+            error={insightError}
+            canAnalyze={canAnalyzeInsight}
+            onRetry={() => {
+              void loadInsight(true);
+            }}
+            post={post}
+          />
           </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+function mealInsightItemKey(item: NonNullable<MealSuitabilityInsight["itemInsights"]>[number]) {
+  return item.key ?? `${item.imageIndex}-${item.itemIndex}-${item.name}`;
+}
+
+function MealInsightCard({
+  insight,
+  loading,
+  error,
+  canAnalyze,
+  onRetry,
+  post
+}: {
+  insight?: MealSuitabilityInsight;
+  loading: boolean;
+  error: string | null;
+  canAnalyze: boolean;
+  onRetry: () => void;
+  post: Post;
+}) {
+  const [selectedInsightKey, setSelectedInsightKey] = useState("overall");
+  const itemInsights = insight?.itemInsights ?? [];
+  const selectedItem = selectedInsightKey === "overall"
+    ? undefined
+    : itemInsights.find((item) => mealInsightItemKey(item) === selectedInsightKey);
+  const suitableFor = insight?.suitableFor ?? [];
+  const cautionFor = insight?.cautionFor ?? [];
+  const suggestions = insight?.suggestions ?? [];
+  const visibleSuitableFor = selectedItem?.suitableFor ?? suitableFor;
+  const visibleCautionFor = selectedItem?.cautionFor ?? cautionFor;
+  const visibleSuggestions = selectedItem?.suggestions ?? suggestions;
+
+  const matchingNutritionDetail = selectedItem
+    ? post.nutritionDetails?.find((d) => d.imageIndex === selectedItem.imageIndex)
+    : undefined;
+  const matchingImageUrl = selectedItem && post.images?.[selectedItem.imageIndex]?.url
+    ? post.images[selectedItem.imageIndex].url
+    : undefined;
+  const matchingImageSource = matchingImageUrl
+    ? (matchingImageUrl.startsWith("http") ? { uri: matchingImageUrl } : { uri: `${api.baseUrl}${matchingImageUrl}` })
+    : undefined;
+
+  useEffect(() => {
+    setSelectedInsightKey("overall");
+  }, [insight]);
+
+  return (
+    <View style={styles.aiInsightCard}>
+      <View style={styles.aiInsightHeader}>
+        <View style={styles.aiInsightTitleWrap}>
+          <Ionicons name="sparkles" size={16} color={colors.greenDark} />
+          <AppText style={styles.aiInsightTitle}>AI phù hợp với ai?</AppText>
+        </View>
+        {insight?.source === "fallback" ? (
+          <View style={styles.aiInsightSourcePill}>
+            <AppText style={styles.aiInsightSourceText}>Dự phòng</AppText>
+          </View>
+        ) : null}
+      </View>
+
+      {loading ? (
+        <View style={styles.aiInsightLoading}>
+          <ActivityIndicator color={colors.greenDark} />
+          <AppText style={styles.aiInsightMuted}>AI đang đọc bảng calo và protein từng món...</AppText>
+        </View>
+      ) : insight ? (
+        <>
+          {itemInsights.length ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.aiInsightTabs}
+              contentContainerStyle={styles.aiInsightTabsContent}
+            >
+              <Pressable
+                style={[styles.aiInsightTab, selectedInsightKey === "overall" && styles.aiInsightTabActive]}
+                onPress={() => setSelectedInsightKey("overall")}
+              >
+                <Ionicons name="restaurant-outline" size={13} color={selectedInsightKey === "overall" ? colors.white : colors.greenDark} />
+                <AppText style={[styles.aiInsightTabText, selectedInsightKey === "overall" && styles.aiInsightTabTextActive]}>
+                  {"T\u1ed5ng b\u1eefa"}
+                </AppText>
+              </Pressable>
+              {itemInsights.map((item) => {
+                const itemKey = mealInsightItemKey(item);
+                const isSelected = selectedInsightKey === itemKey;
+
+                return (
+                  <Pressable
+                    key={itemKey}
+                    style={[styles.aiInsightTab, isSelected && styles.aiInsightTabActive]}
+                    onPress={() => setSelectedInsightKey(itemKey)}
+                  >
+                    <AppText numberOfLines={1} style={[styles.aiInsightTabText, isSelected && styles.aiInsightTabTextActive]}>
+                      {item.name}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
+
+          <AppText style={styles.aiInsightHeadline}>{selectedItem?.name ?? insight.headline}</AppText>
+          <AppText style={styles.aiInsightBody}>{selectedItem?.verdict ?? insight.summary}</AppText>
+          <AppText style={styles.aiInsightMacro}>
+            {selectedItem
+              ? `${selectedItem.portion} - ${Math.round(selectedItem.calories)} kcal - ${Math.round(selectedItem.protein)}g protein\n${selectedItem.macroNote}`
+              : insight.macroBalance}
+          </AppText>
+
+          {visibleSuitableFor.length ? (
+            <View style={styles.aiInsightGroup}>
+              <AppText style={styles.aiInsightGroupTitle}>Phù hợp</AppText>
+              {visibleSuitableFor.map((target) => (
+                <View key={`fit-${target.label}`} style={styles.aiInsightTarget}>
+                  <Ionicons name="checkmark-circle" size={15} color={colors.greenDark} />
+                  <View style={styles.aiInsightTargetCopy}>
+                    <AppText style={styles.aiInsightTargetLabel}>{target.label}</AppText>
+                    <AppText style={styles.aiInsightTargetReason}>{target.reason}</AppText>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {visibleCautionFor.length ? (
+            <View style={styles.aiInsightGroup}>
+              <AppText style={styles.aiInsightGroupTitle}>Nên cân nhắc</AppText>
+              {visibleCautionFor.map((target) => (
+                <View key={`caution-${target.label}`} style={styles.aiInsightTarget}>
+                  <Ionicons name="alert-circle" size={15} color={colors.red} />
+                  <View style={styles.aiInsightTargetCopy}>
+                    <AppText style={styles.aiInsightTargetLabel}>{target.label}</AppText>
+                    <AppText style={styles.aiInsightTargetReason}>{target.reason}</AppText>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {visibleSuggestions.length ? (
+            <View style={styles.aiSuggestionWrap}>
+              {visibleSuggestions.map((suggestion) => (
+                <View key={suggestion} style={styles.aiSuggestionPill}>
+                  <Ionicons name="leaf-outline" size={13} color={colors.greenDark} />
+                  <AppText style={styles.aiSuggestionText}>{suggestion}</AppText>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {selectedItem && matchingImageSource ? (
+            <Image
+              source={matchingImageSource}
+              style={styles.aiInsightItemImage}
+              resizeMode="cover"
+            />
+          ) : null}
+
+          {selectedItem && matchingNutritionDetail ? (
+            <View style={styles.aiInsightItemTable}>
+              <View style={[styles.nutritionTableRow, styles.nutritionTableHead]}>
+                <AppText style={[styles.nutritionCell, styles.ingredientCell]}>Thành phần</AppText>
+                <AppText style={[styles.nutritionCell, styles.portionCell]}>Định lượng</AppText>
+                <AppText style={styles.nutritionCell}>Calo</AppText>
+                <AppText style={styles.nutritionCell}>Protein</AppText>
+              </View>
+              {formatNutritionDetailRows(matchingNutritionDetail).map((row) => (
+                <View key={row.key} style={[styles.nutritionTableRow, row.isTotal && styles.nutritionTotalRow]}>
+                  <AppText style={[styles.nutritionCell, styles.ingredientCell, row.isTotal && styles.nutritionStrongCell]}>
+                    {row.ingredient}
+                  </AppText>
+                  <AppText style={[styles.nutritionCell, styles.portionCell]}>{row.portion}</AppText>
+                  <AppText style={[styles.nutritionCell, row.isTotal && styles.nutritionStrongCell]}>{row.calories}</AppText>
+                  <AppText style={[styles.nutritionCell, row.isTotal && styles.nutritionStrongCell]}>{row.protein}</AppText>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </>
+      ) : (
+        <Pressable
+          style={[styles.aiInsightButton, !canAnalyze && styles.aiInsightButtonDisabled]}
+          disabled={!canAnalyze}
+          onPress={onRetry}
+        >
+          <Ionicons name="sparkles-outline" size={16} color={canAnalyze ? colors.white : colors.muted} />
+          <AppText style={[styles.aiInsightButtonText, !canAnalyze && styles.aiInsightButtonTextDisabled]}>
+            Phân tích bằng AI
+          </AppText>
+        </Pressable>
+      )}
+
+      {error ? (
+        <View style={styles.aiInsightError}>
+          <AppText style={styles.aiInsightErrorText}>{error}</AppText>
+          {canAnalyze ? (
+            <Pressable style={styles.aiInsightRetry} onPress={onRetry}>
+              <Ionicons name="refresh" size={14} color={colors.greenDark} />
+              <AppText style={styles.aiInsightRetryText}>Thử lại</AppText>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -3307,7 +3544,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.95)",
     paddingHorizontal: 14,
     paddingVertical: 9,
-    width: 152,
+    width: 172,
     minHeight: 38,
     alignItems: "center",
     shadowColor: colors.black,
@@ -3324,7 +3561,7 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   caloHintText: {
-    maxWidth: 142,
+    maxWidth: 160,
     fontSize: 14,
     lineHeight: 18,
     color: colors.white
@@ -3858,44 +4095,248 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 20
   },
-  nutritionScroll: {
-    maxHeight: 460,
-    paddingTop: 2
-  },
-  nutritionSection: {
-    marginBottom: 16,
+  aiInsightCard: {
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(139,165,138,0.2)",
-    backgroundColor: colors.white,
-    padding: 11,
+    borderColor: "rgba(101,169,215,0.24)",
+    backgroundColor: "#F7FBFF",
+    padding: 12,
+    marginBottom: 14,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 9,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2
   },
-  nutritionSectionHeader: {
+  aiInsightHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 10,
     marginBottom: 8
   },
-  nutritionSectionBadge: {
+  aiInsightTitleWrap: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    flex: 1,
+    minWidth: 0
+  },
+  aiInsightTitle: {
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    lineHeight: 17
+  },
+  aiInsightSourcePill: {
     borderRadius: 999,
-    backgroundColor: "#EEF5E8",
+    backgroundColor: "#E8F2FA",
+    paddingHorizontal: 8,
+    paddingVertical: 4
+  },
+  aiInsightSourceText: {
+    color: colors.greenDark,
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    lineHeight: 12
+  },
+  aiInsightLoading: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
+  aiInsightMuted: {
+    flex: 1,
+    color: colors.muted,
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    lineHeight: 16
+  },
+  aiInsightHeadline: {
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    lineHeight: 18,
+    marginBottom: 5
+  },
+  aiInsightBody: {
+    color: colors.ink,
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    lineHeight: 17
+  },
+  aiInsightMacro: {
+    marginTop: 8,
+    borderRadius: 12,
+    backgroundColor: "#E8F2FA",
+    color: colors.greenDark,
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    lineHeight: 15,
+    paddingHorizontal: 9,
+    paddingVertical: 7
+  },
+  aiInsightTabs: {
+    marginBottom: 10
+  },
+  aiInsightTabsContent: {
+    gap: 7,
+    paddingRight: 4
+  },
+  aiInsightTab: {
+    maxWidth: 140,
+    minHeight: 32,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(139,165,138,0.28)",
+    backgroundColor: colors.white,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6
   },
-  nutritionSectionTitle: {
+  aiInsightTabActive: {
+    backgroundColor: colors.greenDark,
+    borderColor: colors.greenDark
+  },
+  aiInsightTabText: {
+    flexShrink: 1,
     color: colors.greenDark,
     fontFamily: fonts.bold,
-    fontSize: 13,
-    lineHeight: 16
+    fontSize: 11,
+    lineHeight: 14
+  },
+  aiInsightTabTextActive: {
+    color: colors.white
+  },
+  aiInsightGroup: {
+    marginTop: 10,
+    gap: 7
+  },
+  aiInsightGroupTitle: {
+    color: colors.muted,
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    lineHeight: 14
+  },
+  aiInsightTarget: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7
+  },
+  aiInsightTargetCopy: {
+    flex: 1,
+    minWidth: 0
+  },
+  aiInsightTargetLabel: {
+    color: colors.black,
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    lineHeight: 15
+  },
+  aiInsightTargetReason: {
+    marginTop: 1,
+    color: colors.muted,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 15
+  },
+  aiSuggestionWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+    marginTop: 10
+  },
+  aiSuggestionPill: {
+    maxWidth: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 999,
+    backgroundColor: "#EEF5E8",
+    paddingHorizontal: 9,
+    paddingVertical: 6
+  },
+  aiSuggestionText: {
+    flexShrink: 1,
+    color: colors.greenDark,
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    lineHeight: 14
+  },
+  aiInsightItemImage: {
+    width: "100%",
+    height: 140,
+    borderRadius: 12,
+    marginTop: 12
+  },
+  aiInsightItemTable: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "rgba(139,165,138,0.2)",
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#FFFDF7"
+  },
+  aiInsightButton: {
+    minHeight: 42,
+    borderRadius: 14,
+    backgroundColor: colors.greenDark,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    paddingHorizontal: 12
+  },
+  aiInsightButtonDisabled: {
+    backgroundColor: colors.canvasStrong
+  },
+  aiInsightButtonText: {
+    color: colors.white,
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    lineHeight: 15
+  },
+  aiInsightButtonTextDisabled: {
+    color: colors.muted
+  },
+  aiInsightError: {
+    marginTop: 9,
+    borderRadius: 12,
+    backgroundColor: "#FFF1EF",
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+    gap: 7
+  },
+  aiInsightErrorText: {
+    color: colors.red,
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 15
+  },
+  aiInsightRetry: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 999,
+    backgroundColor: colors.white,
+    paddingHorizontal: 9,
+    paddingVertical: 5
+  },
+  aiInsightRetryText: {
+    color: colors.greenDark,
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    lineHeight: 14
+  },
+  nutritionScroll: {
+    paddingTop: 2
+  },
+  nutritionScrollContent: {
+    paddingBottom: 18
   },
   nutritionTable: {
     borderWidth: 1,

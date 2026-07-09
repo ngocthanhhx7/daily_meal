@@ -424,6 +424,8 @@ function DatePickerField({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+
   if (Platform.OS === "web") {
     return (
       <View style={styles.datePickerField}>
@@ -435,6 +437,7 @@ function DatePickerField({
             type: "date",
             value,
             name: label,
+            max: todayStr,
             onChange: (event: any) => onChange(event.currentTarget.value),
             style: webDateInputStyle,
             "aria-label": label
@@ -1384,6 +1387,14 @@ export function AdminDashboardScreen({ route, navigation }: any) {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const updateStartDate = useCallback((value: string) => {
+    setCustomStartDate(value && value > todayStr ? todayStr : value);
+  }, []);
+  const updateEndDate = useCallback((value: string) => {
+    setCustomEndDate(value && value > todayStr ? todayStr : value);
+  }, []);
+
   const isDesktop = width >= 992;
   const compactHeader = width < 760;
   const dashboardAnimationRef = useWebGsapStagger([
@@ -1692,8 +1703,8 @@ export function AdminDashboardScreen({ route, navigation }: any) {
               onRangeChange={setRange}
               startDate={customStartDate}
               endDate={customEndDate}
-              onStartDateChange={setCustomStartDate}
-              onEndDateChange={setCustomEndDate}
+              onStartDateChange={updateStartDate}
+              onEndDateChange={updateEndDate}
               compact={compactHeader}
             />
             <View style={isDesktop ? styles.filterPanelGrid : styles.filterPanelStack}>
@@ -1889,8 +1900,8 @@ export function AdminDashboardScreen({ route, navigation }: any) {
                       onRangeChange={setRange}
                       startDate={customStartDate}
                       endDate={customEndDate}
-                      onStartDateChange={setCustomStartDate}
-                      onEndDateChange={setCustomEndDate}
+                      onStartDateChange={updateStartDate}
+                      onEndDateChange={updateEndDate}
                       compact={compactHeader}
                     />
                     {showDashboardTimeControls ? (
@@ -1941,8 +1952,8 @@ export function AdminDashboardScreen({ route, navigation }: any) {
                 onRangeChange={setRange}
                 startDate={customStartDate}
                 endDate={customEndDate}
-                onStartDateChange={setCustomStartDate}
-                onEndDateChange={setCustomEndDate}
+                onStartDateChange={updateStartDate}
+                onEndDateChange={updateEndDate}
                 compact
               />
               {showDashboardTimeControls ? (

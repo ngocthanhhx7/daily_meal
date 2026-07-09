@@ -1675,6 +1675,16 @@ describe("Daily Meal API", () => {
       .send({ email: "analytics-24h-admin@example.com", password: "admin-secret" })
       .expect(200);
 
+    await request(app)
+      .get("/api/admin/analytics/24h?preset=30d")
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(400);
+
+    await request(app)
+      .get("/api/admin/analytics/heatmap?preset=30d")
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(400);
+
     const response = await request(app)
       .get(`/api/admin/analytics/24h?preset=custom&from=${encodeURIComponent(start)}&to=${encodeURIComponent(end)}&timezone=Asia/Ho_Chi_Minh`)
       .set("Authorization", `Bearer ${login.body.token}`)

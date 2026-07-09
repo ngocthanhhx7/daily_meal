@@ -920,7 +920,6 @@ const analytics24hPresetOptions: Array<{ key: AdminAnalytics24hPreset; label: st
   { key: "today", label: "Hôm nay" },
   { key: "yesterday", label: "Hôm qua" },
   { key: "7d", label: "7 ngày" },
-  { key: "30d", label: "30 ngày" },
   { key: "custom", label: "Tùy chỉnh" }
 ];
 

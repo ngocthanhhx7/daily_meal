@@ -239,7 +239,7 @@ export type AdminDailyPoint = {
 
 export type AdminRangePreset = "1d" | "7d" | "30d" | "all";
 
-export type AdminAnalytics24hPreset = "last24h" | "today" | "yesterday" | "7d" | "30d" | "custom";
+export type AdminAnalytics24hPreset = "last24h" | "today" | "yesterday" | "7d" | "custom";
 
 export type AdminAnalytics24hHourlyPoint = {
   hour: number;

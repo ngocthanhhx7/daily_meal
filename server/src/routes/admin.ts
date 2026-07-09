@@ -79,7 +79,7 @@ const adminUserInsightsQuerySchema = adminRangeBodySchema.extend({
 });
 
 const adminAnalytics24hQuerySchema = z.object({
-  preset: z.enum(["last24h", "today", "yesterday", "7d", "30d", "custom"]).default("last24h"),
+  preset: z.enum(["last24h", "today", "yesterday", "7d", "custom"]).default("last24h"),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   timezone: z.string().trim().min(1).max(80).default("Asia/Ho_Chi_Minh"),
@@ -238,8 +238,6 @@ function resolveAdminAnalyticsRange(query: z.infer<typeof adminAnalytics24hQuery
     return { start, end: today, preset: query.preset, timezone: query.timezone };
   } else if (query.preset === "7d") {
     start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
-  } else if (query.preset === "30d") {
-    start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
   } else {
     start = query.from ?? new Date(end.getTime() - 24 * 60 * 60 * 1000);
   }

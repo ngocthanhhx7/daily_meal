@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,6 +15,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
+import Svg, {
+  Defs,
+  Image as SvgImage,
+  LinearGradient as SvgLinearGradient,
+  Mask,
+  Rect,
+  Stop
+} from "react-native-svg";
 import { api } from "../api/client";
 import { FigmaLineBackground } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
@@ -160,12 +167,15 @@ function CommentBubble({
               ]}
             >
               {!isMine && (
-                <Avatar
-                  name={comment.author?.displayName}
-                  id={comment.author?.id}
-                  avatarUrl={comment.author?.avatarUrl}
-                  size={36}
-                />
+                <View style={styles.commentAvatarBadge}>
+                  <Avatar
+                    name={comment.author?.displayName}
+                    id={comment.author?.id}
+                    avatarUrl={comment.author?.avatarUrl}
+                    size={32}
+                    bg={colors.greenDark}
+                  />
+                </View>
               )}
               <View style={{ flexShrink: 1 }}>
                 <AppText style={[styles.commentBubbleText, { color: textColor }]}>
@@ -402,30 +412,54 @@ export function CommentsScreen({ navigation, route }: any) {
             <Pressable onPress={Keyboard.dismiss} style={{ gap: 12, width: "100%" }}>
               {/* ── POST HERO SCROLLING CARD ── */}
               <View style={styles.scrollHeroContainer}>
-                <ImageBackground
-                  source={imageSource(post)}
-                  style={styles.postHero}
-                  imageStyle={styles.postHeroImage}
-                  resizeMode="cover"
-                />
+                <View style={styles.postHero}>
+                  <Svg width="100%" height="100%" style={styles.postHeroSvg}>
+                    <Defs>
+                      <SvgLinearGradient id="postHeroAlphaMask" x1="0" y1="0" x2="0" y2="1">
+                        <Stop offset="0" stopColor="white" stopOpacity="1" />
+                        <Stop offset="0.18" stopColor="white" stopOpacity="1" />
+                        <Stop offset="0.48" stopColor="white" stopOpacity="0.09" />
+                        <Stop offset="0.76" stopColor="white" stopOpacity="0.02" />
+                        <Stop offset="1" stopColor="white" stopOpacity="0" />
+                      </SvgLinearGradient>
+                      <Mask id="postHeroMask" x="0" y="0" width="100%" height="100%">
+                        <Rect width="100%" height="100%" fill="url(#postHeroAlphaMask)" />
+                      </Mask>
+                    </Defs>
+                    <SvgImage
+                      href={imageSource(post)}
+                      x="-8%"
+                      y="-3%"
+                      width="116%"
+                      height="110%"
+                      preserveAspectRatio="xMidYMid slice"
+                      mask="url(#postHeroMask)"
+                    />
+                  </Svg>
+                </View>
 
                 {/* ── ENGAGEMENT PILL ── */}
                 <View style={styles.engagementPillContainerScroll}>
                   <View style={styles.statsRow}>
-                    <Avatar
-                      name={post?.author?.displayName ?? "K"}
-                      id={post?.author?.id}
-                      avatarUrl={post?.author?.avatarUrl}
-                      size={26}
-                      bg={colors.greenDark}
-                    />
-                    <View style={styles.statItem}>
-                      <Ionicons name="chatbubble-outline" size={14} color={colors.muted} />
-                      <AppText variant="caption" style={styles.statText}>{totalComments}</AppText>
+                    <View style={styles.statsGreenCard} />
+                    <View style={styles.statsCountSegment}>
+                      <View style={styles.statItem}>
+                        <AppText variant="caption" style={styles.statText}>{totalComments}</AppText>
+                        <Ionicons name="chatbubble-outline" size={17} color={colors.black} />
+                      </View>
+                      <View style={styles.statItem}>
+                        <AppText variant="caption" style={styles.statText}>{totalLikes}</AppText>
+                        <Ionicons name="heart" size={17} color={colors.red} />
+                      </View>
                     </View>
-                    <View style={styles.statItem}>
-                      <Ionicons name="heart" size={14} color={colors.red} />
-                      <AppText variant="caption" style={styles.statText}>{totalLikes}</AppText>
+                    <View pointerEvents="none" style={styles.statsAvatarLayer}>
+                      <Avatar
+                        name={post?.author?.displayName ?? "K"}
+                        id={post?.author?.id}
+                        avatarUrl={post?.author?.avatarUrl}
+                        size={42}
+                        bg={colors.green}
+                      />
                     </View>
                   </View>
                 </View>
@@ -671,19 +705,21 @@ const styles = StyleSheet.create({
 
   // Post hero
   postHero: {
-    height: 180,
-    marginHorizontal: 12,
-    marginTop: 12,
+    height: 128,
+    marginHorizontal: 28,
+    marginTop: -4,
     overflow: "hidden",
-    borderRadius: 20,
-    backgroundColor: colors.canvasStrong
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    backgroundColor: "transparent"
   },
-  postHeroImage: {
-    borderRadius: 20
+  postHeroSvg: {
+    ...StyleSheet.absoluteFillObject
   },
   scrollHeroContainer: {
     width: "100%",
-    marginBottom: 8
+    marginBottom: 8,
+    marginTop: -4
   },
   engagementPillContainerScroll: {
     alignItems: "center",
@@ -695,18 +731,49 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
+    height: 50,
+    position: "relative",
+    borderRadius: 25,
+    backgroundColor: "transparent",
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 5
+  },
+  statsGreenCard: {
+    width: 94,
+    height: 50,
+    borderTopLeftRadius: 25,
+    borderBottomLeftRadius: 25,
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
+    backgroundColor: "#8BA58A",
+    marginRight: -34,
+    zIndex: 1
+  },
+  statsAvatarLayer: {
+    position: "absolute",
+    left: 11,
+    top: 4,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white,
+    zIndex: 5
+  },
+  statsCountSegment: {
+    height: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+    paddingLeft: 52,
+    paddingRight: 24,
+    borderRadius: 25,
+    backgroundColor: colors.white,
+    zIndex: 3
   },
   statItem: {
     flexDirection: "row",
@@ -714,8 +781,8 @@ const styles = StyleSheet.create({
     gap: 5
   },
   statText: {
-    fontFamily: fonts.semibold,
-    fontSize: 13,
+    fontFamily: fonts.bold,
+    fontSize: 14,
     color: colors.ink
   },
 
@@ -753,13 +820,27 @@ const styles = StyleSheet.create({
   },
   commentBubble: {
     borderRadius: 20,
-    paddingLeft: 8,
+    paddingLeft: 6,
     paddingRight: 16,
     paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    maxWidth: "100%"
+    maxWidth: "100%",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.16,
+    shadowRadius: 9,
+    elevation: 4
+  },
+  commentAvatarBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: -2
   },
   commentBubbleText: {
     fontFamily: fonts.regular,

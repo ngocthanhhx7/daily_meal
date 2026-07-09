@@ -12,6 +12,7 @@ import { User } from "../models/User.js";
 import { Notification } from "../models/Notification.js";
 import { emitToUser, broadcastToRoom, broadcastGlobal } from "../services/socket.js";
 import { sendPushNotification } from "../services/pushNotification.js";
+import { analyzeMealSuitability, hasMealSuitabilityNutritionData } from "../services/shineshop.js";
 import { hasActivePremium } from "../utils/premium.js";
 import { assertNotBlocked, blockedUserIdsFor } from "../utils/userSafety.js";
 import { rankPostsForSearch } from "../utils/searchScoring.js";
@@ -607,6 +608,39 @@ postsRouter.delete("/:id", requireAuth, async (req, res, next) => {
     }
 
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+postsRouter.post("/:id/nutrition-insight", requireAuth, async (req, res, next) => {
+  try {
+    const [network, blockedIds] = await Promise.all([
+      networkIds(req.user?.id),
+      blockedUserIdsFor(req.user?.id)
+    ]);
+    const post = await Post.findOne({
+      _id: req.params.id,
+      ...visiblePostFilter(req.user?.id, network.friendIds, blockedIds)
+    })
+      .select("caption nutritionSummary nutritionDetails")
+      .lean();
+
+    if (!post) {
+      throw new HttpError(404, "Không tìm thấy bài viết");
+    }
+
+    if (!hasMealSuitabilityNutritionData(post)) {
+      throw new HttpError(400, "Bài viết chưa có dữ liệu calo để AI phân tích");
+    }
+
+    const insight = await analyzeMealSuitability({
+      caption: post.caption,
+      nutritionSummary: post.nutritionSummary,
+      nutritionDetails: post.nutritionDetails
+    });
+
+    res.json({ insight });
   } catch (error) {
     next(error);
   }

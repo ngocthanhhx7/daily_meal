@@ -38,7 +38,7 @@ export function createApp() {
   });
 
   app.use("/api/auth", authRouter);
-  app.use("/api/analytics", analyticsRouter);
+  app.use("/api/ingest", analyticsRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/messages", messagesRouter);
   app.use("/api/users", usersRouter);

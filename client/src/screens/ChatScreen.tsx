@@ -12,6 +12,7 @@ import {
   View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../api/client";
 import { FigmaLineBackground } from "../components/AppScreen";
 import { AppText } from "../components/AppText";
@@ -34,6 +35,25 @@ function avatarSource(url?: string) {
   }
 
   return { uri: `${api.baseUrl}${url}` };
+}
+
+function formatChatTime(iso?: string) {
+  if (!iso) return "";
+
+  const date = new Date(iso);
+  const diffMs = Date.now() - date.getTime();
+  const mins = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) {
+    return date.toLocaleTimeString("vi-VN", { hour: "numeric", minute: "2-digit" });
+  }
+
+  const days = Math.floor(hours / 24);
+  return `${days} ngày`;
 }
 
 export function ChatScreen({ route, navigation }: any) {
@@ -76,7 +96,6 @@ export function ChatScreen({ route, navigation }: any) {
       .conversationMessages(token, conversationId)
       .then((result) => {
         setMessages(result.messages);
-        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 100);
       })
       .catch(() => undefined);
   }, [token, conversationId]);
@@ -104,33 +123,28 @@ export function ChatScreen({ route, navigation }: any) {
 
   return (
     <FigmaLineBackground>
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={styles.safe} edges={[]}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={getKeyboardAvoidingBehavior(Platform.OS)}
         contentContainerStyle={styles.flex}
         keyboardVerticalOffset={0}
       >
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={22} color={colors.black} />
-        </Pressable>
-        <View style={[styles.avatar, { backgroundColor: getParticipantAccent(otherUser?.id ?? otherUser?.displayName) }]}>
-          {avatarSource(otherUser?.avatarUrl) ? (
-            <Image source={avatarSource(otherUser?.avatarUrl)} style={styles.avatarImage} />
-          ) : (
-            <AppText variant="button" style={styles.avatarText}>
-              {getParticipantAvatarLabel({ displayName: otherUser?.displayName, id: otherUser?.id })}
-            </AppText>
-          )}
-        </View>
-        <View style={styles.headerText}>
-          <AppText variant="button" numberOfLines={1}>
+      <View style={[styles.header, { paddingTop: insets.top + 24 }]}>
+        <LinearGradient
+          pointerEvents="none"
+          colors={["rgba(116,143,115,0.92)", "rgba(116,143,115,0.82)", "rgba(116,143,115,0)"]}
+          locations={[0, 0.62, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.headerRow}>
+          <Pressable style={styles.backButton} onPress={() => navigation.goBack()} hitSlop={8}>
+            <Ionicons name="arrow-back" size={21} color={colors.green} />
+          </Pressable>
+          <AppText style={styles.headerTitle} numberOfLines={2}>
             {otherUser?.displayName ?? "Tin nhắn"}
           </AppText>
-          <AppText variant="caption" muted>
-            Daily Meal chat
-          </AppText>
+          <Ionicons name="chatbubble" size={54} color={colors.white} style={styles.headerChatIcon} />
         </View>
       </View>
 
@@ -140,35 +154,41 @@ export function ChatScreen({ route, navigation }: any) {
         contentContainerStyle={styles.messagesContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       >
         {messages.map((message) => {
           const mine = message.sender.id === user?.id;
+          const timeLabel = formatChatTime(message.createdAt);
 
           return (
             <View key={message.id} style={[styles.messageRow, mine && styles.messageRowMine]}>
-              {!mine && (
-                <View
-                  style={[
-                    styles.messageAvatar,
-                    { backgroundColor: getParticipantAccent(message.sender.id ?? message.sender.displayName) }
-                  ]}
-                >
-                  {avatarSource(message.sender.avatarUrl) ? (
-                    <Image source={avatarSource(message.sender.avatarUrl)} style={styles.messageAvatarImage} />
-                  ) : (
-                    <AppText style={styles.messageAvatarText}>
-                      {getParticipantAvatarLabel({
-                        displayName: message.sender.displayName,
-                        id: message.sender.id
-                      })}
-                    </AppText>
-                  )}
-                </View>
-              )}
-            <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
-              <AppText style={mine ? styles.mineText : undefined}>{message.body}</AppText>
-            </View>
+              {mine && timeLabel ? (
+                <AppText style={[styles.messageTime, styles.messageTimeMine]}>{timeLabel}</AppText>
+              ) : null}
+              <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
+                {!mine ? (
+                  <View
+                    style={[
+                      styles.messageAvatar,
+                      { backgroundColor: getParticipantAccent(message.sender.id ?? message.sender.displayName) }
+                    ]}
+                  >
+                    {avatarSource(message.sender.avatarUrl) ? (
+                      <Image source={avatarSource(message.sender.avatarUrl)} style={styles.messageAvatarImage} />
+                    ) : (
+                      <AppText style={styles.messageAvatarText}>
+                        {getParticipantAvatarLabel({
+                          displayName: message.sender.displayName,
+                          id: message.sender.id
+                        })}
+                      </AppText>
+                    )}
+                  </View>
+                ) : null}
+                <AppText style={mine ? styles.mineText : styles.theirsText}>{message.body}</AppText>
+              </View>
+              {!mine && timeLabel ? (
+                <AppText style={styles.messageTime}>{timeLabel}</AppText>
+              ) : null}
             </View>
           );
         })}
@@ -207,59 +227,54 @@ const styles = StyleSheet.create({
     flex: 1
   },
   header: {
+    minHeight: 188,
+    paddingHorizontal: 36,
+    paddingBottom: 34,
+    justifyContent: "flex-start",
+    overflow: "hidden"
+  },
+  headerRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingTop: 4,
-    paddingBottom: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.9)"
+    alignItems: "flex-start",
+    gap: 22,
+    width: "100%"
   },
   backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line
+    marginTop: 13,
+    flexShrink: 0
   },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    backgroundColor: colors.green
+  headerTitle: {
+    flex: 1,
+    color: colors.white,
+    fontFamily: fonts.bold,
+    fontSize: 42,
+    lineHeight: 50
   },
-  avatarImage: {
-    width: "100%",
-    height: "100%"
-  },
-  avatarText: {
-    color: colors.white
-  },
-  headerText: {
-    flex: 1
+  headerChatIcon: {
+    marginTop: 8,
+    flexShrink: 0
   },
   messages: {
     flex: 1
   },
   messagesContent: {
     flexGrow: 1,
-    justifyContent: "flex-end",
-    gap: 8,
+    gap: 20,
     paddingHorizontal: 14,
-    paddingTop: 12,
+    paddingTop: 16,
     paddingBottom: 14
   },
   messageRow: {
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 7,
-    maxWidth: "86%",
+    maxWidth: "92%",
     alignSelf: "flex-start"
   },
   messageRowMine: {
@@ -285,22 +300,39 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: "100%",
+    flexShrink: 1,
     borderRadius: 18,
     paddingHorizontal: 13,
     paddingVertical: 9
   },
   mine: {
-    backgroundColor: colors.black,
+    backgroundColor: colors.white,
     borderBottomRightRadius: 7
   },
   theirs: {
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
-    borderWidth: 1,
-    borderColor: colors.line,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    backgroundColor: "#C3D0BE",
+    paddingLeft: 8,
     borderBottomLeftRadius: 7
   },
   mineText: {
-    color: colors.white
+    color: colors.ink
+  },
+  theirsText: {
+    color: colors.ink
+  },
+  messageTime: {
+    color: "rgba(116,116,111,0.46)",
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    lineHeight: 18,
+    marginBottom: 8,
+    flexShrink: 0
+  },
+  messageTimeMine: {
+    textAlign: "right"
   },
   emptyChat: {
     alignItems: "center",

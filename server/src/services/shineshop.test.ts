@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { env } from "../config/env.js";
-import { analyzeFoodImage } from "./shineshop.js";
+import { analyzeFoodImage, analyzeMealSuitability } from "./shineshop.js";
 
 const originalEnv = {
   AI_MAX_TOKENS: env.AI_MAX_TOKENS,
@@ -245,5 +245,96 @@ describe("analyzeFoodImage with Gemini", () => {
 
     await assertion;
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("analyzeMealSuitability with Gemini", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    Object.assign(env, originalEnv);
+  });
+
+  it("posts a text nutrition insight request to Gemini", async () => {
+    Object.assign(env, {
+      GEMINI_API_KEY: "gemini-key",
+      GEMINI_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai",
+      GEMINI_MODEL: "gemini-3.1-flash-lite",
+      AI_MAX_TOKENS: 900
+    });
+
+    const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      const promptText = body.messages[0].content;
+
+      expect(String(_url)).toBe("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+      expect(init?.method).toBe("POST");
+      expect(init?.headers).toMatchObject({
+        Authorization: "Bearer gemini-key",
+        "Content-Type": "application/json"
+      });
+      expect(body.model).toBe("gemini-3.1-flash-lite");
+      expect(body.response_format).toEqual({ type: "json_object" });
+      expect(body.max_tokens).toBe(1000);
+      expect(promptText).toContain("Com ga");
+      expect(promptText).toContain('"calories": 620');
+      expect(promptText).toContain('"protein": 34');
+
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  headline: "High protein lunch",
+                  summary: "Good for training days.",
+                  macroBalance: "Protein is solid for the calories.",
+                  suitableFor: [{ label: "Active adults", reason: "Enough protein for a main meal." }],
+                  cautionFor: [{ label: "Strict deficit", reason: "Portion may be high." }],
+                  suggestions: ["Add vegetables."],
+                  confidence: 0.8
+                })
+              }
+            }
+          ]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const insight = await analyzeMealSuitability({
+      caption: "Lunch",
+      nutritionSummary: { calories: 620, protein: 34, carbs: 70, fat: 18 },
+      nutritionDetails: [
+        {
+          imageIndex: 0,
+          items: [{ name: "Com ga", portion: "1 phan", calories: 620, protein: 34, carbs: 70, fat: 18 }],
+          total: { calories: 620, protein: 34, carbs: 70, fat: 18 },
+          warnings: []
+        }
+      ]
+    });
+
+    expect(insight.source).toBe("gemini");
+    expect(insight.suitableFor[0]?.label).toBe("Active adults");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a fallback insight when Gemini is not configured", async () => {
+    Object.assign(env, {
+      GEMINI_API_KEY: undefined
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const insight = await analyzeMealSuitability({
+      nutritionSummary: { calories: 480, protein: 28, carbs: 50, fat: 12 },
+      nutritionDetails: []
+    });
+
+    expect(insight.source).toBe("fallback");
+    expect(insight.suitableFor.length).toBeGreaterThan(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

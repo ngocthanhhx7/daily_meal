@@ -949,9 +949,13 @@ export function CreatePostScreen({ navigation, route }: any) {
           {/* Touch-drag sticker customization entry card */}
           {isPremium ? (
             <Pressable style={styles.addStickerCard} onPress={() => setStep("sticker")}>
+              <View style={styles.addStickerIcon}>
+                <Ionicons name={selectedSticker ? "heart" : "happy"} size={18} color={colors.greenDark} />
+              </View>
               <AppText style={styles.addStickerText}>
                 {selectedSticker ? `Nhãn dán: ${selectedStickerData?.name || "Đã chọn"}` : "Thêm nhãn dán"}
               </AppText>
+              <Ionicons name="chevron-forward" size={18} color={colors.greenDark} />
             </Pressable>
           ) : null}
 
@@ -984,16 +988,20 @@ export function CreatePostScreen({ navigation, route }: any) {
 
           {mediaMode !== "video" ? (
             <Pressable
-            disabled={loading}
-            onPress={analyzeImages}
-            style={({ pressed }) => [
-              styles.customAiButton,
-              pressed && { opacity: 0.6 }
-            ]}
-          >
-            <AppText style={styles.customAiButtonText}>
-              Nhấn vào đây để đo calo từng món ăn
-            </AppText>
+              disabled={loading}
+              onPress={analyzeImages}
+              style={({ pressed }) => [
+                styles.customAiButton,
+                pressed && { opacity: 0.6 }
+              ]}
+            >
+              <View style={styles.customAiButtonIcon}>
+                <Ionicons name="sparkles" size={18} color={colors.greenDark} />
+              </View>
+              <AppText style={styles.customAiButtonText}>
+                Nhấn vào đây để đo calo từng món ăn
+              </AppText>
+              <Ionicons name="chevron-forward" size={18} color={colors.white} />
             </Pressable>
           ) : null}
 
@@ -1903,24 +1911,37 @@ const styles = StyleSheet.create({
     paddingTop: 12
   },
   addStickerCard: {
-    minHeight: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surface,
+    minHeight: 58,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: "rgba(79,111,61,0.28)",
+    backgroundColor: "#FFFDF2",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 14,
+    marginVertical: 6,
+    shadowColor: colors.greenDark,
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 5
+  },
+  addStickerIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    marginVertical: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2
+    backgroundColor: "rgba(246,222,104,0.95)"
   },
   addStickerText: {
-    color: colors.black,
-    fontFamily: fonts.semibold,
-    fontSize: 14
+    flex: 1,
+    color: colors.greenDark,
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    textAlign: "center"
   },
   stickerTipText: {
     color: colors.muted,
@@ -2022,19 +2043,36 @@ const styles = StyleSheet.create({
     color: colors.ink
   },
   customAiButton: {
-    minHeight: 50,
-    borderRadius: 10,
+    minHeight: 58,
+    borderRadius: 18,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 20,
-    backgroundColor: colors.surface, // Màu nền của nút (mặc định trắng)
-    borderWidth: 1,
-    borderColor: colors.line          // Màu viền xám nhạt
+    gap: 10,
+    paddingHorizontal: 16,
+    backgroundColor: colors.greenDark,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.52)",
+    shadowColor: colors.greenDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 7
+  },
+  customAiButtonIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white
   },
   customAiButtonText: {
-    fontFamily: fonts.semibold,
+    flex: 1,
+    fontFamily: fonts.bold,
     fontSize: 15,
-    color: "#A5CF83" // <--- Chỉnh màu chữ bạn muốn tại đây (mã Hex hoặc mã màu hệ thống như colors.greenDark)
+    color: colors.white,
+    textAlign: "center"
   },
 
 });

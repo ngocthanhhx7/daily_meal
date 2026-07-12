@@ -275,6 +275,11 @@ export const api = {
       token,
       body
     }),
+  adminDeleteUser: (token: string, id: string) =>
+    request<{ message: string }>(`/api/admin/users/${id}`, {
+      method: "DELETE",
+      token
+    }),
   adminPosts: (token: string, params?: {
     q?: string;
     page?: number;

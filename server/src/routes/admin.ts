@@ -9,6 +9,7 @@ import { AnalyticsEvent } from "../models/AnalyticsEvent.js";
 import { Comment } from "../models/Comment.js";
 import { Follow } from "../models/Follow.js";
 import { Meal } from "../models/Meal.js";
+import { Notification } from "../models/Notification.js";
 import { Payment } from "../models/Payment.js";
 import { Post } from "../models/Post.js";
 import { PostLike } from "../models/PostLike.js";
@@ -1420,6 +1421,43 @@ adminRouter.get("/payments", requireAdmin, async (req, res, next) => {
       payments: payments.map(paymentDto),
       pagination: { page: query.page, limit: query.limit, total, pages: Math.ceil(total / query.limit) }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.delete("/users/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) throw new HttpError(404, "Không tìm thấy người dùng");
+
+    const uid = user._id.toString();
+    const posts = await Post.find({ author: user._id }).select("_id").lean();
+    const pids = posts.map((p) => p._id);
+
+    await Promise.all([
+      PostLike.deleteMany({ $or: [{ user: user._id }, { post: { $in: pids } }] }),
+      PostSave.deleteMany({ $or: [{ user: user._id }, { post: { $in: pids } }] }),
+      Comment.deleteMany({ $or: [{ author: user._id }, { post: { $in: pids } }] }),
+      Follow.deleteMany({ $or: [{ follower: user._id }, { following: user._id }] }),
+      Notification.deleteMany({ $or: [{ user: user._id }, { sender: user._id }] }),
+      Meal.deleteMany({ user: user._id }),
+      UserInteraction.deleteMany({ $or: [{ actor: user._id }, { target: user._id }] }),
+      AnalyticsEvent.deleteMany({ user: user._id }),
+      Post.deleteMany({ _id: { $in: pids } }),
+      User.deleteMany({ _id: user._id }),
+    ]);
+
+    await logAdminAction({
+      adminEmail: req.user?.email,
+      action: "user.hard_delete",
+      targetType: "user",
+      targetId: uid,
+      note: "Xóa cứng user + toàn bộ dữ liệu",
+      metadata: { email: user.email, displayName: user.displayName }
+    });
+
+    res.json({ message: "Đã xóa người dùng và toàn bộ dữ liệu liên quan" });
   } catch (error) {
     next(error);
   }

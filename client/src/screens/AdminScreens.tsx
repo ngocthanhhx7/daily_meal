@@ -2395,6 +2395,31 @@ export function AdminUserDetailScreen({ route, navigation }: any) {
     }
   }
 
+  const [deleting, setDeleting] = useState(false);
+  async function handleDeleteUser() {
+    if (!adminToken || !user) return;
+    Alert.alert(
+      "Xóa người dùng",
+      `Bạn có chắc chắn muốn xóa "${user.displayName}"?\n\nToàn bộ bài đăng, bình luận, like, follow, notification, meal, analytics của người này sẽ bị xóa vĩnh viễn.`,
+      [
+        { text: "Hủy", style: "cancel" },
+        { text: "Xóa", style: "destructive", onPress: async () => {
+          setDeleting(true);
+          setError(null);
+          try {
+            await api.adminDeleteUser(adminToken, user.id);
+            Alert.alert("Đã xóa", `Người dùng "${user.displayName}" và toàn bộ dữ liệu đã được xóa.`);
+            navigation.goBack();
+          } catch (err: any) {
+            setError(err?.message ?? "Không xóa được người dùng.");
+          } finally {
+            setDeleting(false);
+          }
+        }}
+      ]
+    );
+  }
+
   async function handleSignOut() {
     setBusyAction("sign-out");
     try {
@@ -2477,6 +2502,19 @@ export function AdminUserDetailScreen({ route, navigation }: any) {
             variant={user.isPremium ? "ghost" : "secondary"}
             onPress={togglePremium}
             disabled={busy}
+          />
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.profileActions}>
+          <AppText variant="caption" muted style={{ flex: 1, marginRight: 12, color: colors.red }}>
+            Xóa toàn bộ dữ liệu người dùng khỏi hệ thống. Hành động này không thể hoàn tác.
+          </AppText>
+          <AppButton
+            label={deleting ? "Đang xóa..." : "Xóa người dùng"}
+            size="sm"
+            variant="ghost"
+            onPress={handleDeleteUser}
+            disabled={deleting || busy}
           />
         </View>
       </Card>

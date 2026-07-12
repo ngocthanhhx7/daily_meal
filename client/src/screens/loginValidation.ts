@@ -6,6 +6,7 @@ export type LoginValidationInput = {
   otp: string;
   phoneOtpSent: boolean;
   phoneNeedsPassword: boolean;
+  displayName?: string;
 };
 
 export type LoginValidationError = {
@@ -77,6 +78,22 @@ export function validateLoginForm(input: LoginValidationInput): LoginValidationE
       title: "Mật khẩu quá ngắn",
       message: "Mật khẩu cần ít nhất 6 ký tự."
     };
+  }
+
+  if (input.mode === "register" && input.displayName !== undefined) {
+    const trimmedDisplayName = input.displayName.trim();
+    if (trimmedDisplayName.length < 1) {
+      return {
+        title: "Tên hiển thị không hợp lệ",
+        message: "Vui lòng nhập tên hiển thị (không được để trống hoặc chỉ chứa khoảng trắng)."
+      };
+    }
+    if (trimmedDisplayName.length > 80) {
+      return {
+        title: "Tên hiển thị quá dài",
+        message: "Tên hiển thị không được vượt quá 80 ký tự."
+      };
+    }
   }
 
   return null;

@@ -8,55 +8,56 @@ import { sendPhoneOtpSms } from "../services/sms.js";
 import { sendPasswordResetSuccessEmail, sendPasswordResetOtpEmail } from "../services/email.js";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
+import { rateLimiter } from "../middleware/rateLimiter.js";
 import { createAccountCreatedNotification } from "../services/seeder.js";
 import { hasActivePremium, premiumTrialDto } from "../utils/premium.js";
 
 export const authRouter = Router();
 
 const authBodySchema = z.object({
-  email: z.string().email().transform((value) => value.toLowerCase()),
-  password: z.string().min(6),
-  displayName: z.string().min(1).max(80).optional()
+  email: z.string().trim().email().transform((value) => value.toLowerCase()),
+  password: z.string().trim().min(6),
+  displayName: z.string().trim().min(1).max(80).optional()
 });
 
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(6),
-  newPassword: z.string().min(8).max(128)
+  currentPassword: z.string().trim().min(6),
+  newPassword: z.string().trim().min(8).max(128)
 });
 
 const forgotPasswordRequestSchema = z.object({
-  email: z.string().email().transform((value) => value.toLowerCase())
+  email: z.string().trim().email().transform((value) => value.toLowerCase())
 });
 
 const forgotPasswordVerifySchema = z.object({
-  email: z.string().email().transform((value) => value.toLowerCase()),
+  email: z.string().trim().email().transform((value) => value.toLowerCase()),
   otp: z.string().regex(/^\d{6}$/),
-  newPassword: z.string().min(8).max(128)
+  newPassword: z.string().trim().min(8).max(128)
 });
 
 const facebookAuthSchema = z.object({
-  accessToken: z.string().min(1)
+  accessToken: z.string().trim().min(1)
 });
 
 const googleAuthSchema = z.object({
-  idToken: z.string().min(1)
+  idToken: z.string().trim().min(1)
 });
 
 const phoneAuthBodySchema = z.object({
-  phone: z.string().min(8).max(20).transform(normalizePhoneNumber),
-  password: z.string().min(6),
-  displayName: z.string().min(1).max(80).optional()
+  phone: z.string().trim().min(8).max(20).transform(normalizePhoneNumber),
+  password: z.string().trim().min(6),
+  displayName: z.string().trim().min(1).max(80).optional()
 });
 
 const phoneOtpRequestSchema = z.object({
-  phone: z.string().min(8).max(20).transform(normalizePhoneNumber)
+  phone: z.string().trim().min(8).max(20).transform(normalizePhoneNumber)
 });
 
 const phoneOtpVerifySchema = z.object({
-  phone: z.string().min(8).max(20).transform(normalizePhoneNumber),
+  phone: z.string().trim().min(8).max(20).transform(normalizePhoneNumber),
   otp: z.string().regex(/^\d{6}$/),
-  password: z.string().min(6).max(128).optional(),
-  displayName: z.string().min(1).max(80).optional()
+  password: z.string().trim().min(6).max(128).optional(),
+  displayName: z.string().trim().min(1).max(80).optional()
 });
 
 const GOOGLE_LINK_REQUIRED =
@@ -110,7 +111,7 @@ function createGeneratedPassword(length = 12) {
   return password;
 }
 
-authRouter.post("/register", async (req, res, next) => {
+authRouter.post("/register", rateLimiter({ windowMs: 15 * 60_000, max: 5, message: "Quá nhiều yêu cầu đăng ký. Vui lòng thử lại sau 15 phút." }), async (req, res, next) => {
   try {
     const body = authBodySchema.parse(req.body);
     const existing = await User.findOne({ email: body.email }).lean();
@@ -135,7 +136,7 @@ authRouter.post("/register", async (req, res, next) => {
   }
 });
 
-authRouter.post("/login", async (req, res, next) => {
+authRouter.post("/login", rateLimiter({ windowMs: 15 * 60_000, max: 10, message: "Quá nhiều yêu cầu đăng nhập. Vui lòng thử lại sau 15 phút." }), async (req, res, next) => {
   try {
     const body = authBodySchema.pick({ email: true, password: true }).parse(req.body);
     const user = await User.findOne({ email: body.email });
@@ -153,7 +154,7 @@ authRouter.post("/login", async (req, res, next) => {
   }
 });
 
-authRouter.post("/password/forgot/request-otp", async (req, res, next) => {
+authRouter.post("/password/forgot/request-otp", rateLimiter({ windowMs: 15 * 60_000, max: 3, message: "Quá nhiều yêu cầu OTP. Vui lòng thử lại sau 15 phút." }), async (req, res, next) => {
   try {
     const body = forgotPasswordRequestSchema.parse(req.body);
     const user = await User.findOne({ email: body.email });
@@ -182,7 +183,7 @@ authRouter.post("/password/forgot/request-otp", async (req, res, next) => {
   }
 });
 
-authRouter.post("/password/forgot/verify-otp", async (req, res, next) => {
+authRouter.post("/password/forgot/verify-otp", rateLimiter({ windowMs: 15 * 60_000, max: 5, message: "Quá nhiều yêu cầu xác thực. Vui lòng thử lại sau 15 phút." }), async (req, res, next) => {
   try {
     const body = forgotPasswordVerifySchema.parse(req.body);
     const user = await User.findOne({ email: body.email });
@@ -226,7 +227,7 @@ authRouter.post("/password/forgot/verify-otp", async (req, res, next) => {
   }
 });
 
-authRouter.post("/phone/register", async (req, res, next) => {
+authRouter.post("/phone/register", rateLimiter({ windowMs: 15 * 60_000, max: 5, message: "Quá nhiều yêu cầu đăng ký. Vui lòng thử lại sau 15 phút." }), async (req, res, next) => {
   try {
     const body = phoneAuthBodySchema.parse(req.body);
     const existing = await User.findOne({ phone: body.phone }).lean();
@@ -251,7 +252,7 @@ authRouter.post("/phone/register", async (req, res, next) => {
   }
 });
 
-authRouter.post("/phone/request-otp", async (req, res, next) => {
+authRouter.post("/phone/request-otp", rateLimiter({ windowMs: 5 * 60_000, max: 3, message: "Quá nhiều yêu cầu OTP. Vui lòng thử lại sau 5 phút." }), async (req, res, next) => {
   try {
     const body = phoneOtpRequestSchema.parse(req.body);
     const otp = process.env.NODE_ENV === "production"
@@ -283,7 +284,7 @@ authRouter.post("/phone/request-otp", async (req, res, next) => {
   }
 });
 
-authRouter.post("/phone/verify-otp", async (req, res, next) => {
+authRouter.post("/phone/verify-otp", rateLimiter({ windowMs: 15 * 60_000, max: 5, message: "Quá nhiều yêu cầu xác thực. Vui lòng thử lại sau 15 phút." }), async (req, res, next) => {
   try {
     const body = phoneOtpVerifySchema.parse(req.body);
     const user = await User.findOne({ phone: body.phone });

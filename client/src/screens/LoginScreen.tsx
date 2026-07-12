@@ -113,7 +113,8 @@ export function LoginScreen() {
       password,
       otp,
       phoneOtpSent,
-      phoneNeedsPassword
+      phoneNeedsPassword,
+      displayName
     });
 
     if (validation) {
@@ -321,7 +322,7 @@ export function LoginScreen() {
               ) : null}
 
               <FigmaField
-                label={passwordResetMode ? "Email" : authMethod === "phone" ? "Số điện thoại" : mode === "login" ? "Tên đăng nhập" : "Email"}
+                label={passwordResetMode ? "Email" : authMethod === "phone" ? "Số điện thoại" : "Email"}
                 value={identifier}
                 onChangeText={(value) => {
                   setIdentifier(value);
@@ -343,9 +344,7 @@ export function LoginScreen() {
                     ? "email@example.com"
                     : authMethod === "phone"
                     ? "Nhập số điện thoại"
-                    : mode === "login"
-                      ? "Nhập tên đăng nhập"
-                      : "email@example.com"
+                    : "email@example.com"
                 }
               />
 

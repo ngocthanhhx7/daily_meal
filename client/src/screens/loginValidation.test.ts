@@ -49,6 +49,53 @@ describe("validateLoginForm", () => {
     });
   });
 
+  it("validates displayName in register mode", () => {
+    expect(
+      validateLoginForm({
+        authMethod: "email",
+        mode: "register",
+        identifier: "user@example.com",
+        password: "123456",
+        otp: "",
+        phoneOtpSent: false,
+        phoneNeedsPassword: false,
+        displayName: "   "
+      })
+    ).toEqual({
+      title: "Tên hiển thị không hợp lệ",
+      message: "Vui lòng nhập tên hiển thị (không được để trống hoặc chỉ chứa khoảng trắng)."
+    });
+
+    expect(
+      validateLoginForm({
+        authMethod: "email",
+        mode: "register",
+        identifier: "user@example.com",
+        password: "123456",
+        otp: "",
+        phoneOtpSent: false,
+        phoneNeedsPassword: false,
+        displayName: "A".repeat(81)
+      })
+    ).toEqual({
+      title: "Tên hiển thị quá dài",
+      message: "Tên hiển thị không được vượt quá 80 ký tự."
+    });
+
+    expect(
+      validateLoginForm({
+        authMethod: "email",
+        mode: "register",
+        identifier: "user@example.com",
+        password: "123456",
+        otp: "",
+        phoneOtpSent: false,
+        phoneNeedsPassword: false,
+        displayName: "  Nguyễn Văn A  "
+      })
+    ).toBeNull();
+  });
+
   it("requires phone, 6-digit OTP, and setup password when needed", () => {
     expect(
       validateLoginForm({

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, useWindowDimensions, View, ScrollView, Image } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Platform, Pressable, StyleSheet, useWindowDimensions, View, ScrollView, Image } from "react-native";
 import { api } from "../api/client";
 import { AppButton } from "../components/AppButton";
 import { AppScreen } from "../components/AppScreen";
@@ -2398,26 +2398,30 @@ export function AdminUserDetailScreen({ route, navigation }: any) {
   const [deleting, setDeleting] = useState(false);
   async function handleDeleteUser() {
     if (!adminToken || !user) return;
-    Alert.alert(
-      "Xóa người dùng",
-      `Bạn có chắc chắn muốn xóa "${user.displayName}"?\n\nToàn bộ bài đăng, bình luận, like, follow, notification, meal, analytics của người này sẽ bị xóa vĩnh viễn.`,
-      [
-        { text: "Hủy", style: "cancel" },
-        { text: "Xóa", style: "destructive", onPress: async () => {
-          setDeleting(true);
-          setError(null);
-          try {
-            await api.adminDeleteUser(adminToken, user.id);
-            Alert.alert("Đã xóa", `Người dùng "${user.displayName}" và toàn bộ dữ liệu đã được xóa.`);
-            navigation.goBack();
-          } catch (err: any) {
-            setError(err?.message ?? "Không xóa được người dùng.");
-          } finally {
-            setDeleting(false);
-          }
-        }}
-      ]
-    );
+    const confirmed = Platform.OS === "web"
+      ? window.confirm(`Xóa "${user.displayName}"?\n\nToàn bộ bài đăng, bình luận, like, follow, notification, meal, analytics sẽ bị xóa vĩnh viễn.`)
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Xóa người dùng",
+            `Bạn có chắc chắn muốn xóa "${user.displayName}"?\n\nToàn bộ bài đăng, bình luận, like, follow, notification, meal, analytics của người này sẽ bị xóa vĩnh viễn.`,
+            [
+              { text: "Hủy", style: "cancel", onPress: () => resolve(false) },
+              { text: "Xóa", style: "destructive", onPress: () => resolve(true) }
+            ]
+          );
+        });
+    if (!confirmed) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.adminDeleteUser(adminToken, user.id);
+      if (Platform.OS === "web") window.alert(`Đã xóa "${user.displayName}" và toàn bộ dữ liệu.`);
+      navigation.goBack();
+    } catch (err: any) {
+      setError(err?.message ?? "Không xóa được người dùng.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function handleSignOut() {

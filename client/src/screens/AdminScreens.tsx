@@ -48,7 +48,13 @@ import {
   MessageIcon
 } from "../components/AdminIcons";
 import { AdminDonutChart, AdminSeriesChart, AdminStackedBarChart } from "../components/admin-charts/AdminCharts";
-import { interactionColors, toDonutData, toGiftedSeries, toStackedInteractionData } from "../components/admin-charts/chartData";
+import {
+  ADMIN_ANALYTICS_HOUR_RANGE,
+  interactionColors,
+  toDonutData,
+  toGiftedSeries,
+  toStackedInteractionData
+} from "../components/admin-charts/chartData";
 
 type AdminTab = "overview" | "analytics24h" | "analytics" | "posts" | "reports" | "payments" | "ai";
 type AdminRange = AdminRangePreset;
@@ -130,11 +136,24 @@ function rangeParams(range: AdminRange, startDate?: string, endDate?: string): A
 }
 
 function formatDuration(ms?: number) {
-  const seconds = Math.round((ms ?? 0) / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return rest ? `${minutes}m ${rest}s` : `${minutes}m`;
+  const totalSeconds = Math.max(0, Math.round((ms ?? 0) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return [
+      `${hours.toLocaleString("vi-VN")}h`,
+      minutes > 0 ? `${minutes}m` : "",
+      seconds > 0 ? `${seconds}s` : ""
+    ].filter(Boolean).join(" ");
+  }
+
+  if (minutes > 0) {
+    return [`${minutes}m`, seconds > 0 ? `${seconds}s` : ""].filter(Boolean).join(" ");
+  }
+
+  return `${seconds}s`;
 }
 
 function formatHourLabel(hour?: number) {
@@ -672,6 +691,7 @@ function DetailedChart({
       }))}
       color={color}
       type={field === "users" ? "area" : "bar"}
+      valueFormatter={formatVal}
     />
   );
 }
@@ -926,6 +946,16 @@ const analytics24hPresetOptions: Array<{ key: AdminAnalytics24hPreset; label: st
   { key: "custom", label: "Tùy chỉnh" }
 ];
 
+const analyticsHours = Array.from(
+  { length: ADMIN_ANALYTICS_HOUR_RANGE.end - ADMIN_ANALYTICS_HOUR_RANGE.start + 1 },
+  (_, index) => ADMIN_ANALYTICS_HOUR_RANGE.start + index
+);
+
+const analyticsPeakRanges = [
+  { start: 12, end: 13 },
+  { start: 18, end: 21 }
+];
+
 function sourceColor(source: string, index: number) {
   const palette = ["#2F80ED", "#27AE60", "#F2994A", "#EB5757", "#9B51E0", "#00A3A3"];
   const normalized = source.toLowerCase();
@@ -938,7 +968,9 @@ function sourceColor(source: string, index: number) {
 }
 
 function AnalyticsHeatmapCard({ heatmap }: { heatmap: AdminAnalyticsHeatmap | null }) {
-  const cells = heatmap?.cells ?? [];
+  const cells = (heatmap?.cells ?? []).filter(
+    (cell) => cell.hour >= ADMIN_ANALYTICS_HOUR_RANGE.start && cell.hour <= ADMIN_ANALYTICS_HOUR_RANGE.end
+  );
   const max = Math.max(1, ...cells.map((cell) => cell.value));
   const days = [...new Set(cells.map((cell) => cell.day))];
   const valueByKey = new Map(cells.map((cell) => [`${cell.day}-${cell.hour}`, cell.value]));
@@ -948,7 +980,7 @@ function AnalyticsHeatmapCard({ heatmap }: { heatmap: AdminAnalyticsHeatmap | nu
       <View style={styles.headerRow}>
         <View style={styles.flex}>
           <AppText variant="subtitle" style={styles.reportMiniTitle}>Heatmap hoạt động</AppText>
-          <AppText muted variant="caption">Cường độ event theo ngày và giờ, timezone Asia/Ho_Chi_Minh.</AppText>
+          <AppText muted variant="caption">Cường độ event từ 06:00–22:00 theo giờ địa phương Asia/Ho_Chi_Minh.</AppText>
         </View>
       </View>
       {cells.length ? (
@@ -956,7 +988,7 @@ function AnalyticsHeatmapCard({ heatmap }: { heatmap: AdminAnalyticsHeatmap | nu
           <View style={styles.heatmapWrap}>
             <View style={styles.heatmapHourRow}>
               <View style={styles.heatmapDayLabel} />
-              {Array.from({ length: 24 }, (_, hour) => (
+              {analyticsHours.map((hour) => (
                 <AppText key={`hour-${hour}`} variant="caption" style={styles.heatmapHourLabel}>
                   {hour % 2 === 0 ? String(hour).padStart(2, "0") : ""}
                 </AppText>
@@ -967,7 +999,7 @@ function AnalyticsHeatmapCard({ heatmap }: { heatmap: AdminAnalyticsHeatmap | nu
                 <AppText variant="caption" style={styles.heatmapDayLabel} numberOfLines={1}>
                   {day.slice(5)}
                 </AppText>
-                {Array.from({ length: 24 }, (_, hour) => {
+                {analyticsHours.map((hour) => {
                   const value = valueByKey.get(`${day}-${hour}`) ?? 0;
                   const opacity = value > 0 ? 0.18 + (value / max) * 0.72 : 0.04;
                   return (
@@ -1002,7 +1034,11 @@ function Analytics24hTab({
   activityChartMode,
   onActivityChartModeChange,
   interactionChartMode,
-  onInteractionChartModeChange
+  onInteractionChartModeChange,
+  customStartDate,
+  customEndDate,
+  onCustomStartDateChange,
+  onCustomEndDateChange
 }: {
   analytics: AdminAnalytics24h | null;
   heatmap: AdminAnalyticsHeatmap | null;
@@ -1013,6 +1049,10 @@ function Analytics24hTab({
   onActivityChartModeChange: (mode: "area" | "line" | "bar") => void;
   interactionChartMode: "stacked" | "donut";
   onInteractionChartModeChange: (mode: "stacked" | "donut") => void;
+  customStartDate: string;
+  customEndDate: string;
+  onCustomStartDateChange: (value: string) => void;
+  onCustomEndDateChange: (value: string) => void;
 }) {
   if (!analytics) {
     return <EmptyState label="Chưa tải được dữ liệu Analytics 24h." />;
@@ -1028,6 +1068,10 @@ function Analytics24hTab({
     { label: "Lưu", color: interactionColors.saves },
     { label: "Bình luận", color: interactionColors.comments }
   ];
+  const totalEvents = analytics.hourly.reduce((sum, item) => sum + item.events, 0);
+  const hourlySeriesOptions = { maxPoints: analyticsHours.length, hourRange: ADMIN_ANALYTICS_HOUR_RANGE };
+  const hourlyAxisNote = `Giờ địa phương · ${analytics.range.timezone} · 06:00–22:00`;
+  const peakLabel = "Cao điểm 12–13h · 18–21h";
 
   return (
     <View style={{ gap: 14 }}>
@@ -1036,36 +1080,28 @@ function Analytics24hTab({
         subtitle={`Cập nhật từ ${formatDate(analytics.range.start)} đến ${formatDate(analytics.range.end)} · ${analytics.range.timezone}`}
       />
       <Card style={styles.filterPanelCard}>
-        <View style={styles.filterGroup}>
-          <AppText variant="caption" muted style={styles.filterGroupLabel}>Khoảng thời gian</AppText>
-          <View style={styles.filterChipRow}>
-            {analytics24hPresetOptions.map((option) => (
-              <SmallFilterButton
-                key={option.key}
-                label={option.label}
-                active={preset === option.key}
-                onPress={() => onPresetChange(option.key)}
-              />
-            ))}
-          </View>
-        </View>
-      </Card>
-
-      <View style={isDesktop ? styles.desktopGrid4 : styles.grid}>
-        <MetricCard label="Người dùng trong khoảng" value={analytics.summary.activeUsers} note={`${formatNumber(analytics.summary.newUsers)} user mới`} isDesktop={isDesktop} />
-        <MetricCard label="Bài đăng trong khoảng" value={analytics.summary.posts} note="Bài mới theo giờ" isDesktop={isDesktop} />
-        <MetricCard label="Tương tác trong khoảng" value={analytics.summary.interactions} note={`${formatNumber(analytics.summary.likes)} thích · ${formatNumber(analytics.summary.saves)} lưu · ${formatNumber(analytics.summary.comments)} bình luận`} isDesktop={isDesktop} />
-        <MetricCard label="Doanh thu trong khoảng" value={formatCurrency(analytics.summary.revenue)} note={`${formatNumber(analytics.summary.paymentSuccess)} thành công · ${formatNumber(analytics.summary.paymentFailed)} lỗi`} isDesktop={isDesktop} />
-        <MetricCard label="AI meal trong khoảng" value={analytics.summary.aiMealUsage} note={`${formatNumber(analytics.aiFunnel.purchasedAfterAi)} mua sau AI`} isDesktop={isDesktop} />
-        <MetricCard label="Thanh toán premium" value={formatPercent(analytics.aiFunnel.conversionRate)} note="AI Meal -> Purchase" isDesktop={isDesktop} />
-        <MetricCard label="Báo cáo mở" value={analytics.summary.reportsOpened} note={`${formatNumber(analytics.reportMetrics.pending)} đang chờ`} isDesktop={isDesktop} />
-        <MetricCard label="Phản hồi API" value={analytics.tables.recentImportantEvents.length} note="Sự kiện kỹ thuật quan trọng" isDesktop={isDesktop} />
-      </View>
-
-      <Card style={styles.filterPanelCard}>
         <View style={isDesktop ? styles.filterPanelGrid : styles.filterPanelStack}>
           <View style={styles.filterGroup}>
-            <AppText variant="caption" muted style={styles.filterGroupLabel}>Biểu đồ hoạt động</AppText>
+            <AppText variant="caption" muted style={styles.filterGroupLabel}>Khoảng thời gian</AppText>
+            <View style={styles.filterChipRow}>
+              {analytics24hPresetOptions.map((option) => (
+                <SmallFilterButton
+                  key={option.key}
+                  label={option.label}
+                  active={preset === option.key}
+                  onPress={() => onPresetChange(option.key)}
+                />
+              ))}
+            </View>
+            {preset === "custom" ? (
+              <View style={styles.customDateRow}>
+                <DatePickerField label="Từ ngày" value={customStartDate} onChange={onCustomStartDateChange} />
+                <DatePickerField label="Đến ngày" value={customEndDate} onChange={onCustomEndDateChange} />
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.filterGroup}>
+            <AppText variant="caption" muted style={styles.filterGroupLabel}>Dạng biểu đồ</AppText>
             <View style={styles.filterChipRow}>
               <SmallFilterButton label="Vùng" active={activityChartMode === "area"} onPress={() => onActivityChartModeChange("area")} />
               <SmallFilterButton label="Đường" active={activityChartMode === "line"} onPress={() => onActivityChartModeChange("line")} />
@@ -1075,27 +1111,43 @@ function Analytics24hTab({
           <View style={styles.filterGroup}>
             <AppText variant="caption" muted style={styles.filterGroupLabel}>Tương tác</AppText>
             <View style={styles.filterChipRow}>
-              <SmallFilterButton label="Stacked" active={interactionChartMode === "stacked"} onPress={() => onInteractionChartModeChange("stacked")} />
-              <SmallFilterButton label="Donut" active={interactionChartMode === "donut"} onPress={() => onInteractionChartModeChange("donut")} />
+              <SmallFilterButton label="Cột chồng" active={interactionChartMode === "stacked"} onPress={() => onInteractionChartModeChange("stacked")} />
+              <SmallFilterButton label="Tỷ trọng" active={interactionChartMode === "donut"} onPress={() => onInteractionChartModeChange("donut")} />
             </View>
           </View>
         </View>
       </Card>
 
+      <View style={isDesktop ? styles.desktopGrid4 : styles.grid}>
+        <MetricCard label="Người dùng trong khoảng" value={analytics.summary.activeUsers} note={`${formatNumber(analytics.summary.newUsers)} user mới · ${formatNumber(totalEvents)} events`} isDesktop={isDesktop} />
+        <MetricCard label="Bài đăng trong khoảng" value={analytics.summary.posts} note="Bài mới theo giờ" isDesktop={isDesktop} />
+        <MetricCard label="Tương tác trong khoảng" value={analytics.summary.interactions} note={`${formatNumber(analytics.summary.likes)} thích · ${formatNumber(analytics.summary.saves)} lưu · ${formatNumber(analytics.summary.comments)} bình luận`} isDesktop={isDesktop} />
+        <MetricCard label="Doanh thu trong khoảng" value={formatCurrency(analytics.summary.revenue)} note={`${formatNumber(analytics.summary.paymentSuccess)} thành công · ${formatNumber(analytics.summary.paymentFailed)} lỗi`} isDesktop={isDesktop} />
+        <MetricCard label="AI meal trong khoảng" value={analytics.summary.aiMealUsage} note={`${formatNumber(analytics.aiFunnel.purchasedAfterAi)} mua sau AI`} isDesktop={isDesktop} />
+        <MetricCard label="Thanh toán premium" value={formatPercent(analytics.aiFunnel.conversionRate)} note="AI Meal -> Purchase" isDesktop={isDesktop} />
+        <MetricCard label="Báo cáo mở" value={analytics.summary.reportsOpened} note={`${formatNumber(analytics.reportMetrics.pending)} đang chờ`} isDesktop={isDesktop} />
+        <MetricCard label="Phản hồi API" value={analytics.tables.recentImportantEvents.length} note="Sự kiện kỹ thuật quan trọng" isDesktop={isDesktop} />
+      </View>
+
       <View style={isDesktop ? styles.twoColumn : styles.stackColumn}>
         <AdminSeriesChart
-          title="Người dùng active theo giờ"
-          subtitle="Unique user/session có event trong khoảng lọc."
-          data={toGiftedSeries(analytics.hourly, "activeUsers", { maxPoints: 24 })}
+          title="Lưu lượng Analytics theo giờ"
+          subtitle={`Tổng ${formatNumber(totalEvents)} sự kiện trong khoảng lọc.`}
+          data={toGiftedSeries(analytics.hourly, "events", hourlySeriesOptions)}
           color={colors.greenDark}
           type={activityChartMode}
+          axisNote={hourlyAxisNote}
+          highlightRanges={analyticsPeakRanges}
+          highlightLabel={peakLabel}
         />
         <AdminSeriesChart
           title="Doanh thu theo giờ"
           subtitle="Tổng payment PAID theo từng giờ."
-          data={toGiftedSeries(analytics.hourly, "revenue", { maxPoints: 24 })}
+          data={toGiftedSeries(analytics.hourly, "revenue", hourlySeriesOptions)}
           color={colors.yellow}
           type="bar"
+          axisNote={hourlyAxisNote}
+          highlightRanges={analyticsPeakRanges}
         />
       </View>
 
@@ -1104,8 +1156,11 @@ function Analytics24hTab({
           <AdminStackedBarChart
             title="Tương tác theo loại"
             subtitle="Like, save và comment theo từng giờ."
-            data={toStackedInteractionData(analytics.hourly, { maxPoints: 24 })}
+            data={toStackedInteractionData(analytics.hourly, hourlySeriesOptions)}
             legend={interactionLegend}
+            axisNote={hourlyAxisNote}
+            highlightRanges={analyticsPeakRanges}
+            highlightLabel={peakLabel}
           />
         ) : (
           <AdminDonutChart
@@ -1393,6 +1448,13 @@ export function AdminDashboardScreen({ route, navigation }: any) {
   const updateEndDate = useCallback((value: string) => {
     setCustomEndDate(value && value > todayStr ? todayStr : value);
   }, []);
+  const handleAnalytics24hPresetChange = useCallback((nextPreset: AdminAnalytics24hPreset) => {
+    if (nextPreset === "custom") {
+      setCustomStartDate((current) => current || todayStr);
+      setCustomEndDate((current) => current || todayStr);
+    }
+    setAnalytics24hPreset(nextPreset);
+  }, [todayStr]);
 
   const isDesktop = width >= 992;
   const compactHeader = width < 760;
@@ -1533,6 +1595,29 @@ export function AdminDashboardScreen({ route, navigation }: any) {
     }
   }
 
+  async function deletePost(post: AdminPostSummary) {
+    if (!adminToken) return;
+    const actionId = `post-delete-${post.id}`;
+    setBusyAction(actionId);
+    setActionError(null);
+    try {
+      await api.adminDeletePost(adminToken, post.id);
+      setPosts((current) => current.filter((item) => item.id !== post.id));
+      if (dashboard) {
+        const [refreshedDashboard, refreshedPostInsights] = await Promise.all([
+          api.adminDashboard(adminToken, dashboardRangeParams),
+          api.adminPostInsights(adminToken, postQueryParams)
+        ]);
+        setDashboard(refreshedDashboard);
+        setPostInsights(refreshedPostInsights);
+      }
+    } catch (err: any) {
+      setActionError(err?.message ?? "Không xóa được bài đăng.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function updateReport(report: AdminReportItem, status: "resolved" | "dismissed" | "open") {
     if (!adminToken) return;
     setBusyAction(`report-${report.id}`);
@@ -1586,7 +1671,8 @@ export function AdminDashboardScreen({ route, navigation }: any) {
   );
   const loadedPostCount = posts.length;
   const totalPostCount = postsPagination?.total ?? posts.length;
-  const showDashboardTimeControls = activeTab === "overview" || activeTab === "analytics" || activeTab === "analytics24h";
+  const showDashboardDateControls = activeTab === "overview" || activeTab === "analytics" || activeTab === "ai";
+  const showDashboardTimeControls = showDashboardDateControls;
   const postMediaBreakdown = useMemo(() => {
     const counts = new Map<AdminPostMediaKind, number>();
     postInsights?.mediaBreakdown.forEach((item) => counts.set(item.key, item.count));
@@ -1656,11 +1742,15 @@ export function AdminDashboardScreen({ route, navigation }: any) {
           heatmap={analyticsHeatmap}
           isDesktop={isDesktop}
           preset={analytics24hPreset}
-          onPresetChange={setAnalytics24hPreset}
+          onPresetChange={handleAnalytics24hPresetChange}
           activityChartMode={activityChartMode}
           onActivityChartModeChange={setActivityChartMode}
           interactionChartMode={interactionChartMode}
           onInteractionChartModeChange={setInteractionChartMode}
+          customStartDate={customStartDate}
+          customEndDate={customEndDate}
+          onCustomStartDateChange={updateStartDate}
+          onCustomEndDateChange={updateEndDate}
         />
       )}
 
@@ -1762,6 +1852,19 @@ export function AdminDashboardScreen({ route, navigation }: any) {
                     <AppButton label="Ẩn" size="sm" variant="danger" onPress={() => moderatePost(post, "hidden")} disabled={busyAction === `post-${post.id}`} />
                     <AppButton label="Cần xem lại" size="sm" variant="ghost" onPress={() => moderatePost(post, "review")} disabled={busyAction === `post-${post.id}`} />
                     <AppButton label="Khôi phục" size="sm" variant="secondary" onPress={() => moderatePost(post, "visible")} disabled={busyAction === `post-${post.id}`} />
+                    <AppButton label="Xóa" size="sm" variant="ghost" style={{ borderColor: "#C62828", borderWidth: 1 }} onPress={async () => {
+                      const confirmed = Platform.OS === "web"
+                        ? window.confirm(`Bạn có chắc muốn xóa bài đăng này${post.caption ? `: "${post.caption.slice(0, 60)}${post.caption.length > 60 ? "..." : ""}"` : ""}? Hành động này không thể hoàn tác.`)
+                        : await new Promise<boolean>((resolve) => {
+                            const captionPreview = post.caption ? `: "${post.caption.slice(0, 60)}${post.caption.length > 60 ? "..." : ""}"` : "";
+                            Alert.alert("Xác nhận xóa", `Bạn có chắc muốn xóa bài đăng này${captionPreview}? Hành động này không thể hoàn tác.`, [
+                              { text: "Hủy", style: "cancel", onPress: () => resolve(false) },
+                              { text: "Xóa", style: "destructive", onPress: () => resolve(true) }
+                            ]);
+                          });
+                      if (!confirmed) return;
+                      deletePost(post);
+                    }} disabled={busyAction === `post-delete-${post.id}`} />
                   </View>
                 </Card>
               ))}
@@ -1892,7 +1995,7 @@ export function AdminDashboardScreen({ route, navigation }: any) {
                 <AppText muted variant="caption">Hệ thống giám sát và vận hành Daily Meal</AppText>
               </View>
               <View style={styles.desktopTopActions}>
-                {activeTab !== "posts" ? (
+                {showDashboardDateControls ? (
                   <>
                     <DateRangeControls
                       range={range}
@@ -1944,7 +2047,7 @@ export function AdminDashboardScreen({ route, navigation }: any) {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mobileScrollContent}>
-          {activeTab !== "posts" ? (
+          {showDashboardDateControls ? (
             <>
               <DateRangeControls
                 range={range}
@@ -2179,6 +2282,7 @@ export function AdminUsersScreen({ navigation }: any) {
               subtitle="Số phiên user active trong từng khung giờ."
               data={userInsights.hourlyActivity.map((item) => ({
                 value: item.sessions,
+                hour: item.hour,
                 label: item.label
               }))}
               color={colors.blue}
@@ -2890,7 +2994,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 260
   },
-  filterPanelGrid: { flexDirection: "row", gap: 14, alignItems: "flex-start" },
+  filterPanelGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14, alignItems: "flex-start" },
   filterPanelStack: { gap: 12 },
   filterGroupLabel: {
     fontFamily: fonts.semibold,

@@ -41,7 +41,7 @@ type SumRow = { _id: number; count: number; total: number };
 
 function makeHourlyMap() {
   const map = new Map<number, HourlyPoint>();
-  for (let hour = 0; hour < 24; hour += 1) {
+  for (let hour = 6; hour <= 22; hour += 1) {
     map.set(hour, {
       hour,
       label: `${String(hour).padStart(2, "0")}:00`,

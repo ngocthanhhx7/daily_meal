@@ -754,7 +754,7 @@ async function buildUserInsights(
   const dailyUsageMap = new Map<string, { date: string; sessions: number; totalDurationMs: number; activeUsers: Set<string> }>();
   const hourlyActivityMap = new Map<number, { hour: number; sessions: number; totalDurationMs: number; activeUsers: Set<string> }>();
 
-  for (let hour = 0; hour < 24; hour += 1) {
+  for (let hour = 6; hour <= 22; hour += 1) {
     hourlyActivityMap.set(hour, { hour, sessions: 0, totalDurationMs: 0, activeUsers: new Set() });
   }
 
@@ -1326,6 +1326,44 @@ adminRouter.patch("/posts/:id/moderation", requireAdmin, async (req, res, next) 
     });
 
     res.json({ post: postDto(post) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.delete("/posts/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const post = await Post.findById(req.params.id);
+
+    if (!post) {
+      throw new HttpError(404, "Không tìm thấy bài viết");
+    }
+
+    const authorId = post.author?.toString();
+    const postId = post._id.toString();
+
+    await post.deleteOne();
+    await Comment.deleteMany({ post: post._id });
+    await PostLike.deleteMany({ post: post._id });
+    await PostSave.deleteMany({ post: post._id });
+
+    if (authorId) {
+      const updatedUser = await User.findByIdAndUpdate(authorId, { $inc: { "counts.posts": -1 } }, { new: true });
+      if (updatedUser && (updatedUser.counts?.posts ?? 0) < 0) {
+        await User.findByIdAndUpdate(authorId, { $set: { "counts.posts": 0 } });
+      }
+    }
+
+    await logAdminAction({
+      adminEmail: req.user?.email,
+      action: "post.hard_delete",
+      targetType: "post",
+      targetId: postId,
+      note: "Xóa cứng bài đăng từ dashboard admin",
+      metadata: { caption: post.caption?.slice(0, 100) }
+    });
+
+    res.json({ message: "Đã xóa bài đăng thành công" });
   } catch (error) {
     next(error);
   }

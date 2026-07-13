@@ -754,7 +754,7 @@ async function buildUserInsights(
   const dailyUsageMap = new Map<string, { date: string; sessions: number; totalDurationMs: number; activeUsers: Set<string> }>();
   const hourlyActivityMap = new Map<number, { hour: number; sessions: number; totalDurationMs: number; activeUsers: Set<string> }>();
 
-  for (let hour = 6; hour <= 22; hour += 1) {
+  for (let hour = 0; hour < 24; hour += 1) {
     hourlyActivityMap.set(hour, { hour, sessions: 0, totalDurationMs: 0, activeUsers: new Set() });
   }
 
@@ -834,7 +834,19 @@ async function buildUserInsights(
     { hour: 0, label: "00:00", sessions: 0, activeUsers: 0, totalDurationMs: 0, averageSessionDurationMs: 0 }
   );
 
-  const topUsers = userIds
+  const eligibleUserIds = userIds.filter((id) => {
+    const user = userById.get(id);
+    const displayName = user?.displayName?.trim();
+    const postCount = postsByUser.get(id) ?? 0;
+    const interactions = interactionsByUser.get(id) ?? 0;
+    return Boolean(
+      displayName &&
+        !/test/i.test(displayName) &&
+        !/test/i.test(user?.email ?? "") &&
+        (postCount > 0 || interactions > 0)
+    );
+  });
+  const topUsers = eligibleUserIds
     .map((id) => {
       const activity = byUser.get(id)!;
       const user = userById.get(id);
@@ -857,7 +869,7 @@ async function buildUserInsights(
         returning: returningSet.has(id)
       };
     })
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.interactions - a.interactions || b.posts - a.posts || b.score - a.score)
     .slice(0, 10);
 
   return {

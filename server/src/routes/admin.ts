@@ -754,7 +754,7 @@ async function buildUserInsights(
   const dailyUsageMap = new Map<string, { date: string; sessions: number; totalDurationMs: number; activeUsers: Set<string> }>();
   const hourlyActivityMap = new Map<number, { hour: number; sessions: number; totalDurationMs: number; activeUsers: Set<string> }>();
 
-  for (let hour = 0; hour < 24; hour += 1) {
+  for (let hour = 6; hour <= 22; hour += 1) {
     hourlyActivityMap.set(hour, { hour, sessions: 0, totalDurationMs: 0, activeUsers: new Set() });
   }
 

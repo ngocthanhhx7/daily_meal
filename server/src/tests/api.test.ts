@@ -1691,7 +1691,9 @@ describe("Daily Meal API", () => {
       .expect(200);
 
     expect(response.body.range).toMatchObject({ timezone: "Asia/Ho_Chi_Minh", preset: "custom" });
-    expect(response.body.hourly).toHaveLength(24);
+    expect(response.body.hourly).toHaveLength(17);
+    expect(response.body.hourly[0]).toMatchObject({ hour: 6, label: "06:00" });
+    expect(response.body.hourly.at(-1)).toMatchObject({ hour: 22, label: "22:00" });
     expect(response.body.summary).toMatchObject({
       activeUsers: 2,
       newUsers: 2,

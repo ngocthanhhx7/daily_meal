@@ -1533,6 +1533,29 @@ export function AdminDashboardScreen({ route, navigation }: any) {
     }
   }
 
+  async function deletePost(post: AdminPostSummary) {
+    if (!adminToken) return;
+    const actionId = `post-delete-${post.id}`;
+    setBusyAction(actionId);
+    setActionError(null);
+    try {
+      await api.adminDeletePost(adminToken, post.id);
+      setPosts((current) => current.filter((item) => item.id !== post.id));
+      if (dashboard) {
+        const [refreshedDashboard, refreshedPostInsights] = await Promise.all([
+          api.adminDashboard(adminToken, dashboardRangeParams),
+          api.adminPostInsights(adminToken, postQueryParams)
+        ]);
+        setDashboard(refreshedDashboard);
+        setPostInsights(refreshedPostInsights);
+      }
+    } catch (err: any) {
+      setActionError(err?.message ?? "Không xóa được bài đăng.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function updateReport(report: AdminReportItem, status: "resolved" | "dismissed" | "open") {
     if (!adminToken) return;
     setBusyAction(`report-${report.id}`);
@@ -1762,6 +1785,19 @@ export function AdminDashboardScreen({ route, navigation }: any) {
                     <AppButton label="Ẩn" size="sm" variant="danger" onPress={() => moderatePost(post, "hidden")} disabled={busyAction === `post-${post.id}`} />
                     <AppButton label="Cần xem lại" size="sm" variant="ghost" onPress={() => moderatePost(post, "review")} disabled={busyAction === `post-${post.id}`} />
                     <AppButton label="Khôi phục" size="sm" variant="secondary" onPress={() => moderatePost(post, "visible")} disabled={busyAction === `post-${post.id}`} />
+                    <AppButton label="Xóa" size="sm" variant="ghost" style={{ borderColor: "#C62828", borderWidth: 1 }} onPress={async () => {
+                      const confirmed = Platform.OS === "web"
+                        ? window.confirm(`Bạn có chắc muốn xóa bài đăng này${post.caption ? `: "${post.caption.slice(0, 60)}${post.caption.length > 60 ? "..." : ""}"` : ""}? Hành động này không thể hoàn tác.`)
+                        : await new Promise<boolean>((resolve) => {
+                            const captionPreview = post.caption ? `: "${post.caption.slice(0, 60)}${post.caption.length > 60 ? "..." : ""}"` : "";
+                            Alert.alert("Xác nhận xóa", `Bạn có chắc muốn xóa bài đăng này${captionPreview}? Hành động này không thể hoàn tác.`, [
+                              { text: "Hủy", style: "cancel", onPress: () => resolve(false) },
+                              { text: "Xóa", style: "destructive", onPress: () => resolve(true) }
+                            ]);
+                          });
+                      if (!confirmed) return;
+                      deletePost(post);
+                    }} disabled={busyAction === `post-delete-${post.id}`} />
                   </View>
                 </Card>
               ))}

@@ -334,6 +334,11 @@ export const api = {
       token,
       body
     }),
+  adminDeletePost: (token: string, id: string) =>
+    request<{ message: string }>(`/api/admin/posts/${id}`, {
+      method: "DELETE",
+      token
+    }),
   adminReports: (token: string, params?: { status?: "open" | "resolved" | "dismissed" | "all"; page?: number; limit?: number }) => {
     const search = new URLSearchParams();
     if (params?.status) search.set("status", params.status);

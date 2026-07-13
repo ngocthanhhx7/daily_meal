@@ -1331,6 +1331,44 @@ adminRouter.patch("/posts/:id/moderation", requireAdmin, async (req, res, next) 
   }
 });
 
+adminRouter.delete("/posts/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const post = await Post.findById(req.params.id);
+
+    if (!post) {
+      throw new HttpError(404, "Không tìm thấy bài viết");
+    }
+
+    const authorId = post.author?.toString();
+    const postId = post._id.toString();
+
+    await post.deleteOne();
+    await Comment.deleteMany({ post: post._id });
+    await PostLike.deleteMany({ post: post._id });
+    await PostSave.deleteMany({ post: post._id });
+
+    if (authorId) {
+      const updatedUser = await User.findByIdAndUpdate(authorId, { $inc: { "counts.posts": -1 } }, { new: true });
+      if (updatedUser && (updatedUser.counts?.posts ?? 0) < 0) {
+        await User.findByIdAndUpdate(authorId, { $set: { "counts.posts": 0 } });
+      }
+    }
+
+    await logAdminAction({
+      adminEmail: req.user?.email,
+      action: "post.hard_delete",
+      targetType: "post",
+      targetId: postId,
+      note: "Xóa cứng bài đăng từ dashboard admin",
+      metadata: { caption: post.caption?.slice(0, 100) }
+    });
+
+    res.json({ message: "Đã xóa bài đăng thành công" });
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminRouter.get("/reports", requireAdmin, async (req, res, next) => {
   try {
     const query = adminReportsQuerySchema.parse(req.query);

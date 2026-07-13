@@ -1096,7 +1096,11 @@ describe("Daily Meal API", () => {
     Object.assign(env, { ADMIN_EMAIL: "ranked-activity-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
     const legitimateUser = await register("legitimate-activity@example.com");
     const testUser = await register("test-activity@example.com");
-    await User.findByIdAndUpdate(legitimateUser.user.id, { displayName: "Nguyen Minh Anh" });
+    const inactiveUser = await register("inactive-activity@example.com");
+    await Promise.all([
+      User.findByIdAndUpdate(legitimateUser.user.id, { displayName: "Nguyen Minh Anh" }),
+      User.findByIdAndUpdate(inactiveUser.user.id, { displayName: "Pham Thanh" })
+    ]);
     const orphanedUserId = new mongoose.Types.ObjectId();
     const sessionStart = new Date(2026, 5, 29, 10, 0, 0, 0);
 
@@ -1123,9 +1127,32 @@ describe("Daily Meal API", () => {
       }
     ];
 
+    await Post.create([
+      {
+        author: legitimateUser.user.id,
+        images: [{ url: "/uploads/legitimate-activity.jpg" }],
+        caption: "Legitimate activity post",
+        tags: [],
+        visibility: "public",
+        stats: { likes: 2, comments: 1, saves: 0 },
+        createdAt: sessionStart,
+        updatedAt: sessionStart
+      },
+      {
+        author: testUser.user.id,
+        images: [{ url: "/uploads/test-activity.jpg" }],
+        caption: "Test activity post",
+        tags: [],
+        visibility: "public",
+        stats: { likes: 20, comments: 0, saves: 0 },
+        createdAt: sessionStart,
+        updatedAt: sessionStart
+      }
+    ]);
     await AnalyticsEvent.create([
       ...createSessionEvents(legitimateUser.user.id, "legitimate-activity-session", 60_000),
       ...createSessionEvents(testUser.user.id, "test-activity-session", 2 * 60 * 60 * 1000),
+      ...createSessionEvents(inactiveUser.user.id, "inactive-activity-session", 4 * 60 * 60 * 1000),
       ...createSessionEvents(orphanedUserId, "orphaned-activity-session", 3 * 60 * 60 * 1000)
     ]);
 

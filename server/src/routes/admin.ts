@@ -837,10 +837,13 @@ async function buildUserInsights(
   const eligibleUserIds = userIds.filter((id) => {
     const user = userById.get(id);
     const displayName = user?.displayName?.trim();
+    const postCount = postsByUser.get(id) ?? 0;
+    const interactions = interactionsByUser.get(id) ?? 0;
     return Boolean(
       displayName &&
         !/test/i.test(displayName) &&
-        !/test/i.test(user?.email ?? "")
+        !/test/i.test(user?.email ?? "") &&
+        (postCount > 0 || interactions > 0)
     );
   });
   const topUsers = eligibleUserIds
@@ -866,7 +869,7 @@ async function buildUserInsights(
         returning: returningSet.has(id)
       };
     })
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.interactions - a.interactions || b.posts - a.posts || b.score - a.score)
     .slice(0, 10);
 
   return {

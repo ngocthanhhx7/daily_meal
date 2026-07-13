@@ -1042,6 +1042,110 @@ describe("Daily Meal API", () => {
     });
   });
 
+  it("returns user activity insights for overnight sessions", async () => {
+    Object.assign(env, { ADMIN_EMAIL: "overnight-activity-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const user = await register("admin-overnight-activity@example.com");
+    const sessionStart = new Date(2026, 5, 29, 1, 15, 0, 0);
+    const sessionEnd = new Date(2026, 5, 29, 1, 20, 0, 0);
+
+    await AnalyticsEvent.create([
+      {
+        name: "session_start",
+        occurredAt: sessionStart,
+        receivedAt: sessionStart,
+        sessionId: "admin-insights-overnight-session",
+        subjectKey: `user:${user.user.id}`,
+        user: user.user.id,
+        source: "client",
+        properties: {}
+      },
+      {
+        name: "session_end",
+        occurredAt: sessionEnd,
+        receivedAt: sessionEnd,
+        sessionId: "admin-insights-overnight-session",
+        subjectKey: `user:${user.user.id}`,
+        user: user.user.id,
+        source: "client",
+        properties: { durationMs: 5 * 60 * 1000 }
+      }
+    ]);
+
+    const login = await request(app)
+      .post("/api/admin/login")
+      .send({ email: "overnight-activity-admin@example.com", password: "admin-secret" })
+      .expect(200);
+    const start = new Date(2026, 5, 29, 0, 0, 0, 0).toISOString();
+    const end = new Date(2026, 5, 30, 0, 0, 0, 0).toISOString();
+
+    const response = await request(app)
+      .get(`/api/admin/users/insights?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+
+    expect(response.body.summary.totalSessions).toBe(1);
+    expect(response.body.hourlyActivity).toHaveLength(24);
+    expect(response.body.hourlyActivity.find((item: any) => item.hour === 1)).toMatchObject({
+      sessions: 1,
+      activeUsers: 1,
+      totalDurationMs: 5 * 60 * 1000
+    });
+  });
+
+  it("only ranks known users without test account markers in user activity insights", async () => {
+    Object.assign(env, { ADMIN_EMAIL: "ranked-activity-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const legitimateUser = await register("legitimate-activity@example.com");
+    const testUser = await register("test-activity@example.com");
+    await User.findByIdAndUpdate(legitimateUser.user.id, { displayName: "Nguyen Minh Anh" });
+    const orphanedUserId = new mongoose.Types.ObjectId();
+    const sessionStart = new Date(2026, 5, 29, 10, 0, 0, 0);
+
+    const createSessionEvents = (userId: string | mongoose.Types.ObjectId, sessionId: string, durationMs: number) => [
+      {
+        name: "session_start",
+        occurredAt: sessionStart,
+        receivedAt: sessionStart,
+        sessionId,
+        subjectKey: `user:${userId}`,
+        user: userId,
+        source: "client" as const,
+        properties: {}
+      },
+      {
+        name: "session_end",
+        occurredAt: new Date(sessionStart.getTime() + durationMs),
+        receivedAt: new Date(sessionStart.getTime() + durationMs),
+        sessionId,
+        subjectKey: `user:${userId}`,
+        user: userId,
+        source: "client" as const,
+        properties: { durationMs }
+      }
+    ];
+
+    await AnalyticsEvent.create([
+      ...createSessionEvents(legitimateUser.user.id, "legitimate-activity-session", 60_000),
+      ...createSessionEvents(testUser.user.id, "test-activity-session", 2 * 60 * 60 * 1000),
+      ...createSessionEvents(orphanedUserId, "orphaned-activity-session", 3 * 60 * 60 * 1000)
+    ]);
+
+    const login = await request(app)
+      .post("/api/admin/login")
+      .send({ email: "ranked-activity-admin@example.com", password: "admin-secret" })
+      .expect(200);
+    const start = new Date(2026, 5, 29, 0, 0, 0, 0).toISOString();
+    const end = new Date(2026, 5, 30, 0, 0, 0, 0).toISOString();
+
+    const response = await request(app)
+      .get(`/api/admin/users/insights?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+
+    expect(response.body.topUsers).toEqual([
+      expect.objectContaining({ id: legitimateUser.user.id, displayName: "Nguyen Minh Anh" })
+    ]);
+  });
+
   it("filters admin dashboard overview and KPI metrics by time of day", async () => {
     Object.assign(env, { ADMIN_EMAIL: "dashboard-hours-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
     const morningUser = await register("admin-dashboard-morning@example.com");

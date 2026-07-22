@@ -15,6 +15,7 @@ import { Payment } from "../models/Payment.js";
 import { PostLike } from "../models/PostLike.js";
 import { PostSave } from "../models/PostSave.js";
 import { Post } from "../models/Post.js";
+import { RecommendationFeedback } from "../models/RecommendationFeedback.js";
 import { Sticker } from "../models/Sticker.js";
 import { User } from "../models/User.js";
 import { UserInteraction } from "../models/UserInteraction.js";
@@ -242,6 +243,88 @@ describe("Daily Meal API", () => {
       eatingStyles: ["ThÃ¢m há»¥t calo"],
       completedOnboarding: true
     });
+  });
+
+  it("stores private meal recommendation preferences and returns an explainable MVP result", async () => {
+    const owner = await register("recommendation-owner@example.com");
+    const viewer = await register("recommendation-viewer@example.com");
+
+    const profile = await request(app)
+      .patch("/api/recommendations/profile")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({
+        diet: "vegetarian",
+        goals: ["low_calorie"],
+        allergens: ["tôm"],
+        dislikes: ["mỡ"],
+        preferredCuisines: ["vietnamese"],
+        budget: "low",
+        maxCookingMinutes: 30,
+        spiceLevel: "low"
+      })
+      .expect(200);
+
+    expect(profile.body.profile).toMatchObject({
+      diet: "vegetarian",
+      goals: ["low_calorie"],
+      allergens: ["tôm"]
+    });
+
+    const originalGeminiKey = env.GEMINI_API_KEY;
+    const originalGeminiBaseUrl = env.GEMINI_BASE_URL;
+    env.GEMINI_API_KEY = undefined;
+    env.GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
+    let recommendation: any;
+    try {
+      recommendation = await request(app)
+        .post("/api/recommendations/today")
+        .set("Authorization", `Bearer ${owner.token}`)
+        .send({ mode: "cook", mealPeriod: "dinner", limit: 3 })
+        .expect(200);
+    } finally {
+      env.GEMINI_API_KEY = originalGeminiKey;
+      env.GEMINI_BASE_URL = originalGeminiBaseUrl;
+    }
+
+    expect(recommendation.body.meals.length).toBeGreaterThan(0);
+    expect(recommendation.body.meals.length).toBeLessThanOrEqual(3);
+    expect(recommendation.body.meals[0]).toMatchObject({
+      explanationSource: "rules"
+    });
+    expect(recommendation.body.nearbyRestaurants).toEqual([]);
+
+    await request(app)
+      .post("/api/recommendations/feedback")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({
+        targetKey: recommendation.body.meals[0].key,
+        targetType: "meal",
+        action: "liked"
+      })
+      .expect(201);
+
+    await request(app)
+      .post("/api/recommendations/feedback")
+      .set("Authorization", `Bearer ${owner.token}`)
+      .send({
+        targetKey: recommendation.body.meals[0].key,
+        targetType: "meal",
+        action: "liked"
+      })
+      .expect(201);
+
+    expect(await RecommendationFeedback.countDocuments({
+      user: owner.user.id,
+      targetKey: recommendation.body.meals[0].key,
+      action: "liked"
+    })).toBe(1);
+
+    const publicProfile = await request(app)
+      .get(`/api/users/${owner.user.id}`)
+      .set("Authorization", `Bearer ${viewer.token}`)
+      .expect(200);
+
+    expect(publicProfile.body.user).not.toHaveProperty("mealRecommendationProfile");
   });
 
   it("does not let profile updates grant Premium", async () => {
@@ -949,6 +1032,9 @@ describe("Daily Meal API", () => {
 
   it("filters admin user activity insights by time of day and reports daily and peak activity", async () => {
     Object.assign(env, { ADMIN_EMAIL: "activity-hours-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const start = new Date(2026, 5, 29, 0, 0, 0, 0);
+    const end = new Date(2026, 5, 30, 0, 0, 0, 0);
+    await AnalyticsEvent.deleteMany({ occurredAt: { $gte: start, $lt: end } });
     const morningUser = await register("admin-morning-activity@example.com");
     const eveningUser = await register("admin-evening-activity@example.com");
     await User.findByIdAndUpdate(morningUser.user.id, { displayName: "Morning User" });
@@ -958,6 +1044,16 @@ describe("Daily Meal API", () => {
     const morningEnd = new Date(2026, 5, 29, 9, 45, 0, 0);
     const eveningStart = new Date(2026, 5, 29, 20, 0, 0, 0);
     const eveningEnd = new Date(2026, 5, 29, 20, 5, 0, 0);
+    const morningPost = await Post.create({
+      author: morningUser.user.id,
+      images: [{ url: "/uploads/morning-activity.jpg" }],
+      caption: "Morning activity",
+      visibility: "public"
+    });
+    await Post.collection.updateOne(
+      { _id: morningPost._id },
+      { $set: { createdAt: morningStart, updatedAt: morningStart } }
+    );
 
     await AnalyticsEvent.create([
       {
@@ -1007,10 +1103,8 @@ describe("Daily Meal API", () => {
       .send({ email: "activity-hours-admin@example.com", password: "admin-secret" })
       .expect(200);
 
-    const start = new Date(2026, 5, 29, 0, 0, 0, 0).toISOString();
-    const end = new Date(2026, 5, 30, 0, 0, 0, 0).toISOString();
     const response = await request(app)
-      .get(`/api/admin/users/insights?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&startTime=08:00&endTime=12:00`)
+      .get(`/api/admin/users/insights?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}&startTime=08:00&endTime=12:00`)
       .set("Authorization", `Bearer ${login.body.token}`)
       .expect(200);
 
@@ -1044,6 +1138,9 @@ describe("Daily Meal API", () => {
 
   it("returns user activity insights for overnight sessions", async () => {
     Object.assign(env, { ADMIN_EMAIL: "overnight-activity-admin@example.com", ADMIN_PASSWORD: "admin-secret" });
+    const start = new Date(2026, 5, 29, 0, 0, 0, 0);
+    const end = new Date(2026, 5, 30, 0, 0, 0, 0);
+    await AnalyticsEvent.deleteMany({ occurredAt: { $gte: start, $lt: end } });
     const user = await register("admin-overnight-activity@example.com");
     const sessionStart = new Date(2026, 5, 29, 1, 15, 0, 0);
     const sessionEnd = new Date(2026, 5, 29, 1, 20, 0, 0);
@@ -1075,11 +1172,8 @@ describe("Daily Meal API", () => {
       .post("/api/admin/login")
       .send({ email: "overnight-activity-admin@example.com", password: "admin-secret" })
       .expect(200);
-    const start = new Date(2026, 5, 29, 0, 0, 0, 0).toISOString();
-    const end = new Date(2026, 5, 30, 0, 0, 0, 0).toISOString();
-
     const response = await request(app)
-      .get(`/api/admin/users/insights?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
+      .get(`/api/admin/users/insights?start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`)
       .set("Authorization", `Bearer ${login.body.token}`)
       .expect(200);
 

@@ -9,6 +9,36 @@ const otpSchema = new Schema(
   { _id: false }
 );
 
+const mealRecommendationProfileSchema = new Schema(
+  {
+    diet: {
+      type: String,
+      enum: ["flexible", "vegetarian", "vegan", "keto"],
+      default: "flexible"
+    },
+    goals: {
+      type: [String],
+      enum: ["balanced", "low_calorie", "high_protein"],
+      default: ["balanced"]
+    },
+    allergens: { type: [String], default: [] },
+    dislikes: { type: [String], default: [] },
+    preferredCuisines: { type: [String], default: [] },
+    budget: {
+      type: String,
+      enum: ["low", "medium", "any"],
+      default: "any"
+    },
+    maxCookingMinutes: { type: Number, min: 5, max: 180, default: 45 },
+    spiceLevel: {
+      type: String,
+      enum: ["low", "medium", "high"],
+      default: "medium"
+    }
+  },
+  { _id: false }
+);
+
 const userSchema = new Schema(
   {
     email: { type: String, lowercase: true, trim: true },
@@ -36,6 +66,10 @@ const userSchema = new Schema(
       interests: { type: [String], default: [] },
       eatingStyles: { type: [String], default: [] },
       completedOnboarding: { type: Boolean, default: false }
+    },
+    mealRecommendationProfile: {
+      type: mealRecommendationProfileSchema,
+      default: () => ({})
     },
     isPremium: { type: Boolean, default: false },
     premiumTrialUsed: { type: Boolean, default: false },

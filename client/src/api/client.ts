@@ -20,7 +20,12 @@ import type {
   ChatMessage,
   Conversation,
   Meal,
+  MealPeriod,
+  MealRecommendationProfile,
   MealSuitabilityInsight,
+  RecommendationFeedbackAction,
+  RecommendationMode,
+  TodayRecommendations,
   PayosPayment,
   Post,
   PostSummaryFilter,
@@ -431,6 +436,42 @@ export const api = {
   updateMe: (token: string, body: Partial<Omit<User, "isPremium">>) =>
     request<{ user: User }>("/api/users/me", {
       method: "PATCH",
+      token,
+      body
+    }),
+  recommendationProfile: (token: string) =>
+    request<{ profile: MealRecommendationProfile }>("/api/recommendations/profile", { token }),
+  saveRecommendationProfile: (token: string, body: MealRecommendationProfile) =>
+    request<{ profile: MealRecommendationProfile }>("/api/recommendations/profile", {
+      method: "PATCH",
+      token,
+      body
+    }),
+  todayRecommendations: (
+    token: string,
+    body: {
+      mode: RecommendationMode;
+      mealPeriod: MealPeriod;
+      latitude?: number;
+      longitude?: number;
+      limit?: number;
+    }
+  ) =>
+    request<TodayRecommendations>("/api/recommendations/today", {
+      method: "POST",
+      token,
+      body
+    }),
+  recommendationFeedback: (
+    token: string,
+    body: {
+      targetKey: string;
+      targetType: "meal" | "restaurant";
+      action: RecommendationFeedbackAction;
+    }
+  ) =>
+    request<void>("/api/recommendations/feedback", {
+      method: "POST",
       token,
       body
     }),

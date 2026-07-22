@@ -17,6 +17,7 @@ import { uploadsRouter } from "./routes/uploads.js";
 import { usersRouter } from "./routes/users.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { paymentsRouter } from "./routes/payments.js";
+import { recommendationsRouter } from "./routes/recommendations.js";
 
 export function createApp() {
   const app = express();
@@ -49,6 +50,7 @@ export function createApp() {
   app.use("/api/meals", mealsRouter);
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/payments", paymentsRouter);
+  app.use("/api/recommendations", recommendationsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

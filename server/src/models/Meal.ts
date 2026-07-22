@@ -18,7 +18,8 @@ const mealItemSchema = new Schema(
     protein: { type: Number, required: true },
     carbs: { type: Number, required: true },
     fat: { type: Number, required: true },
-    confidence: { type: Number, required: true }
+    confidence: { type: Number, required: true },
+    recognition: { type: Schema.Types.Mixed }
   },
   { _id: false }
 );

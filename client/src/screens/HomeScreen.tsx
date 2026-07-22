@@ -3038,6 +3038,16 @@ function CategoryModal({
         <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.sheetHandle} />
           <AppText variant="subtitle" style={styles.sheetTitle}>Tính năng</AppText>
+          <Pressable style={styles.recommendationFeatured} onPress={() => onNavigate("MealRecommendation")}>
+            <View style={styles.recommendationFeaturedIcon}>
+              <Ionicons name="sparkles" size={24} color={colors.greenDark} />
+            </View>
+            <View style={styles.recommendationFeaturedCopy}>
+              <AppText variant="button" style={styles.recommendationFeaturedTitle}>Hôm nay ăn gì?</AppText>
+              <AppText variant="caption" style={styles.recommendationFeaturedSubtitle}>Chọn món theo khẩu vị, thời gian và vị trí của bạn.</AppText>
+            </View>
+            <Ionicons name="chevron-forward" size={21} color={colors.greenDark} />
+          </Pressable>
           <View style={styles.categoryGrid}>
             {CATEGORY_ITEMS.map((item) => (
               <Pressable
@@ -4396,6 +4406,35 @@ const styles = StyleSheet.create({
   categoryGrid: {
     flexDirection: "row",
     gap: 14
+  },
+  recommendationFeatured: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 13,
+    borderRadius: 16,
+    marginBottom: 14,
+    backgroundColor: "#E7F0E4",
+    borderWidth: 1,
+    borderColor: "#C5D8C1"
+  },
+  recommendationFeaturedIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  recommendationFeaturedCopy: {
+    flex: 1,
+    gap: 2
+  },
+  recommendationFeaturedTitle: {
+    color: colors.greenDark
+  },
+  recommendationFeaturedSubtitle: {
+    color: colors.muted
   },
   categoryItem: {
     flex: 1,

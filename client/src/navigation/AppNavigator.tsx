@@ -19,6 +19,7 @@ import { EditPostScreen } from "../screens/EditPostScreen";
 import { HomeScreen } from "../screens/HomeScreen";
 import { InboxScreen } from "../screens/InboxScreen";
 import { LoginScreen } from "../screens/LoginScreen";
+import { MealRecommendationScreen } from "../screens/MealRecommendationScreen";
 import { OnboardingScreen } from "../screens/OnboardingScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { PublicProfileScreen } from "../screens/PublicProfileScreen";
@@ -136,6 +137,7 @@ export function AppNavigator() {
 
             {/* Secondary screens — slide in from right */}
             <Stack.Screen name="Search" component={SearchScreen} />
+            <Stack.Screen name="MealRecommendation" component={MealRecommendationScreen} />
             <Stack.Screen name="Create" component={CreatePostScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="PublicProfile" component={PublicProfileScreen} />

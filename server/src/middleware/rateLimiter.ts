@@ -8,19 +8,16 @@ interface RateLimitEntry {
 const stores = new Map<string, Map<string, RateLimitEntry>>();
 
 function getClientIp(req: any): string {
-  const forwarded = req.headers["x-forwarded-for"] as string | undefined;
-  if (forwarded) {
-    return forwarded.split(",")[0]?.trim() ?? "unknown";
-  }
-  return req.ip ?? req.socket?.remoteAddress ?? "unknown";
+  return req.socket?.remoteAddress ?? req.ip ?? "unknown";
 }
 
 export function rateLimiter(opts: {
   windowMs: number;
   max: number;
   message?: string;
+  keyGenerator?: (req: any) => string | undefined;
 }): RequestHandler {
-  const { windowMs, max, message = "Quá nhiều yêu cầu. Vui lòng thử lại sau." } = opts;
+  const { windowMs, max, message = "Quá nhiều yêu cầu. Vui lòng thử lại sau.", keyGenerator } = opts;
 
   // Use a stable key so the store survives hot-reloads in dev
   const storeKey = `${windowMs}:${max}`;
@@ -40,7 +37,12 @@ export function rateLimiter(opts: {
   }, Math.min(windowMs, 60_000)).unref();
 
   return (req, res, next) => {
-    const ip = getClientIp(req);
+    if (process.env.NODE_ENV === "test") {
+      next();
+      return;
+    }
+
+    const ip = keyGenerator?.(req) ?? getClientIp(req);
     const now = Date.now();
     const entry = store.get(ip);
 

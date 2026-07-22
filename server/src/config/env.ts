@@ -54,6 +54,11 @@ const envSchema = z.object({
     (value) => (value === "" ? undefined : value),
     z.string().default("gemini-3.1-flash-lite")
   ),
+  GEOAPIFY_API_KEY: optionalString,
+  WEATHER_USER_AGENT: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().default("DailyMeal/1.0 https://dailymeal.site")
+  ),
   GOOGLE_WEB_CLIENT_ID: optionalString,
   GOOGLE_ANDROID_CLIENT_ID: optionalString,
   GOOGLE_IOS_CLIENT_ID: optionalString,
